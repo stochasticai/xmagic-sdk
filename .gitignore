@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.venv/
+.python-version
+
+# Tooling
+.pytest_cache/
+.ruff_cache/
+.coverage
+uv.lock
+
+# Env / secrets
+.env
+.env.*
+!.env.example
+
+# Editors / OS
+.idea/
+.vscode/
+.DS_Store

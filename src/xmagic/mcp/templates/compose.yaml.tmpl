@@ -1,0 +1,8 @@
+services:
+  {name}:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      TOOL_API_KEY: ${{TOOL_API_KEY:-}}
+    restart: unless-stopped

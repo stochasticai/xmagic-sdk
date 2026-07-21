@@ -1,0 +1,30 @@
+# MCP server container for xMagic custom tools.
+# Build:  docker build -t {name} .
+# Run:    docker run --rm -p 8000:8000 -e TOOL_API_KEY=... {name}
+FROM python:3.12-slim
+
+# uv for fast, reproducible installs
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /usr/local/bin/
+
+WORKDIR /app
+# Install dependencies only (the project itself is run as a script, not installed;
+# installing "." here would fail anyway since src/ is copied afterwards)
+COPY pyproject.toml ./
+RUN uv pip install --system --no-cache -r pyproject.toml
+
+COPY src/ ./src/
+
+# Run as non-root
+RUN useradd --create-home appuser
+USER appuser
+
+ENV PORT=8000 \
+    PYTHONUNBUFFERED=1
+EXPOSE 8000
+
+# TCP reachability check (GET on /mcp returns 4xx for streamable-HTTP, so a
+# plain HTTP probe would false-negative)
+HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
+    CMD python -c 'import os,socket;socket.create_connection(("127.0.0.1",int(os.environ.get("PORT","8000"))),timeout=4).close()' || exit 1
+
+CMD ["python", "src/{module}/server.py"]

@@ -1,0 +1,75 @@
+"""{name} — MCP server for xMagic custom tools.
+
+Serves the MCP streamable-HTTP transport at /mcp. Register the public HTTPS
+URL of this endpoint in xMagic: Sidebar -> Custom tools -> Create tool.
+"""
+
+import logging
+import os
+
+from mcp.server.fastmcp import FastMCP
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request
+from starlette.responses import JSONResponse
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(message)s")
+log = logging.getLogger("{module}")
+
+# Shared secret. Set TOOL_API_KEY and paste the same value into the "API key"
+# field when registering the tool in the xMagic dashboard. If unset, the
+# endpoint is UNAUTHENTICATED (a warning is logged).
+TOOL_API_KEY = os.environ.get("TOOL_API_KEY", "")
+PORT = int(os.environ.get("PORT", "8000"))
+
+mcp = FastMCP("{name}")
+
+
+@mcp.tool()
+def ping(message: str = "pong") -> dict:
+    """Health-check tool. Replace with your real tools.
+
+    Always return well-structured JSON so the xMagic agent can parse results.
+    """
+    log.info("ping called: %s", message)
+    return {{"ok": True, "message": message}}
+
+
+@mcp.tool()
+def example_lookup(query: str) -> dict:
+    """Example tool: look something up and return structured results."""
+    log.info("example_lookup: %s", query)
+    # TODO: implement. Keep timeouts tight and errors structured, e.g.:
+    # return {{"ok": False, "error": {{"code": "UPSTREAM_TIMEOUT", "message": "..."}}}}
+    return {{"ok": True, "results": [], "query": query}}
+
+
+class ApiKeyMiddleware(BaseHTTPMiddleware):
+    """Reject requests that don't carry the shared secret.
+
+    Accepts the key via ``x-api-key`` or ``Authorization: Bearer <key>``.
+    """
+
+    async def dispatch(self, request: Request, call_next):
+        supplied = request.headers.get("x-api-key") or request.headers.get(
+            "authorization", ""
+        ).removeprefix("Bearer ").strip()
+        if supplied != TOOL_API_KEY:
+            log.warning("rejected unauthorized request from %s", request.client)
+            return JSONResponse(
+                {{"ok": False, "error": {{"code": "UNAUTHORIZED", "message": "invalid API key"}}}},
+                status_code=401,
+            )
+        return await call_next(request)
+
+
+app = mcp.streamable_http_app()
+if TOOL_API_KEY:
+    app.add_middleware(ApiKeyMiddleware)
+else:
+    log.warning("TOOL_API_KEY not set — the /mcp endpoint is UNAUTHENTICATED")
+
+
+if __name__ == "__main__":
+    import uvicorn
+
+    uvicorn.run(app, host="0.0.0.0", port=PORT)
