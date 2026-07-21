@@ -1,0 +1,1 @@
+"""xmagic CLI (Typer)."""
