@@ -4,7 +4,8 @@ version = "0.1.0"
 description = "Python SDK and CLI for xMagic, Stochastic's AI agent platform"
 readme = "README.md"
 requires-python = ">=3.11"
-license = { text = "Apache-2.0" }
+license = "Apache-2.0"
+license-files = ["LICENSE"]
 authors = [{ name = "Stochastic" }]
 keywords = ["xmagic", "ai", "agents", "mcp", "llm", "sdk", "cli"]
 classifiers = [
@@ -49,11 +50,25 @@ Documentation = "https://docs.xmagic.ai"
 Homepage = "https://xmagic.ai"
 
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling>=1.27"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/xmagic"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "src",
+    "tests",
+    "README.md",
+    "LICENSE",
+    "CONTRIBUTING.md",
+    "CODE_OF_CONDUCT.md",
+    "COMMIT_GUIDELINES.md",
+    "ISSUES.md",
+    "DESIGN.md",
+    "CITATION.cff",
+]
 
 [dependency-groups]
 dev = [
