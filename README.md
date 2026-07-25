@@ -1,5 +1,10 @@
 # xmagic-sdk
 
+[![PyPI](https://img.shields.io/pypi/v/xmagic-sdk.svg)](https://pypi.org/project/xmagic-sdk/)
+[![Python versions](https://img.shields.io/pypi/pyversions/xmagic-sdk.svg)](https://pypi.org/project/xmagic-sdk/)
+[![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
+[![CI](https://github.com/stochasticai/xmagic-sdk/actions/workflows/ci.yml/badge.svg)](https://github.com/stochasticai/xmagic-sdk/actions/workflows/ci.yml)
+
 Python SDK and CLI for [xMagic](https://xmagic.ai), Stochastic's AI agent platform.
 
 > Status: alpha scaffold. See [DESIGN.md](DESIGN.md) for the full design plan and roadmap.
@@ -16,6 +21,13 @@ Python SDK and CLI for [xMagic](https://xmagic.ai), Stochastic's AI agent platfo
 5. **Local web app** — `xmagic serve` runs the xMagic web app locally via proxy.
 
 ## Install
+
+```bash
+uv pip install xmagic-sdk            # core
+uv pip install "xmagic-sdk[all]"     # + all provider/serve/mcp extras
+```
+
+From a checkout:
 
 ```bash
 uv pip install -e .              # core
@@ -52,3 +64,14 @@ uv run ruff check .
 
 Commit messages follow [Conventional Commits](https://www.conventionalcommits.org)
 (`feat:`, `fix:`, `docs:`, `test:`, `chore:`, ...; optional scope, e.g. `feat(mcp): ...`).
+
+## Contributing
+
+Contributions are welcome — see [CONTRIBUTING.md](CONTRIBUTING.md) for setup and
+the PR workflow, and [ISSUES.md](ISSUES.md) for filing bugs, feature requests,
+and security reports. All participants are expected to follow our
+[Code of Conduct](CODE_OF_CONDUCT.md).
+
+## License
+
+[Apache-2.0](LICENSE) © Stochastic
