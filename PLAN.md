@@ -39,11 +39,15 @@ and hosted docs.
    - file / Drive upload
    - MCP server scaffold walkthrough
 10. **Docs for docs.xmagic.ai** — draft SDK/CLI reference + quickstart pages.
-    Blocked on the open question below.
+    The site is live and runs **Docusaurus v3.8.1** (served from S3), so pages
+    are Markdown/MDX with frontmatter plus a sidebar entry. Still blocked on
+    where the source lives — see below.
 
 ## Open questions
 
-- What platform powers docs.xmagic.ai (determines docs source format)?
+- Where does the docs.xmagic.ai Docusaurus source live? It is not in this repo,
+  so the SDK reference pages either go to that separate repo or ship from here
+  with a publish step. Decide before writing Phase 3 pages.
 - `uv.lock` is currently gitignored, so CI resolves dependencies fresh on every
   run. Fine for a library; commit the lock if reproducible CI is preferred.
 
