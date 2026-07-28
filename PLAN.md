@@ -53,6 +53,5 @@ and hosted docs.
 
 ## Notes
 
-- `ruff format` currently reports 7 unformatted files, so CI gates on
-  `ruff check` only. Worth a one-time `ruff format .` commit if we want to
-  enforce formatting.
+- ✅ Formatting is enforced: a one-time `ruff format .` normalized 7 files and
+  CI now gates on `ruff format --check .` alongside `ruff check .`.

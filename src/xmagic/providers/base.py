@@ -74,9 +74,7 @@ class Provider(ABC):
         self.options = options
 
     @abstractmethod
-    def complete(
-        self, messages: list[ChatMessage], *, model: str, **params: Any
-    ) -> Completion:
+    def complete(self, messages: list[ChatMessage], *, model: str, **params: Any) -> Completion:
         """Blocking chat completion."""
 
     @abstractmethod

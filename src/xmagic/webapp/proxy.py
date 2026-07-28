@@ -27,6 +27,4 @@ def run_proxy(port: int = DEFAULT_PORT, upstream: str = DEFAULT_UPSTREAM) -> Non
         raise ImportError(
             "The local web app requires the extra: pip install 'xmagic-sdk[serve]'"
         ) from e
-    raise NotImplementedError(
-        "The local web app proxy lands in Phase 5 (see DESIGN.md roadmap)."
-    )
+    raise NotImplementedError("The local web app proxy lands in Phase 5 (see DESIGN.md roadmap).")

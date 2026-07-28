@@ -25,8 +25,6 @@ class FilesAPI:
         re-send the body (an open handle would be exhausted after attempt 1).
         """
         p = Path(path)
-        body = self._t.request(
-            "POST", "/uploaded-files", files={"file": (p.name, p.read_bytes())}
-        )
+        body = self._t.request("POST", "/uploaded-files", files={"file": (p.name, p.read_bytes())})
         data = body.get("data", body)
         return UploadedFile.model_validate(data.get("file", data))

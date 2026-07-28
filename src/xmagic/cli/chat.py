@@ -26,8 +26,10 @@ def chat(
 ) -> None:
     """Send a prompt (or start an interactive session) against any model."""
     settings = Settings.load()
-    ref = model or (f"xmagic:{agent}" if agent else None) or (
-        f"xmagic:{settings.default_agent_id}" if settings.default_agent_id else None
+    ref = (
+        model
+        or (f"xmagic:{agent}" if agent else None)
+        or (f"xmagic:{settings.default_agent_id}" if settings.default_agent_id else None)
     )
     if not ref:
         raise typer.BadParameter("Provide --model, --agent, or set a default agent id.")
