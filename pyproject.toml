@@ -74,12 +74,28 @@ include = [
 dev = [
     "pytest>=8.0",
     "respx>=0.21",
-    "ruff>=0.5",
+    # Bounded to one minor: ruff changes rule defaults and formatting between
+    # minors, and with no committed lock an unbounded range lets CI drift ahead
+    # of contributors' environments.
+    "ruff>=0.16,<0.17",
 ]
 
 [tool.ruff]
 line-length = 100
 src = ["src", "tests"]
+
+[tool.ruff.lint]
+# Selected explicitly rather than inheriting ruff's built-in defaults. Those
+# defaults widened in ruff 0.16, which turned CI red against a green local run
+# purely because the two resolved different ruff versions. Pinning the rule set
+# here means a ruff upgrade can change fix behavior but never silently change
+# which rules are enforced.
+select = ["E4", "E7", "E9", "F", "B", "BLE", "PYI", "RUF", "UP"]
+
+[tool.ruff.lint.per-file-ignores]
+# Typer's API requires `typer.Option()` / `typer.Argument()` as parameter
+# defaults, so B008 fires on every command it defines. Not a real finding here.
+"src/xmagic/cli/*" = ["B008"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

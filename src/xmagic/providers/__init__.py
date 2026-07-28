@@ -10,10 +10,10 @@ from xmagic.providers.base import (
 from xmagic.providers.registry import get_provider
 
 __all__ = [
-    "Provider",
     "ChatMessage",
     "Completion",
     "CompletionChunk",
     "ModelRef",
+    "Provider",
     "get_provider",
 ]

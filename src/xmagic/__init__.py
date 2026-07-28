@@ -23,13 +23,13 @@ from xmagic.errors import (
 __version__ = "0.1.0"
 
 __all__ = [
-    "XMagicClient",
     "AsyncXMagicClient",
-    "Settings",
-    "XMagicError",
-    "XMagicAPIError",
     "AuthenticationError",
-    "RateLimitError",
     "NotFoundError",
+    "RateLimitError",
+    "Settings",
+    "XMagicAPIError",
+    "XMagicClient",
+    "XMagicError",
     "__version__",
 ]
