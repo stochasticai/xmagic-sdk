@@ -99,9 +99,7 @@ class ChatsAPI:
 
     def get_message(self, agent_id: str, chat_id: str, message_id: str) -> Message:
         """Retrieve full message data, including downloadable outputs."""
-        body = self._t.request(
-            "GET", f"/agents/{agent_id}/chats/{chat_id}/message/{message_id}"
-        )
+        body = self._t.request("GET", f"/agents/{agent_id}/chats/{chat_id}/message/{message_id}")
         return Message.model_validate(body.get("data", body))
 
     def delete_message(self, agent_id: str, chat_id: str, message_id: str) -> None:

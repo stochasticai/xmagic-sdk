@@ -32,9 +32,7 @@ def scaffold_mcp_server(name: str, directory: str | Path = ".") -> Path:
     Returns the project path. Raises FileExistsError if it already exists.
     """
     if not re.fullmatch(r"[a-zA-Z][a-zA-Z0-9_-]*", name):
-        raise ValueError(
-            f"Invalid project name '{name}': use letters, digits, '-' and '_' only."
-        )
+        raise ValueError(f"Invalid project name '{name}': use letters, digits, '-' and '_' only.")
     module = _module_name(name)
     target = Path(directory) / name
     if target.exists():
