@@ -125,12 +125,11 @@ src/xmagic/
 ```python
 from xmagic import XMagicClient
 
-client = XMagicClient()                       # key from env/config
+client = XMagicClient()  # key from env/config
 chat = client.chats.create(agent_id, title="demo", chat_type="standard")
 
 # Blocking
-resp = client.chats.query(agent_id, chat.id, "Summarize this file",
-                          uploaded_files=[file_id])
+resp = client.chats.query(agent_id, chat.id, "Summarize this file", uploaded_files=[file_id])
 
 # Streaming (SSE)
 for event in client.chats.stream(agent_id, chat.id, "Explain step by step"):
@@ -146,9 +145,10 @@ Provider layer (BYO model):
 ```python
 from xmagic.providers import get_provider
 
-llm = get_provider("anthropic:claude-sonnet-4-5")   # or "xmagic:<agent_id>",
-result = llm.complete(messages=[...])               # "openai:gpt-4o", "google:gemini-2.5-pro",
-for chunk in llm.stream(messages=[...]): ...        # "litellm:<anything>"
+llm = get_provider("anthropic:claude-sonnet-4-5")  # or "xmagic:<agent_id>",
+result = llm.complete(messages=[...])  # "openai:gpt-4o", "google:gemini-2.5-pro",
+for chunk in llm.stream(messages=[...]):
+    ...  # "litellm:<anything>"
 ```
 
 Design rules:

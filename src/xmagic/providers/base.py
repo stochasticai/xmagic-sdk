@@ -53,7 +53,7 @@ class ModelRef:
     model: str
 
     @classmethod
-    def parse(cls, ref: str, default_provider: str = "xmagic") -> "ModelRef":
+    def parse(cls, ref: str, default_provider: str = "xmagic") -> ModelRef:
         provider, sep, model = ref.partition(":")
         if not sep:
             return cls(provider=default_provider, model=ref)

@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-from enum import Enum
+from enum import StrEnum
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
 
-class ChatType(str, Enum):
+class ChatType(StrEnum):
     """UI context a chat belongs to."""
 
     PLAYGROUND = "playground"
