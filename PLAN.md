@@ -48,10 +48,12 @@ and hosted docs.
 - Where does the docs.xmagic.ai Docusaurus source live? It is not in this repo,
   so the SDK reference pages either go to that separate repo or ship from here
   with a publish step. Decide before writing Phase 3 pages.
-- `uv.lock` is currently gitignored, so CI resolves dependencies fresh on every
-  run. Fine for a library; commit the lock if reproducible CI is preferred.
 
 ## Notes
 
 - ✅ Formatting is enforced: a one-time `ruff format .` normalized 7 files and
   CI now gates on `ruff format --check .` alongside `ruff check .`.
+- **`uv.lock` stays gitignored** (decided 2026-07-28). Standard for a library:
+  consumers resolve their own dependencies, and CI resolving fresh means we
+  find out early when an upstream release breaks us. Trade-off accepted — a
+  green build can go red with no code change on our side.
