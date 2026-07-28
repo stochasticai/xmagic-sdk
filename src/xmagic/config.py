@@ -58,7 +58,7 @@ class Settings(BaseModel):
     )
 
     @classmethod
-    def load(cls, **overrides: Any) -> "Settings":
+    def load(cls, **overrides: Any) -> Settings:
         """Build settings from file + env + explicit overrides."""
         data: dict[str, Any] = {}
         raw = _load_file()

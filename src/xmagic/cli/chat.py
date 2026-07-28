@@ -39,7 +39,7 @@ def chat(
         provider = get_provider(model_ref, settings=settings)
     except (XMagicError, ImportError) as e:
         console.print(f"[red]{e}[/red]")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from None
 
     model_name = model_ref.model
 
@@ -64,4 +64,4 @@ def chat(
                 break
     except (XMagicError, NotImplementedError) as e:
         console.print(f"[red]{e}[/red]")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from None
