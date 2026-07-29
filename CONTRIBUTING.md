@@ -26,9 +26,10 @@ uv run ruff check .       # lint
 uv run ruff format .      # format
 ```
 
-`pytest` and `ruff check` must pass before a pull request can be merged; CI runs
-the same commands. `ruff format` is available but not yet enforced repo-wide, so
-please only reformat files your change already touches. Tests live in `tests/`
+All three must pass before a pull request can be merged; CI runs the same
+commands across Python 3.11–3.14, checking formatting with `ruff format
+--check .`. The repo is fully formatted, so run `ruff format .` before pushing
+rather than hand-matching style. Tests live in `tests/`
 and use
 [respx](https://lundberg.github.io/respx/) to mock HTTP — no network calls and
 no real API key should be required to run the suite.
