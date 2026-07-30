@@ -17,14 +17,17 @@ Status: **Draft v0.1** · Target: Python >= 3.10 · License: Apache-2.0
    adapters for xMagic, OpenAI, Anthropic, and Google; optional LiteLLM adapter for
    the long tail of providers.
 4. **Bring-your-own-model** — select any provider/model at call time or via config
-   using your own API keys (`provider:model` notation, e.g. `anthropic:claude-sonnet-4-5`).
+   using your own API keys (`provider:model` notation, e.g. `anthropic:claude-sonnet-5`).
 5. **Local web app** — `xmagic serve` runs a local reverse proxy for the hosted xMagic
    web app with local config injection, plus a minimal built-in status/chat fallback UI.
+6. **Coding-agent bridge** *(proposed, §11)* — an MCP server template that lets an xMagic
+   chat agent delegate repo work to an open-weights coding agent running on your infra.
 
 ### Non-goals (v0.x)
 
 - Re-implementing the full xMagic web frontend.
-- Agent orchestration frameworks (we expose primitives, not a graph runtime).
+- Agent orchestration frameworks (we expose primitives, not a graph runtime). §11 wraps
+  an existing harness; it does not build one.
 - Hosting/deployment of MCP servers beyond templates and docs (no built-in PaaS).
 
 ---
@@ -145,7 +148,7 @@ Provider layer (BYO model):
 ```python
 from xmagic.providers import get_provider
 
-llm = get_provider("anthropic:claude-sonnet-4-5")  # or "xmagic:<agent_id>",
+llm = get_provider("anthropic:claude-sonnet-5")  # or "xmagic:<agent_id>",
 result = llm.complete(messages=[...])  # "openai:gpt-4o", "google:gemini-2.5-pro",
 for chunk in llm.stream(messages=[...]):
     ...  # "litellm:<anything>"
@@ -262,6 +265,7 @@ Chosen approach: **local proxy of the hosted xMagic web app**.
 | **4 — Skills & Drive** | skills new/validate/pack, drive CRUD |
 | **5 — Serve** | proxy + fallback UI, `--upstream` for self-hosted |
 | **6 — Polish** | docs, examples, CI, PyPI release |
+| **7 — Coding-agent bridge** *(proposed)* | `mcp init --template coding-agent`; see §11 |
 
 ## 10. Open questions
 
@@ -272,3 +276,187 @@ Chosen approach: **local proxy of the hosted xMagic web app**.
 3. Web-app proxy viability against the hosted app's CSP/auth — validate early in
    Phase 5; fallback UI is the hedge.
 4. Are agent listing/management endpoints public? (Needed for `xmagic agents list`.)
+
+---
+
+## 11. Coding-agent bridge (proposed)
+
+> **Status: proposed, not accepted.** Nothing here is implemented. This section exists
+> to be reviewed and either adopted into the roadmap or dropped. Review thread:
+> [#3](https://github.com/stochasticai/xmagic-sdk/issues/3).
+
+### 11.1 Motivation
+
+Drive a coding agent from the xMagic chat interface — "fix the flaky test in
+`payments/`" typed into a chat, executed by a real coding harness against a real
+checkout — with the model being open weights on infrastructure you control.
+
+### 11.2 Why wrap `pi` rather than build a harness
+
+[`earendil-works/pi`](https://github.com/earendil-works/pi) (formerly `badlogic/pi-mono`)
+is a minimal terminal coding harness: a four-tool core (Read, Write, Edit, Bash),
+extensible via TypeScript extensions, skills, and prompt templates rather than by
+forking. It ships an **RPC mode** (JSON protocol over stdio) intended for exactly this
+— being driven by another process — and the monorepo already includes vLLM pods for
+serving open weights.
+
+Building our own harness would mean re-deriving the agent loop, tool dispatch, and
+session state that pi already has, and would land squarely on our stated non-goal (§1).
+Wrapping it does not. **pi is TypeScript**, so the harness itself cannot live in this
+Python package regardless; only the bridge can.
+
+### 11.3 Controlling constraint
+
+xMagic reaches custom tools **only at public HTTPS MCP URLs** (§2). Therefore pi runs
+**server-side**, in a container we deploy. The developer's machine is never exposed.
+
+**Rejected alternative — local pi behind a tunnel.** Exposing an exec-capable MCP server
+from a developer machine means a public internet URL granting arbitrary code execution
+on that machine, gated on one shared secret. Workable for a local demo with eyes open;
+it must not become the documented path.
+
+### 11.4 Architecture
+
+```
+                        Developer
+                            │  "fix the flaky test in payments/"
+                            ▼
+                 ┌──────────────────────┐
+                 │  xMagic chat         │   agent (+ optional "coder"
+                 │  hosted UI/runtime   │    subagent) with skills attached
+                 └──────────┬───────────┘
+                            │  custom tool call, public HTTPS
+                            ▼
+┌───────────────────────────────────────────────────────────┐
+│  coding-agent MCP server            (you deploy)          │
+│  FastMCP · streamable-HTTP /mcp · TOOL_API_KEY enforced   │
+│                                                           │
+│    code_task_start   ──▶ job store ──┐                    │
+│    code_task_status  ◀───────────────┤                    │
+│    code_task_result  ◀───────────────┤                    │
+│    code_task_cancel  ──▶─────────────┘                    │
+│                          │                                │
+│                          ▼  spawn; JSON over stdio        │
+│                 ┌────────────────────┐                    │
+│                 │  pi  (RPC mode)    │                    │
+│                 │  Read Write Edit   │                    │
+│                 │  Bash              │                    │
+│                 └─────────┬──────────┘                    │
+│                           │                               │
+│              ephemeral git worktree, one per job          │
+│                           │                               │
+└───────────────────────────┼───────────────────────────────┘
+                            │  OpenAI-compatible
+                            ▼
+                 ┌──────────────────────┐
+                 │  vLLM — open weights │
+                 │  your GPU            │
+                 └──────────────────────┘
+
+  output: branch + patch (+ PR url), never a push to a protected ref
+```
+
+Nothing leaves your infrastructure except the chat text itself.
+
+### 11.5 Tool surface — job-shaped, not blocking
+
+MCP tool calls are request/response; a pi run takes minutes. A single blocking
+`code_task` would time out. So the surface is a job:
+
+```
+code_task_start(repo, instruction, base_ref="main", timeout_s=1800)
+    -> {job_id, state}
+
+code_task_status(job_id)
+    -> {state, elapsed_s, log_tail, turns, tokens}
+
+code_task_result(job_id)
+    -> {state, summary, patch, files_changed, branch, pr_url, error}
+
+code_task_cancel(job_id)                      # optional but cheap
+    -> {state}
+```
+
+`state` ∈ `queued | running | succeeded | failed | timeout | cancelled`.
+
+The agent polls `code_task_status` between turns; `log_tail` is what makes the chat feel
+live. MCP progress notifications over streamable HTTP are the more elegant option, but
+agent-side support is unverified — polling is the version that works today.
+
+Note `async_query` (§2) does **not** help here: it is chat-side delivery, not tool-side.
+
+### 11.6 pi driver
+
+The MCP server is Python (FastMCP, consistent with the existing template in §6), so the
+driver is a subprocess wrapper over pi's RPC mode:
+
+```python
+async def run_pi(workdir: Path, instruction: str, on_event) -> PiResult:
+    proc = await asyncio.create_subprocess_exec(
+        "pi", "--rpc",                    # exact invocation TBD — see 11.8 Q3
+        cwd=workdir,
+        stdin=PIPE, stdout=PIPE, stderr=PIPE,
+    )
+    proc.stdin.write(json.dumps({"type": "prompt", "text": instruction}).encode() + b"\n")
+    await proc.stdin.drain()
+
+    async for line in proc.stdout:
+        event = json.loads(line)
+        on_event(event)                   # appended to the job's log_tail
+        if event.get("type") == "done":
+            break
+    ...
+```
+
+pi's **print mode** (single-shot) would be simpler, but yields no incremental events and
+so no `log_tail`. RPC is the right choice given 11.5.
+
+### 11.7 Isolation
+
+The server executes model-authored shell commands. The existing template's non-root user
+and healthcheck (§6) are a floor, not sufficient:
+
+- **No ambient cloud credentials** in the job container — no instance metadata access, no
+  mounted service-account keys.
+- **Scoped per-repo token**, not an org-wide one. Least privilege that still allows a
+  branch push.
+- **Ephemeral worktree per job**, destroyed on completion; no state shared between jobs.
+- **Egress restrictions** — the model endpoint and the git host, not the open internet.
+- **Wall-clock and turn caps**, enforced by the server rather than trusted to the prompt.
+- Output is a **branch or patch**. Never a push to a protected ref, never a deploy.
+
+### 11.8 What lands where
+
+| Piece | Home | Rough size |
+|---|---|---|
+| `coding-agent` template set | **this repo**, `mcp/templates/coding-agent/` | ~500 lines |
+| `--template` flag on `mcp init` | **this repo**, `mcp/scaffold.py` | ~30 lines |
+| Deployed bridge service | **separate repo**, generated from the template | — |
+| pi extensions / skills | **separate repo** (TypeScript) | — |
+
+Shipping MCP server templates is already this package's job (§6), and `scaffold.py` is a
+56-line dict-driven generator — a second template set is a small, natural extension. The
+running service is not our artifact; the scaffold for it is.
+
+Template breakdown (~500 lines): `server.py` four tools + job store (~200), `pi_driver.py`
+(~120), `jobs.py` asyncio job registry (~80), `Dockerfile` python + node + pi + git (~40),
+compose/pyproject/README/.env (~60).
+
+### 11.9 Open questions for review
+
+1. **Is this in scope for xmagic-sdk at all?** The counter-argument: it is a product
+   feature wearing an SDK costume, and templates for it could live in their own repo.
+   The argument for: §6 already establishes template-shipping as our job.
+2. **Tool or subagent?** These are not alternatives. It is a *tool* at the implementation
+   layer; "subagent" is packaging — an xMagic subagent scoped to this tool plus coding
+   skills (§2). Decide the packaging separately from the build.
+3. **pi's exact RPC contract** — flag name, message schema, and event types in 11.6 are
+   assumed, not verified against the pi source. Must be confirmed before implementation.
+4. **Do xMagic skills and pi skills share a format?** We already package `SKILL.md` + zip
+   (§4, `skills/packaging.py`) and pi has its own skills concept. If the frontmatter and
+   layout align, xMagic skills run in pi unchanged — cheap to check, decides how much
+   integration is free.
+5. **Who hosts the reference deployment**, and does the vLLM pod ship with it or is BYO
+   endpoint the only supported story?
+6. **Multi-tenancy** — is one job per container acceptable, or does the job store need to
+   survive restarts (i.e. Redis/Postgres rather than in-memory)?
