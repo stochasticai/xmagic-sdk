@@ -1,0 +1,76 @@
+#!/usr/bin/env bash
+#
+# Run the same ruff gates CI runs, before the commit is made.
+#
+# Enable once per clone:
+#
+#     git config core.hooksPath .githooks
+#
+# Checks the *staged* content of each file rather than the working tree, so
+# unstaged edits neither mask a real failure nor cause a spurious one. ruff
+# reads each blob from stdin and resolves its config -- including the pinned
+# rule set in pyproject.toml -- from --stdin-filename.
+#
+# Note that ruff formats Python code blocks inside Markdown, so .md files are
+# format-checked too. That is not obvious, and is what this hook exists to
+# catch.
+#
+# Runs through `uv run` so the ruff version is the one pyproject pins. CI and
+# local then agree by construction, which is the drift this repo has been
+# bitten by before (see PLAN.md notes on uv.lock).
+#
+# Tests are deliberately not run here: pytest works against the working tree,
+# not the index, so it would report on code that is not being committed. CI
+# covers them.
+#
+# Bypass with `git commit --no-verify`.
+
+set -uo pipefail
+
+if ! command -v uv >/dev/null 2>&1; then
+    echo "pre-commit: uv not found on PATH, skipping ruff checks" >&2
+    exit 0
+fi
+
+unformatted=""
+lint_failed=0
+
+while IFS= read -r -d '' file; do
+    case "$file" in
+        *.py | *.md) ;;
+        *) continue ;;
+    esac
+
+    if ! git show ":$file" | uv run ruff format --check --stdin-filename "$file" - >/dev/null 2>&1; then
+        unformatted="$unformatted $file"
+    fi
+
+    case "$file" in
+        *.py)
+            if ! git show ":$file" | uv run ruff check --stdin-filename "$file" -; then
+                lint_failed=1
+            fi
+            ;;
+    esac
+done < <(git diff --cached --name-only --diff-filter=ACMR -z)
+
+status=0
+
+if [ -n "$unformatted" ]; then
+    echo "pre-commit: unformatted files:" >&2
+    for f in $unformatted; do
+        echo "    $f" >&2
+    done
+    echo "" >&2
+    echo "  Fix with:  uv run ruff format .  &&  git add -u" >&2
+    status=1
+fi
+
+if [ "$lint_failed" -ne 0 ]; then
+    echo "" >&2
+    echo "pre-commit: lint errors above. Some are auto-fixable:" >&2
+    echo "  uv run ruff check --fix .  &&  git add -u" >&2
+    status=1
+fi
+
+exit "$status"
