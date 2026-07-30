@@ -12,11 +12,15 @@ The project uses [uv](https://docs.astral.sh/uv/) for dependency management.
 ```bash
 git clone https://github.com/stochasticai/xmagic-sdk.git
 cd xmagic-sdk
-uv sync --all-extras      # installs the package, all extras, and dev tools
+uv sync --all-extras            # installs the package, all extras, and dev tools
+git config core.hooksPath .githooks   # enable the pre-commit hook
 ```
 
 That creates a `.venv/` with the package installed in editable mode, so
 `uv run xmagic --help` reflects your working tree.
+
+The hook config is per-clone — git cannot commit it for you, so run that line
+once. See [Pre-commit hook](#pre-commit-hook) for what it does.
 
 ## Running the checks
 
@@ -33,6 +37,27 @@ rather than hand-matching style. Tests live in `tests/`
 and use
 [respx](https://lundberg.github.io/respx/) to mock HTTP — no network calls and
 no real API key should be required to run the suite.
+
+## Pre-commit hook
+
+`.githooks/pre-commit` runs the two ruff gates against your **staged** content,
+so CI does not tell you about a formatting slip minutes later. Enable it with
+the `git config` line in [Development setup](#development-setup).
+
+Worth knowing: **ruff formats Python code blocks inside Markdown**, so `.md`
+files are format-checked too. A hand-aligned snippet in a design document will
+fail CI exactly like a `.py` file would — which is why this hook exists.
+
+Details, in case it behaves in a way that surprises you:
+
+- It checks the staged blobs, not the working tree, so unstaged edits neither
+  mask a real failure nor cause a spurious one.
+- It runs ruff through `uv run`, so the version is the one `pyproject.toml`
+  pins and local matches CI by construction.
+- It does **not** run pytest — pytest works against the working tree rather
+  than the index, so it would report on code you are not committing. CI covers
+  the tests.
+- `git commit --no-verify` bypasses it.
 
 ## Project layout
 
