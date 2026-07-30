@@ -22,6 +22,8 @@ Status: **Draft v0.1** · Target: Python >= 3.10 · License: Apache-2.0
    web app with local config injection, plus a minimal built-in status/chat fallback UI.
 6. **Coding-agent bridge** *(proposed, §11)* — an MCP server template that lets an xMagic
    chat agent delegate repo work to an open-weights coding agent running on your infra.
+7. **Document redactor** *(proposed, §12)* — a reference MCP tool that redacts PII using
+   local models, and the first template to validate `mcp init --template`.
 
 ### Non-goals (v0.x)
 
@@ -265,7 +267,8 @@ Chosen approach: **local proxy of the hosted xMagic web app**.
 | **4 — Skills & Drive** | skills new/validate/pack, drive CRUD |
 | **5 — Serve** | proxy + fallback UI, `--upstream` for self-hosted |
 | **6 — Polish** | docs, examples, CI, PyPI release |
-| **7 — Coding-agent bridge** *(proposed)* | `mcp init --template coding-agent`; see §11 |
+| **7 — Document redactor** *(proposed)* | `mcp init --template redactor`; see §12 |
+| **8 — Coding-agent bridge** *(proposed)* | `mcp init --template coding-agent`; see §11 |
 
 ## 10. Open questions
 
@@ -438,6 +441,11 @@ Shipping MCP server templates is already this package's job (§6), and `scaffold
 56-line dict-driven generator — a second template set is a small, natural extension. The
 running service is not our artifact; the scaffold for it is.
 
+**Sequencing:** the `--template` machinery should be proven by the document redactor
+(§12) first. It needs the same scaffold change and the same xMagic tool contract, but
+carries none of the arbitrary-code-execution risk — a cheaper way to find out whether
+the multi-template approach is right.
+
 Template breakdown (~500 lines): `server.py` four tools + job store (~200), `pi_driver.py`
 (~120), `jobs.py` asyncio job registry (~80), `Dockerfile` python + node + pi + git (~40),
 compose/pyproject/README/.env (~60).
@@ -460,3 +468,189 @@ compose/pyproject/README/.env (~60).
    endpoint the only supported story?
 6. **Multi-tenancy** — is one job per container acceptable, or does the job store need to
    survive restarts (i.e. Redis/Postgres rather than in-memory)?
+
+---
+
+## 12. Document redactor (proposed)
+
+> **Status: proposed, not accepted.** Nothing here is implemented. Review thread:
+> [#4](https://github.com/stochasticai/xmagic-sdk/issues/4).
+
+A reference MCP tool: redact PII from documents using models that run on your own
+infrastructure, exposed to xMagic chat as a custom tool. Proposed as the **first**
+`mcp init --template` (see §11.8 sequencing).
+
+### 12.1 Why this one, and why local models
+
+Redaction is the rare case where local inference is a *requirement*, not a preference:
+you cannot send an unredacted document to a third-party API in order to discover what is
+sensitive in it. The constraint is what makes this worth building as the reference
+example — it exercises the full MCP + open-weights path against a real need, with a
+narrow tool surface and no arbitrary code execution.
+
+### 12.2 Core decision: spans, not text
+
+**The model returns spans. Code applies the redaction from character offsets.**
+
+```json
+{"start": 142, "end": 153, "type": "US_SSN", "score": 0.99, "detector": "regex+luhn"}
+```
+
+If an LLM emits redacted *text* instead, it will silently paraphrase, reorder, and drop
+content, and the result cannot be unit-tested or audited. Span-based output makes the
+transformation deterministic, diffable, and reviewable. Every design choice below assumes
+this.
+
+### 12.3 Layered detection
+
+An LLM alone is the wrong engine: a miss is a leak, so recall must be near-perfect and
+behavior must be reproducible.
+
+| Layer | Catches | Tech |
+|---|---|---|
+| **L1** deterministic | SSN, credit card (Luhn), email, phone, IBAN, IP, MRN, dates | regex + validators |
+| **L2** statistical NER | names, organizations, locations | spaCy / transformer NER |
+| **L3** local LLM | quasi-identifiers, context-dependent references ("the patient's daughter"), narrative free text | Qwen / Llama 8B-class |
+
+L1+L2 are essentially [Microsoft Presidio](https://github.com/microsoft/presidio)
+(Apache-2.0, ~50 recognizers, pluggable). Reimplementing that is months of work for a
+worse result — adopt it and spend our effort on L3, the merge logic, and evaluation.
+
+The LLM's job is escalation and the long tail. It must not be load-bearing for structured
+identifiers, which L1 already catches deterministically.
+
+### 12.4 Architecture
+
+```
+   Document owner
+        │  uploads contract.pdf
+        ▼
+┌────────────────────┐
+│   xMagic chat      │   agent decides to call the tool
+└─────────┬──────────┘
+          │  redact_document(file_ref, policy="hipaa_safe_harbor")
+          │  ─── a reference, never the document text (see 12.5) ───
+          ▼
+┌──────────────────────────────────────────────────────┐
+│  redactor MCP server            (your infra)         │
+│  FastMCP · streamable-HTTP /mcp · TOOL_API_KEY       │
+│                                                      │
+│   1. fetch bytes by ref                              │
+│   2. extract text + offset/bbox map                  │
+│   3. detect ──┬── L1  regex + validators             │
+│               ├── L2  NER (spaCy / Presidio)         │
+│               └── L3  local LLM ────────────┐        │
+│   4. merge spans, resolve overlaps          │        │
+│   5. apply operator by offset               │        │
+│      (mask | replace | hash | pseudonym)    │        │
+│                                             │        │
+└──────────┬──────────────────────────────────┼────────┘
+           │                                  │  OpenAI-compatible
+           ▼                                  ▼
+   redacted document                 ┌──────────────────┐
+   + span audit record               │  vLLM / Ollama   │
+                                     │  open weights    │
+   unredacted bytes never egress     └──────────────────┘
+```
+
+### 12.5 Document transport — the self-defeat trap
+
+If the xMagic agent passes document **text** inline in the tool call, the unredacted
+document has already passed through the platform and the model context. The redactor has
+defeated itself before it runs.
+
+So how bytes reach the tool is load-bearing, not an implementation detail:
+
+| Option | Verdict |
+|---|---|
+| (a) Inline text in the tool call | **Self-defeating.** Demo only. |
+| (b) Tool fetches by xMagic file id | Preferred. `POST /uploaded-files` returns an id (§2, `client/files.py`). Requires the tool to hold an xMagic key and a documented fetch endpoint — **unverified**, see 12.9 Q1. |
+| (c) Presigned URL passed to the tool | Good if available. |
+| (d) Direct upload to the tool's own endpoint | Fallback that always works; costs a separate upload step. |
+
+Design for (b)/(c); build (d) as the guaranteed path.
+
+### 12.6 Tool surface
+
+```
+analyze_document(file_ref, policy="hipaa_safe_harbor")
+    -> {ok, findings: [{type, count, samples_masked}], spans_total}
+
+redact_document(file_ref, policy, operator="replace", dry_run=false)
+    -> {ok, output_ref, entity_counts: {US_SSN: 3, PERSON: 12}, spans_redacted: 47}
+```
+
+`analyze_document` matters more than it looks: it lets a human approve before anything is
+destroyed, and it is how reviewers build trust in the tool. Large documents move to the
+job-shaped pattern from §11.5 — MCP is request/response and OCR is slow.
+
+### 12.7 Formats, and the PDF trap
+
+Scope grows fastest here, so it is phased (12.8):
+
+- **Text / Markdown** — offsets are trivial.
+- **PDF, text layer** — PyMuPDF. **Must use `add_redact_annot()` + `apply_redactions()`,
+  which remove content.** Drawing black rectangles over selectable text is the classic
+  redaction failure that leaks the original on copy-paste.
+- **Scanned PDF / images** — OCR, spans map to bounding boxes rather than offsets.
+- **DOCX** — entities routinely split across XML runs; naive offset replacement corrupts
+  the file.
+
+### 12.8 Evaluation
+
+The part that separates a demo from a product, and the reason R0 starts with the eval set
+rather than the engine.
+
+- **Recall per entity type is the headline metric** — a miss is a leak. Precision is
+  secondary: over-redaction destroys utility but does not disclose.
+- Eval corpus: synthetic (Faker) plus a public de-identification corpus.
+- **CI gate:** recall must not regress below a per-type threshold.
+- **Definition of done: HIPAA Safe Harbor's 18 identifiers.** Without a named standard,
+  "done" is unfalsifiable.
+
+### 12.9 Roadmap
+
+| Phase | Scope | Exit criteria |
+|---|---|---|
+| **R0 — Spike** | Presidio + local LLM on plain text, CLI only, no MCP | Spans from a text file; measured recall on ~50 synthetic docs |
+| **R1 — Engine** | Policy config, operators, span merge, pseudonym vault | HIPAA 18 covered; recall ≥ 0.98 structured, ≥ 0.90 names |
+| **R2 — MCP tool** | Wrap in the §6 scaffold, structured errors, auth | Registered in the xMagic dashboard, end-to-end on text |
+| **R3 — PDF** | Text-layer PDFs, true redaction | Extracted text of the output contains zero known entities |
+| **R4 — Async** | Job-shaped tools, large documents, concurrency | 200-page PDF without timeout |
+| **R5 — OCR + DOCX** | Scanned documents, Office formats | Bounding-box redaction verified on scans |
+| **R6 — Productize** | Eval in CI, audit log, template extraction | `xmagic mcp init --template redactor` |
+
+**R0–R2 is the milestone that matters** — a working xMagic tool. R3+ is where document
+formats consume the schedule.
+
+### 12.10 What lands where
+
+| Piece | Home |
+|---|---|
+| `redactor` template set | **this repo**, `mcp/templates/redactor/` (R6) |
+| `--template` flag on `mcp init` | **this repo**, `mcp/scaffold.py` (R6) |
+| Redaction engine + eval corpus | **separate repo** — it is a product, not SDK surface |
+| Deployed service | **separate repo**, generated from the template |
+
+Note the ordering: the engine is built and proven standalone (R0–R5), and only the
+*shape* of it becomes a template at R6. Extracting a template from a working service is
+tractable; designing one up front is not.
+
+### 12.11 Open questions for review
+
+1. **Can a custom tool fetch an xMagic uploaded file by id?** (12.5) This decides the tool
+   signature and whether the design is coherent at all. Blocking — needs an answer from
+   the platform team, not a decision from us.
+2. **Does xMagic host custom-tool containers**, or is BYO deployment the only story?
+   "Hosted on xMagic" has two readings: *registered as a custom tool* (documented, we
+   deploy) versus *xMagic runs the container* (undocumented). Related to §10.1.
+3. **Reversible or one-way?** A pseudonym vault mapping fake→real is a materially
+   different security artifact from one-way masking, with its own storage and access
+   requirements. Decide before R1.
+4. **Which standard for v1** — HIPAA Safe Harbor is proposed; GDPR pseudonymization has
+   different requirements and would change the entity list.
+5. **Does L3 (local LLM) actually earn its place?** R0 should measure recall with and
+   without it. If it does not move the number, the tool is simpler and faster without it,
+   and "local models" becomes an L2-only story.
+6. **Is a redaction product in scope for this repo at all,** even as a template? Same
+   question as §11.9 Q1, and the answers should probably agree.
