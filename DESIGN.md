@@ -272,6 +272,9 @@ Chosen approach: **local proxy of the hosted xMagic web app**.
 
 ## 10. Open questions
 
+These, plus the platform-facing questions in §11.9 and §12.11, are consolidated for the
+platform team in [#5](https://github.com/stochasticai/xmagic-sdk/issues/5).
+
 1. Does xMagic expose (or plan) APIs for custom-tool registration and skill upload?
    (CLI currently stops at "packaged + validated, register in dashboard".)
 2. Exact MCP transport xMagic's agent runtime speaks (streamable HTTP assumed; SSE
