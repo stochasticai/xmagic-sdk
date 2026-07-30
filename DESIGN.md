@@ -399,16 +399,19 @@ driver is a subprocess wrapper over pi's RPC mode:
 ```python
 async def run_pi(workdir: Path, instruction: str, on_event) -> PiResult:
     proc = await asyncio.create_subprocess_exec(
-        "pi", "--rpc",                    # exact invocation TBD — see 11.8 Q3
+        "pi",
+        "--rpc",  # exact invocation TBD — see 11.8 Q3
         cwd=workdir,
-        stdin=PIPE, stdout=PIPE, stderr=PIPE,
+        stdin=PIPE,
+        stdout=PIPE,
+        stderr=PIPE,
     )
     proc.stdin.write(json.dumps({"type": "prompt", "text": instruction}).encode() + b"\n")
     await proc.stdin.drain()
 
     async for line in proc.stdout:
         event = json.loads(line)
-        on_event(event)                   # appended to the job's log_tail
+        on_event(event)  # appended to the job's log_tail
         if event.get("type") == "done":
             break
     ...
