@@ -5,10 +5,15 @@ to [PROGRESS.md](PROGRESS.md) with a date.
 
 ## Phase 1 — Core client (next up)
 
+Live validation is tracked in
+[#2](https://github.com/stochasticai/xmagic-sdk/issues/2) and needs a real
+`XMAGIC_API_KEY` — it blocks the rest of this phase, since the async client and
+upload flow both mirror shapes that are still unconfirmed.
+
 - [ ] Validate `xmagic chat --agent <id>` against a real agent with a live
       `XMAGIC_API_KEY`; confirm request/response shapes for create-chat, query,
-      and SSE events (`reasoning`/`response`/`live_update`/`[DONE]`)
-- [ ] Lock in verified shapes with respx-mocked tests + recorded SSE fixtures
+      and SSE events (`reasoning`/`response`/`live_update`/`[DONE]`) — #2
+- [ ] Lock in verified shapes with respx-mocked tests + recorded SSE fixtures — #2
 - [ ] Implement `AsyncXMagicClient` (1:1 mirror of sync client)
 - [ ] `xmagic chat` polish: render `reasoning` events dimmed; `--chat-type`
       flag; reuse a session across interactive turns
@@ -53,9 +58,19 @@ to [PROGRESS.md](PROGRESS.md) with a date.
 
 ## Phase 6 — Polish & release
 
-- [ ] `git init` + initial commit; CI (pytest + ruff + template docker build)
+Largely delivered by the open-source readiness work (see [PLAN.md](PLAN.md)).
+
+- [x] `git init` + initial commit
+- [x] CI: ruff check + ruff format + pytest on Python 3.11–3.14, plus a
+      build/`twine check` job
+- [x] README badges
+- [ ] Docker build of the generated MCP project in CI (still not covered —
+      the template's structure is verified, the image build is not)
 - [ ] Examples directory (SDK usage, MCP tool, skill)
-- [ ] README badges, CHANGELOG, PyPI release (`xmagic-sdk`)
+- [ ] CHANGELOG
+- [ ] PyPI release (`xmagic-sdk`) — workflow is written and gated on a
+      tag-vs-version match, but cannot publish until a PyPI trusted publisher
+      and a GitHub `pypi` environment exist (one-time setup, see PLAN.md §7)
 
 ## Open questions (blockers noted in DESIGN.md §10)
 

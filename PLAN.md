@@ -35,7 +35,8 @@ and hosted docs.
 9. **`examples/`** — small runnable scripts:
    - basic chat
    - streaming
-   - multi-provider (`provider:model`)
+   - multi-provider (`provider:model`) — needs Phase 3 of the DESIGN.md roadmap
+     first; the adapters are stubs today
    - file / Drive upload
    - MCP server scaffold walkthrough
 10. **Docs for docs.xmagic.ai** — draft SDK/CLI reference + quickstart pages.
@@ -57,3 +58,9 @@ and hosted docs.
   consumers resolve their own dependencies, and CI resolving fresh means we
   find out early when an upstream release breaks us. Trade-off accepted — a
   green build can go red with no code change on our side.
+
+  Sharper than it first looked, though: a developer's local lock still exists
+  and ages silently. A stale one pinning litellm 1.92.0 made Python 3.14 look
+  broken locally and held local ruff at 0.15 while CI moved to 0.16 — which is
+  what let CI stay red unnoticed. If a dev environment disagrees with CI, run
+  `uv lock --upgrade` first.
