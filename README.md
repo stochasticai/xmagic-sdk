@@ -35,28 +35,141 @@ Planned:
 
 ## Install
 
+Requires **Python 3.11–3.14**.
+
 ```bash
 uv pip install xmagic-sdk            # core
 uv pip install "xmagic-sdk[all]"     # + all provider/serve/mcp extras
 ```
 
+Extras are granular if you don't want everything — `[mcp]` for the server
+scaffold, `[serve]` for the local web app, and `[openai]` / `[anthropic]` /
+`[google]` / `[litellm]` per provider. `pip` works too if you don't use `uv`.
+
 From a checkout:
 
 ```bash
-uv pip install -e .              # core
+uv pip install -e .             # core
 uv pip install -e ".[all]"      # + all provider/serve/mcp extras
 ```
 
-## Quickstart
+Verify it landed:
 
 ```bash
-xmagic configure                          # store your xMagic API key
-xmagic chat --agent <agent_id> "Hello!"   # talk to your agent
-xmagic mcp init my-tool                   # containerized MCP server scaffold
-xmagic skills new my-skill && xmagic skills pack my-skill
+xmagic version
 ```
 
-Once the provider adapters land in Phase 3, the same command will accept a
+## Getting started
+
+### 1. Get an API key
+
+In [xmagic.ai](https://xmagic.ai): **profile → API keys**. You'll also want an
+**agent id** — create an agent in Studio, and its id appears in the agent's URL.
+
+### 2. Configure
+
+```bash
+xmagic configure                 # prompts for the key, hidden input
+```
+
+This writes `~/.config/xmagic/config.toml` with mode `600`. Pass
+`--agent <agent_id>` to set a default agent, or `--api-key` to skip the prompt
+in a script.
+
+Prefer environment variables? `XMAGIC_API_KEY` and `XMAGIC_BASE_URL` both work
+and take precedence over the file:
+
+```bash
+export XMAGIC_API_KEY="xm-..."
+```
+
+Full precedence is **explicit arguments → environment → config file →
+defaults**, so you can keep a config file for everyday use and override it
+per-command. `XMAGIC_CONFIG_PATH` relocates the file itself.
+
+The config file looks like this, and you can edit it directly:
+
+```toml
+[xmagic]
+api_key = "xm-..."
+base_url = "https://api.xmagic.ai/xmagic-backend/v1"
+default_agent_id = "..."
+
+[providers.openai]        # provider keys, once Phase 3 lands
+api_key = "sk-..."
+```
+
+Provider keys are also read from the usual `OPENAI_API_KEY`,
+`ANTHROPIC_API_KEY`, and `GOOGLE_API_KEY` variables. **Keys are only ever
+written to your user config directory, never into a project folder.**
+
+### 3. Talk to your agent
+
+```bash
+xmagic chat --agent <agent_id> "Summarize our Q3 goals"   # one-shot
+xmagic chat --agent <agent_id>                            # interactive session
+```
+
+Responses stream by default; `--no-stream` waits for the full reply instead.
+If you set `default_agent_id` during `configure`, drop the `--agent` flag.
+
+### 4. Use it from Python
+
+```python
+from xmagic import XMagicClient
+
+client = XMagicClient()  # reads env/config; or XMagicClient(api_key="xm-...")
+chat = client.chats.create("<agent_id>", title="demo")
+
+# Streaming
+for event in client.chats.stream("<agent_id>", chat.id, "Explain xMagic skills"):
+    if event.type == "response":
+        print(event.text, end="")
+
+# Blocking
+resp = client.chats.query("<agent_id>", chat.id, "One-sentence summary?")
+```
+
+`XMagicClient` is a context manager, so `with XMagicClient() as client:` closes
+the underlying HTTP connection for you. It retries `429` and `5xx` with
+exponential backoff, honoring `Retry-After`.
+
+### 5. Build a custom tool (MCP server)
+
+```bash
+xmagic mcp init my-tool          # scaffold: Dockerfile, compose, FastMCP server
+cd my-tool && docker compose up --build
+```
+
+That serves MCP over streamable HTTP at `http://localhost:8000/mcp`. xMagic
+needs a *public* HTTPS URL to reach it, so for development expose it with a
+tunnel:
+
+```bash
+cloudflared tunnel --url http://localhost:8000
+```
+
+Then register the resulting `https://.../mcp` URL in the dashboard under
+**Custom tools → Create tool**. `xmagic tools register --name ... --url ...`
+prints the full checklist. Set `TOOL_API_KEY` in your `.env` to require a
+shared secret — the generated server rejects unauthenticated calls with `401`.
+
+### 6. Package a skill
+
+```bash
+xmagic skills new my-skill       # scaffold SKILL.md
+xmagic skills validate my-skill  # check frontmatter and layout
+xmagic skills pack my-skill      # -> my-skill.zip, ready to upload
+```
+
+Upload the zip in the dashboard under **Skills**.
+
+### Next steps
+
+`xmagic --help` lists every command, and each subcommand takes `--help` too.
+See [DESIGN.md](DESIGN.md) for how the pieces fit together.
+
+Once the provider adapters land (Phase 3), `chat` will accept a
 `provider:model` ref backed by your own key:
 
 ```bash
@@ -65,15 +178,21 @@ xmagic chat -m anthropic:claude-sonnet-5 "Hello!"   # not yet implemented
 
 Today that path exits with a `NotImplementedError` pointing at the roadmap.
 
-```python
-from xmagic import XMagicClient
+## Troubleshooting
 
-client = XMagicClient()
-chat = client.chats.create("<agent_id>", title="demo")
-for event in client.chats.stream("<agent_id>", chat.id, "Explain xMagic skills"):
-    if event.type == "response":
-        print(event.text, end="")
-```
+**`No API key configured`** — run `xmagic configure`, or export
+`XMAGIC_API_KEY`. Check what's actually being picked up with
+`xmagic configure --help` and remember env vars override the config file.
+
+**A command prints `... lands in Phase N (see DESIGN.md)`** — that feature is
+scaffolded but not implemented yet. See the status note at the top of this
+README.
+
+**`401` from your MCP server** — the generated server requires `TOOL_API_KEY`
+when set. Send it as either `x-api-key` or `Authorization: Bearer <key>`.
+
+**xMagic can't reach your MCP server** — it must be public HTTPS. `localhost`
+won't work; use a tunnel for development.
 
 ## Development
 
