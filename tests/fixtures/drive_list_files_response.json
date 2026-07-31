@@ -1,0 +1,48 @@
+{
+  "_comment": "Recorded live from GET /knowledge-bases?parent_kb_id={kb_id} on 2026-07-31. Account-identifying ids redacted.",
+  "data": {
+    "results": [
+      {
+        "_class_id": "DataSource",
+        "cached_txt_s3_path": null,
+        "created_at": "2026-07-31T19:19:37.222000Z",
+        "indexed": true,
+        "integration_id": null,
+        "integration_type": "none",
+        "knowledge_base_id": "REDACTED_KB_ID",
+        "metadata": {},
+        "retry_count": 0,
+        "source_type": "document",
+        "sources": [],
+        "status": "successful",
+        "suggested_questions": [],
+        "summary": null,
+        "sync_completed_at": null,
+        "sync_web_links_automatically": true,
+        "sync_web_links_every_n_secs": 604800,
+        "system_defined_tags": [],
+        "title": "capture.txt",
+        "updated_at": "2026-07-31T19:19:37.222000Z",
+        "user_defined_tags": [],
+        "user_id": "REDACTED_USER_ID",
+        "value": "s3://REDACTED/attachments/REDACTED/capture.txt",
+        "id": "REDACTED_DATA_SOURCE_ID",
+        "type": "data_source"
+      }
+    ],
+    "pagination": { "page": 0, "page_size": 20, "total_count": 1 },
+    "folder_info": {
+      "id": "REDACTED_KB_ID",
+      "name": "sdk-contract-capture",
+      "is_root": true,
+      "parent_kb_id": null
+    },
+    "query_info": {
+      "recursive": false,
+      "include_datasources": true,
+      "folders_queried": 1,
+      "sort_field": "name",
+      "sort_order": "asc"
+    }
+  }
+}
