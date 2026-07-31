@@ -25,10 +25,35 @@ upload flow both mirror shapes that are still unconfirmed.
 - [ ] `xmagic mcp dev`: docker compose wrapper with `--tunnel`
       (cloudflared/ngrok) instead of printed instructions
 - [ ] Run a real `docker build` of the generated project in CI (structure is
-      verified; base-image layer build is not)
+      verified; base-image layer build is not). Matters more if DESIGN.md §11
+      and §12 land — more templates through the same scaffold, same blind spot
+- [ ] Decide how tools get exercised without a full deploy — see "Local tool
+      invocation" below and DESIGN.md §6
 - [ ] Confirm which header xMagic actually sends the custom-tool API key in
       (`x-api-key` vs `Authorization: Bearer`) — template accepts both for now
 - [ ] Optional SSE (legacy transport) flag for the template if xMagic requires it
+
+### Local tool invocation
+
+The dev loop for a custom tool today is: `docker compose up` → tunnel →
+register in the dashboard → open a chat → hope the agent decides to call it.
+That is minutes per iteration and the agent's choice is not under our control,
+so a failing tool and a tool the agent simply declined to use look identical.
+
+Two halves, and they are independent:
+
+- [ ] **Local** — `xmagic tools list --url` and `xmagic tools call NAME --url`,
+      speaking MCP streamable HTTP directly to a running server. No xMagic
+      account, no tunnel, no registration. Fully within our control; unblocks
+      iterating on the §11/§12 templates
+- [ ] **Remote** — can a *registered* tool be invoked through the xMagic API
+      rather than only as a side effect of an agent chat? Would make tools
+      testable against the real platform and scriptable in CI. Platform
+      question, not ours to decide — see Open questions
+- [ ] Decide whether these belong under `xmagic tools` (alongside `register`)
+      or `xmagic mcp` (alongside `init`/`dev`). The local one is really an MCP
+      client; the remote one is an xMagic API call. They may not want to share
+      a command group
 
 ## Phase 3 — Providers
 
@@ -64,8 +89,6 @@ Largely delivered by the open-source readiness work (see [PLAN.md](PLAN.md)).
 - [x] CI: ruff check + ruff format + pytest on Python 3.11–3.14, plus a
       build/`twine check` job
 - [x] README badges
-- [ ] Docker build of the generated MCP project in CI (still not covered —
-      the template's structure is verified, the image build is not)
 - [ ] Examples directory (SDK usage, MCP tool, skill)
 - [ ] CHANGELOG
 - [ ] PyPI release (`xmagic-sdk`) — workflow is written and gated on a
@@ -75,6 +98,8 @@ Largely delivered by the open-source readiness work (see [PLAN.md](PLAN.md)).
 ## Open questions (blockers noted in DESIGN.md §10)
 
 - [ ] Public API for custom-tool registration / skill upload? (dashboard-only today)
+- [ ] Can a registered custom tool be **invoked** directly through the API,
+      independently of an agent chat? (see "Local tool invocation", Phase 2)
 - [ ] Exact MCP transport xMagic's runtime speaks (streamable HTTP assumed)
 - [ ] Are agent list/management endpoints public? (needed for `xmagic agents list`)
 - [ ] Behavioral differences between chat types beyond UI context (guardrails,
