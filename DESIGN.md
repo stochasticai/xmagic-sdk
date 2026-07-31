@@ -179,6 +179,8 @@ xmagic skills new NAME                # scaffold SKILL.md + layout
 xmagic skills validate PATH           # frontmatter/zip lint
 xmagic skills pack PATH               # build upload-ready zip
 xmagic tools register --dry-run       # emits dashboard checklist until an API exists
+xmagic tools list --url URL           # MCP tools/list against a running server
+xmagic tools call NAME --url URL      # invoke one tool directly (see §6.1)
 xmagic mcp init NAME                  # scaffold containerized MCP server
 xmagic mcp dev [--tunnel]             # run locally; hint ngrok/cloudflared for HTTPS
 xmagic serve [--port 8377]            # local web app proxy
@@ -216,6 +218,32 @@ Contract targeted (per xMagic custom-tools guide):
   public HTTPS URL for dashboard registration.
 
 If/when xMagic publishes an official container spec, only `mcp/templates/` changes.
+
+### 6.1 Local tool invocation (open)
+
+Developing a custom tool currently means: `docker compose up` → tunnel →
+register in the dashboard → open a chat → hope the agent decides to call it.
+That is minutes per iteration, and the last step is not under our control — a
+tool that is broken and a tool the agent simply declined to invoke produce the
+same result. Anything built on §11 or §12 will feel this constantly.
+
+Two independent halves:
+
+**Local — ours to build.** `xmagic tools list --url` and `xmagic tools call NAME
+--url` speaking MCP streamable HTTP straight to a running server. No account, no
+tunnel, no registration. This also gives `mcp init` a real integration test: scaffold
+a project, start it, call `ping`, assert the response — which is the gap TODO.md
+flags on `docker build` coverage, approached from the other side.
+
+**Remote — a platform question.** Can a *registered* tool be invoked through the
+xMagic API directly, rather than only as a side effect of an agent chat? If yes,
+tools become testable against the real platform and scriptable in CI. If no, the
+dashboard-plus-chat loop is the only integration test that exists. Tracked in §10.
+
+Open design point: whether these live under `xmagic tools` (next to `register`) or
+`xmagic mcp` (next to `init`/`dev`). The local command is an MCP client; the remote
+one is an xMagic API call. Grouping them by user intent argues for `tools`; grouping
+by what they actually talk to argues for splitting them.
 
 ---
 
@@ -282,6 +310,10 @@ platform team in [#5](https://github.com/stochasticai/xmagic-sdk/issues/5).
 3. Web-app proxy viability against the hosted app's CSP/auth — validate early in
    Phase 5; fallback UI is the hedge.
 4. Are agent listing/management endpoints public? (Needed for `xmagic agents list`.)
+5. Can a registered custom tool be **invoked** through the API, independently of an
+   agent chat? Decides whether tools are testable against the real platform and
+   scriptable in CI, or whether the dashboard-plus-chat loop is the only integration
+   test available. See §6.1.
 
 ---
 
