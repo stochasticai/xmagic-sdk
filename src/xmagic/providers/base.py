@@ -5,7 +5,7 @@ Models are addressed as ``provider:model``, e.g.::
 
     xmagic:<agent_id>
     openai:gpt-4o
-    anthropic:claude-sonnet-4-5
+    anthropic:claude-sonnet-5
     google:gemini-2.5-pro
     litellm:groq/llama-3.3-70b
 """
