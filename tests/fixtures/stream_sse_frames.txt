@@ -1,0 +1,26 @@
+Recorded live from POST /agents/{agent_id}/chats/{chat_id}/query (is_stream=true)
+on 2026-07-31, via a raw httpx streaming request (bypassing httpx_sse parsing)
+so the exact wire framing is visible.
+
+Content-Type: text/event-stream; charset=utf-8
+
+Key findings:
+- No `event:` field is ever sent -- httpx_sse's `connect_sse` therefore reports
+  every frame as the default event name "message". Event identity MUST be read
+  from the JSON payload's "type" field, not the SSE event name.
+- Response text lives at the top-level "text" key of each payload.
+- The stream always ends with the literal sentinel line `data: [DONE]`.
+- Observed types in this capture: metadata, response, end_response, done.
+
+Raw frames (one `data:` line each, separated by a blank line per SSE spec):
+
+data: {"text": "", "extended_text": null, "type": "metadata", "subtype": null, "data": {"message_id": "REDACTED_MESSAGE_ID"}, "elapsed_ms": null}
+
+data: {"text": "1,", "extended_text": null, "type": "response", "subtype": null, "data": null}
+
+data: {"text": " 2, 3.", "extended_text": null, "type": "response", "subtype": null, "data": null}
+
+data: {"text": "", "extended_text": null, "type": "end_response", "subtype": null, "data": null}
+
+data: [DONE]
+

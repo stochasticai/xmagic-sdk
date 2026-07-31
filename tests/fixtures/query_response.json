@@ -1,0 +1,8 @@
+{
+  "_comment": "Recorded live from POST /agents/{agent_id}/chats/{chat_id}/query (is_stream=false) on 2026-07-31.",
+  "data": {
+    "message_id": "REDACTED_MESSAGE_ID",
+    "text": "capture-ok",
+    "reasoning": ""
+  }
+}

@@ -38,14 +38,18 @@ class QueryResponse(BaseModel):
 
 
 class Message(BaseModel):
-    """A stored query/response pair."""
+    """A stored query/response pair.
+
+    ``output_assets`` maps an output id to its S3 path (confirmed live
+    2026-07-31 via ``GET .../message/{message_id}``).
+    """
 
     model_config = ConfigDict(extra="allow")
 
     id: str | None = None
     query: str | None = None
     response: str | None = None
-    outputs: list[dict[str, Any]] = Field(default_factory=list)
+    output_assets: dict[str, str] = Field(default_factory=dict)
 
 
 class UploadedFile(BaseModel):
@@ -60,11 +64,35 @@ class UploadedFile(BaseModel):
 class StreamEvent(BaseModel):
     """A Server-Sent Event emitted during a streaming query.
 
-    Event types observed in the docs: ``reasoning``, ``response``,
-    ``live_update``, and a ``[DONE]`` terminator (surfaced as type="done").
+    Confirmed against a live agent (2026-07-31): SSE frames carry no
+    ``event:`` field (all arrive as the default ``message`` event), and each
+    ``data:`` payload is a flat JSON object with the token type at
+    ``payload["type"]`` and the text at ``payload["text"]``. The stream ends
+    with the literal sentinel frame ``data: [DONE]``, surfaced here as a
+    synthetic ``type="done"`` event.
+
+    Observed live in a single streaming turn: ``metadata`` (carries
+    ``message_id`` under ``raw["data"]``), ``response`` (incremental text),
+    and ``end_response`` (terminal marker, empty text). The remaining
+    literal members (``reasoning``, ``end_reasoning``,
+    ``fast_response_simulation``, ``live_update``, ``ping``, ``error``,
+    ``token_usage``) come from the backend's ``TokenType`` enum
+    (xmagic_shared/src/shared/models/model_response_schema.py).
     """
 
-    type: Literal["reasoning", "response", "live_update", "done"]
+    type: Literal[
+        "reasoning",
+        "end_reasoning",
+        "fast_response_simulation",
+        "response",
+        "end_response",
+        "live_update",
+        "ping",
+        "error",
+        "token_usage",
+        "metadata",
+        "done",
+    ]
     text: str = ""
     raw: dict[str, Any] = Field(default_factory=dict)
 
@@ -84,5 +112,5 @@ class DriveFile(BaseModel):
     model_config = ConfigDict(extra="allow")
 
     id: str
-    name: str | None = None
-    folder_id: str | None = None
+    title: str | None = None
+    knowledge_base_id: str | None = None
