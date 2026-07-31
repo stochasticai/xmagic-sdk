@@ -1,0 +1,28 @@
+{
+  "_comment": "Recorded live from POST /knowledge-bases/{knowledge_base_id}/data-sources/documents on 2026-07-31. Account-identifying ids redacted.",
+  "data": {
+    "id": "REDACTED_DATA_SOURCE_ID",
+    "created_at": "2026-07-31T19:19:37.222000Z",
+    "updated_at": "2026-07-31T19:19:37.222000Z",
+    "title": "capture.txt",
+    "source_type": "document",
+    "integration_type": "none",
+    "integration_id": null,
+    "value": "s3://REDACTED/attachments/REDACTED/capture.txt",
+    "sources": [],
+    "status": "successful",
+    "suggested_questions": [],
+    "metadata": {},
+    "sync_web_links_automatically": true,
+    "sync_web_links_every_n_secs": 604800,
+    "sync_completed_at": null,
+    "user_defined_tags": [],
+    "system_defined_tags": [],
+    "retry_count": 0,
+    "cached_txt_s3_path": null,
+    "summary": null,
+    "indexed": true,
+    "user_id": "REDACTED_USER_ID",
+    "knowledge_base_id": "REDACTED_KB_ID"
+  }
+}
