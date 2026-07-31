@@ -19,7 +19,7 @@ def chat(
         "--model",
         "-m",
         help="provider:model ref, e.g. xmagic:<agent_id>, openai:gpt-4o, "
-        "anthropic:claude-sonnet-4-5, google:gemini-2.5-pro.",
+        "anthropic:claude-sonnet-5, google:gemini-2.5-pro.",
     ),
     agent: str = typer.Option(None, "--agent", "-a", help="xMagic agent id (shorthand)."),
     stream: bool = typer.Option(True, "--stream/--no-stream"),
