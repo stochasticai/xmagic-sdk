@@ -1,0 +1,12 @@
+{
+  "_comment": "Recorded live from POST /knowledge-bases on 2026-07-31. Account-identifying ids redacted.",
+  "data": {
+    "id": "REDACTED_KB_ID",
+    "name": "sdk-contract-capture",
+    "created_at": "2026-07-31T19:19:36.586000Z",
+    "parent_kb_id": null,
+    "is_root": true,
+    "integration_id": null,
+    "user_defined_tags": []
+  }
+}
