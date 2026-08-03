@@ -16,11 +16,19 @@ name: Release
 # To cut a release: bump `version` in pyproject.toml, commit, tag `vX.Y.Z`, and
 # publish a GitHub Release for that tag. The version check below fails the run if
 # the tag and pyproject.toml disagree.
+#
+# For a manual recovery publish, enter the version without the leading `v`. The
+# workflow checks out the existing `vX.Y.Z` tag and applies the same validation.
 
 on:
   release:
     types: [published]
   workflow_dispatch:
+    inputs:
+      version:
+        description: Version to publish without the leading v (for example, 0.1.0)
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -30,21 +38,46 @@ jobs:
     name: build distributions
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - name: Check out published release tag
+        if: github.event_name == 'release'
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Check out manually requested release tag
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/checkout@v5
+        with:
+          ref: v${{ inputs.version }}
+          fetch-depth: 0
 
       - name: Install uv
         uses: astral-sh/setup-uv@v6
         with:
           enable-cache: true
 
-      - name: Verify tag matches pyproject version
-        if: github.event_name == 'release'
+      - name: Verify release tag and package version
+        env:
+          REQUESTED_VERSION: ${{ github.event_name == 'workflow_dispatch' && inputs.version || github.ref_name }}
         run: |
+          release_version="${REQUESTED_VERSION#v}"
+          expected_tag="v${release_version}"
           project_version="$(uv version --short)"
-          tag_version="${GITHUB_REF_NAME#v}"
-          echo "pyproject: $project_version | tag: $tag_version"
-          if [ "$project_version" != "$tag_version" ]; then
-            echo "::error::Tag $GITHUB_REF_NAME does not match pyproject version $project_version"
+
+          if ! git rev-parse --verify --quiet "refs/tags/${expected_tag}" >/dev/null; then
+            echo "::error::Release tag ${expected_tag} does not exist"
+            exit 1
+          fi
+
+          tag_commit="$(git rev-list -n 1 "${expected_tag}")"
+          head_commit="$(git rev-parse HEAD)"
+          if [ "${tag_commit}" != "${head_commit}" ]; then
+            echo "::error::Checked-out commit does not match release tag ${expected_tag}"
+            exit 1
+          fi
+
+          if [ "${project_version}" != "${release_version}" ]; then
+            echo "::error::Tag ${expected_tag} does not match pyproject version ${project_version}"
             exit 1
           fi
 
