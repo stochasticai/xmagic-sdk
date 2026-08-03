@@ -7,6 +7,13 @@ Endpoints (base: https://api.xmagic.ai/xmagic-backend/v1):
 - POST   /agents/{agent_id}/chats/{chat_id}/async_query  (webhook delivery)
 - GET    /agents/{agent_id}/chats/{chat_id}/message/{message_id}
 - DELETE /agents/{agent_id}/chats/{chat_id}/message/{message_id}
+
+Response envelopes below are confirmed against a live agent (2026-07-31), not
+guessed.
+
+- create:      ``{"data": {"chat": {...}}}``
+- query:       ``{"data": {"message_id": ..., "text": ..., "reasoning": ...}}``
+- get_message: ``{"data": {<flat message fields>}}``
 """
 
 from __future__ import annotations
@@ -17,7 +24,19 @@ from typing import Any
 from xmagic.client.http import HttpTransport
 from xmagic.client.models import Chat, ChatType, Message, QueryResponse, StreamEvent
 
-_EVENT_TYPES = {"reasoning", "response", "live_update", "done"}
+_STREAM_TYPES = {
+    "reasoning",
+    "end_reasoning",
+    "fast_response_simulation",
+    "response",
+    "end_response",
+    "live_update",
+    "ping",
+    "error",
+    "token_usage",
+    "metadata",
+    "done",
+}
 
 
 class ChatsAPI:
@@ -38,7 +57,7 @@ class ChatsAPI:
         if title:
             payload["title"] = title
         body = self._t.request("POST", f"/agents/{agent_id}/chats", json=payload)
-        return Chat.model_validate(body.get("data", {}).get("chat", body))
+        return Chat.model_validate(body["data"]["chat"])
 
     def query(
         self,
@@ -54,7 +73,7 @@ class ChatsAPI:
         if uploaded_files:
             payload["uploaded_files"] = uploaded_files
         body = self._t.request("POST", f"/agents/{agent_id}/chats/{chat_id}/query", json=payload)
-        return QueryResponse.model_validate(body.get("data", body))
+        return QueryResponse.model_validate(body["data"])
 
     def stream(
         self,
@@ -70,8 +89,13 @@ class ChatsAPI:
         if uploaded_files:
             payload["uploaded_files"] = uploaded_files
         for raw in self._t.sse("POST", f"/agents/{agent_id}/chats/{chat_id}/query", json=payload):
-            event = raw["event"] if raw["event"] in _EVENT_TYPES else "response"
             data = raw["data"]
+            if raw.get("event") == "done":
+                yield StreamEvent(type="done", text="", raw={})
+                continue
+
+            payload_type = data.get("type") if isinstance(data, dict) else None
+            event = payload_type if payload_type in _STREAM_TYPES else "response"
             text = data if isinstance(data, str) else data.get("text", "")
             yield StreamEvent(
                 type=event,  # type: ignore[arg-type]
@@ -100,7 +124,7 @@ class ChatsAPI:
     def get_message(self, agent_id: str, chat_id: str, message_id: str) -> Message:
         """Retrieve full message data, including downloadable outputs."""
         body = self._t.request("GET", f"/agents/{agent_id}/chats/{chat_id}/message/{message_id}")
-        return Message.model_validate(body.get("data", body))
+        return Message.model_validate(body["data"])
 
     def delete_message(self, agent_id: str, chat_id: str, message_id: str) -> None:
         """Delete a specific message."""

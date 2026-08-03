@@ -2,6 +2,10 @@
 
 Uploaded files return an id that can be referenced in chat queries via the
 ``uploaded_files`` parameter.
+
+Response envelope confirmed against a live agent (2026-07-31):
+``{"data": "<uploaded_file_id>"}`` -- always a bare id string, never wrapped
+in a ``file`` object.
 """
 
 from __future__ import annotations
@@ -26,5 +30,4 @@ class FilesAPI:
         """
         p = Path(path)
         body = self._t.request("POST", "/uploaded-files", files={"file": (p.name, p.read_bytes())})
-        data = body.get("data", body)
-        return UploadedFile.model_validate(data.get("file", data))
+        return UploadedFile(id=body["data"], filename=p.name)

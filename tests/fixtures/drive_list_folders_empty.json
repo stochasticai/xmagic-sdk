@@ -1,0 +1,8 @@
+{
+  "_comment": "Recorded live from GET /knowledge-bases on an account with no folders, on 2026-07-31.",
+  "data": {
+    "results": [],
+    "knowledge_bases": [],
+    "pagination": { "page": 0, "page_size": 20, "total_count": 0 }
+  }
+}

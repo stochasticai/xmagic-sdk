@@ -104,3 +104,7 @@ select = ["E4", "E7", "E9", "F", "B", "BLE", "PYI", "RUF", "UP"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+addopts = "-m 'not live'"
+markers = [
+    "live: tests that hit the live xMagic backend",
+]
