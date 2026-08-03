@@ -5,7 +5,7 @@ Models are addressed as ``provider:model``, e.g.::
 
     xmagic:<agent_id>
     openai:gpt-4o
-    anthropic:claude-sonnet-4-5
+    anthropic:claude-sonnet-5
     google:gemini-2.5-pro
     litellm:groq/llama-3.3-70b
 """
@@ -53,7 +53,7 @@ class ModelRef:
     model: str
 
     @classmethod
-    def parse(cls, ref: str, default_provider: str = "xmagic") -> "ModelRef":
+    def parse(cls, ref: str, default_provider: str = "xmagic") -> ModelRef:
         provider, sep, model = ref.partition(":")
         if not sep:
             return cls(provider=default_provider, model=ref)
@@ -74,9 +74,7 @@ class Provider(ABC):
         self.options = options
 
     @abstractmethod
-    def complete(
-        self, messages: list[ChatMessage], *, model: str, **params: Any
-    ) -> Completion:
+    def complete(self, messages: list[ChatMessage], *, model: str, **params: Any) -> Completion:
         """Blocking chat completion."""
 
     @abstractmethod

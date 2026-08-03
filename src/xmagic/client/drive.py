@@ -30,7 +30,9 @@ class DriveAPI:
         folders = [
             item
             for item in items
-            if isinstance(item, dict) and item.get("type") != "data_source" and not item.get("knowledge_base_id")
+            if isinstance(item, dict)
+            and item.get("type") != "data_source"
+            and not item.get("knowledge_base_id")
         ]
         return [DriveFolder.model_validate(i) for i in folders]
 
@@ -76,6 +78,7 @@ class DriveAPI:
         files = [
             item
             for item in items
-            if isinstance(item, dict) and (item.get("type") == "data_source" or item.get("knowledge_base_id"))
+            if isinstance(item, dict)
+            and (item.get("type") == "data_source" or item.get("knowledge_base_id"))
         ]
         return [DriveFile.model_validate(i) for i in files]

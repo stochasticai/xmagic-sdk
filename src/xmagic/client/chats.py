@@ -9,7 +9,7 @@ Endpoints (base: https://api.xmagic.ai/xmagic-backend/v1):
 - DELETE /agents/{agent_id}/chats/{chat_id}/message/{message_id}
 
 Response envelopes below are confirmed against a live agent (2026-07-31), not
-guessed. 
+guessed.
 
 - create:      ``{"data": {"chat": {...}}}``
 - query:       ``{"data": {"message_id": ..., "text": ..., "reasoning": ...}}``
@@ -123,9 +123,7 @@ class ChatsAPI:
 
     def get_message(self, agent_id: str, chat_id: str, message_id: str) -> Message:
         """Retrieve full message data, including downloadable outputs."""
-        body = self._t.request(
-            "GET", f"/agents/{agent_id}/chats/{chat_id}/message/{message_id}"
-        )
+        body = self._t.request("GET", f"/agents/{agent_id}/chats/{chat_id}/message/{message_id}")
         return Message.model_validate(body["data"])
 
     def delete_message(self, agent_id: str, chat_id: str, message_id: str) -> None:

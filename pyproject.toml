@@ -3,8 +3,13 @@ name = "xmagic-sdk"
 version = "0.1.0"
 description = "Python SDK and CLI for xMagic, Stochastic's AI agent platform"
 readme = "README.md"
-requires-python = ">=3.11"
-license = { text = "Apache-2.0" }
+# Upper bound is deliberate. An unbounded ">=3.11" forces resolvers to find a
+# version of every dependency that supports *all* future Pythons; litellm caps
+# each release (<3.15 as of 1.93.0), so nothing satisfies it and resolution
+# silently degrades to an old, incompatible pin. Raise this as we test newer.
+requires-python = ">=3.11,<3.15"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
 authors = [{ name = "Stochastic" }]
 keywords = ["xmagic", "ai", "agents", "mcp", "llm", "sdk", "cli"]
 classifiers = [
@@ -14,6 +19,7 @@ classifiers = [
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
 ]
 dependencies = [
     "httpx>=0.27",
@@ -49,22 +55,52 @@ Documentation = "https://docs.xmagic.ai"
 Homepage = "https://xmagic.ai"
 
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling>=1.27"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/xmagic"]
 
+[tool.hatch.build.targets.sdist]
+include = [
+    "src",
+    "tests",
+    "README.md",
+    "LICENSE",
+    "CONTRIBUTING.md",
+    "CODE_OF_CONDUCT.md",
+    "COMMIT_GUIDELINES.md",
+    "ISSUES.md",
+    "DESIGN.md",
+    "CITATION.cff",
+]
+
 [dependency-groups]
 dev = [
     "pytest>=8.0",
     "respx>=0.21",
-    "ruff>=0.5",
+    # Bounded to one minor: ruff changes rule defaults and formatting between
+    # minors, and with no committed lock an unbounded range lets CI drift ahead
+    # of contributors' environments.
+    "ruff>=0.16,<0.17",
 ]
 
 [tool.ruff]
 line-length = 100
 src = ["src", "tests"]
+
+[tool.ruff.lint]
+# Selected explicitly rather than inheriting ruff's built-in defaults. Those
+# defaults widened in ruff 0.16, which turned CI red against a green local run
+# purely because the two resolved different ruff versions. Pinning the rule set
+# here means a ruff upgrade can change fix behavior but never silently change
+# which rules are enforced.
+select = ["E4", "E7", "E9", "F", "B", "BLE", "PYI", "RUF", "UP"]
+
+[tool.ruff.lint.per-file-ignores]
+# Typer's API requires `typer.Option()` / `typer.Argument()` as parameter
+# defaults, so B008 fires on every command it defines. Not a real finding here.
+"src/xmagic/cli/*" = ["B008"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

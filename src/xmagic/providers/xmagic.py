@@ -38,8 +38,10 @@ class XMagicProvider(Provider):
         **options: Any,
     ) -> None:
         super().__init__(api_key=api_key, **options)
-        self._client = XMagicClient(api_key=api_key) if settings is None else XMagicClient(
-            api_key=api_key or settings.api_key, base_url=settings.base_url
+        self._client = (
+            XMagicClient(api_key=api_key)
+            if settings is None
+            else XMagicClient(api_key=api_key or settings.api_key, base_url=settings.base_url)
         )
         self._chat_id = chat_id
 

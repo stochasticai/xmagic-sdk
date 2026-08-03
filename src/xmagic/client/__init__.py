@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Self
 
 from xmagic.client.chats import ChatsAPI
 from xmagic.client.drive import DriveAPI
@@ -30,7 +30,7 @@ class XMagicClient:
     def close(self) -> None:
         self._transport.close()
 
-    def __enter__(self) -> "XMagicClient":
+    def __enter__(self) -> Self:
         return self
 
     def __exit__(self, *exc: object) -> None:
@@ -50,4 +50,4 @@ class AsyncXMagicClient:
         )
 
 
-__all__ = ["XMagicClient", "AsyncXMagicClient"]
+__all__ = ["AsyncXMagicClient", "XMagicClient"]

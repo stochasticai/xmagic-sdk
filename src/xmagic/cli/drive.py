@@ -20,7 +20,7 @@ def _client() -> XMagicClient:
         return XMagicClient()
     except XMagicError as e:
         console.print(f"[red]{e}[/red]")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from None
 
 
 @app.command("ls")
@@ -31,7 +31,7 @@ def list_folders() -> None:
         folders = client.drive.list_folders()
     except XMagicError as e:
         console.print(f"[red]{e}[/red]")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from None
     table = Table("id", "name")
     for f in folders:
         table.add_row(f.id, f.name or "")
@@ -49,5 +49,5 @@ def upload(
         f = client.drive.upload_file(folder_id, path)
     except XMagicError as e:
         console.print(f"[red]{e}[/red]")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from None
     console.print(f"[green]Uploaded {path.name} -> file id {f.id}[/green]")

@@ -1,0 +1,52 @@
+name: Feature request
+description: Suggest a capability or improvement for the SDK or CLI
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please search [existing issues](https://github.com/stochasticai/xmagic-sdk/issues?q=is%3Aissue)
+        first — the idea may already be under discussion.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem are you trying to solve?
+      description: Describe the use case, not only the solution you have in mind.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: What would the API, CLI command, or behavior look like?
+      render: shell
+
+  - type: textarea
+    id: current-workaround
+    attributes:
+      label: What did you try today?
+      description: How do you accomplish this with the current SDK, and where does it fall short?
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Not sure
+        - Client / xMagic API
+        - CLI
+        - Providers (bring your own model)
+        - MCP scaffolding
+        - Skills packaging
+        - Local web app (`xmagic serve`)
+        - Docs
+      default: 0
+
+  - type: checkboxes
+    id: contribute
+    attributes:
+      label: Contribution
+      options:
+        - label: I'd be willing to open a pull request for this

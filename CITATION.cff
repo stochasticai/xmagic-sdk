@@ -1,0 +1,20 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+title: "xmagic-sdk"
+abstract: "Python SDK and CLI for xMagic, Stochastic's AI agent platform."
+type: software
+authors:
+  - name: "Stochastic"
+version: "0.1.0"
+# Add `date-released: YYYY-MM-DD` here when 0.1.0 is published to PyPI.
+license: Apache-2.0
+repository-code: "https://github.com/stochasticai/xmagic-sdk"
+url: "https://xmagic.ai"
+keywords:
+  - xmagic
+  - ai
+  - agents
+  - mcp
+  - llm
+  - sdk
+  - cli

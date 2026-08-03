@@ -45,9 +45,7 @@ def _load_text_fixture(name: str) -> str:
 
 def _sse_frames_from_fixture(name: str) -> str:
     """Extract just the ``data: ...`` lines from the annotated fixture file."""
-    lines = [
-        line for line in _load_text_fixture(name).splitlines() if line.startswith("data: ")
-    ]
+    lines = [line for line in _load_text_fixture(name).splitlines() if line.startswith("data: ")]
     return "\n\n".join(lines) + "\n\n"
 
 
@@ -132,9 +130,9 @@ def test_query_request_and_non_stream_response_shape(client: XMagicClient) -> No
 @respx.mock
 def test_get_message_response_shape(client: XMagicClient) -> None:
     fixture = _load_json_fixture("get_message_response.json")
-    respx.get(
-        f"{DEFAULT_BASE_URL}/agents/agent-1/chats/chat-1/message/msg-1"
-    ).mock(return_value=Response(200, json=fixture))
+    respx.get(f"{DEFAULT_BASE_URL}/agents/agent-1/chats/chat-1/message/msg-1").mock(
+        return_value=Response(200, json=fixture)
+    )
 
     message = client.chats.get_message("agent-1", "chat-1", "msg-1")
 
@@ -170,9 +168,7 @@ def test_uploaded_files_shape_string_data(client: XMagicClient, tmp_path: Path) 
     p = tmp_path / "note.txt"
     p.write_text("hello")
 
-    respx.post(f"{DEFAULT_BASE_URL}/uploaded-files").mock(
-        return_value=Response(200, json=fixture)
-    )
+    respx.post(f"{DEFAULT_BASE_URL}/uploaded-files").mock(return_value=Response(200, json=fixture))
 
     uploaded = client.files.upload(p)
     assert uploaded.id == "REDACTED_UPLOADED_FILE_ID"
@@ -207,7 +203,9 @@ def test_drive_uses_knowledge_base_routes(client: XMagicClient, tmp_path: Path) 
     ).mock(return_value=Response(200, json=attach_response))
 
     delete_route = respx.delete(f"{DEFAULT_BASE_URL}/knowledge-bases/REDACTED_KB_ID").mock(
-        return_value=Response(200, json={"message": "Knowledge base and all its contents deleted successfully"})
+        return_value=Response(
+            200, json={"message": "Knowledge base and all its contents deleted successfully"}
+        )
     )
 
     # Empty account: GET /knowledge-bases returns `data.results == []`.
