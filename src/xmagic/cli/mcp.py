@@ -23,7 +23,7 @@ def init(
         target = scaffold_mcp_server(name, directory)
     except (ValueError, FileExistsError) as e:
         console.print(f"[red]{e}[/red]")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from None
     console.print(f"[green]Created {target}[/green]")
     console.print("Next steps:")
     console.print(f"  cd {target}")

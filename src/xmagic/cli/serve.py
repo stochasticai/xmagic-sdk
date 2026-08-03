@@ -23,4 +23,4 @@ def serve(
         run_proxy(port=port, upstream=upstream)
     except (ImportError, NotImplementedError) as e:
         console.print(f"[yellow]{e}[/yellow]")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from None

@@ -19,15 +19,17 @@ def chat(
         "--model",
         "-m",
         help="provider:model ref, e.g. xmagic:<agent_id>, openai:gpt-4o, "
-        "anthropic:claude-sonnet-4-5, google:gemini-2.5-pro.",
+        "anthropic:claude-sonnet-5, google:gemini-2.5-pro.",
     ),
     agent: str = typer.Option(None, "--agent", "-a", help="xMagic agent id (shorthand)."),
     stream: bool = typer.Option(True, "--stream/--no-stream"),
 ) -> None:
     """Send a prompt (or start an interactive session) against any model."""
     settings = Settings.load()
-    ref = model or (f"xmagic:{agent}" if agent else None) or (
-        f"xmagic:{settings.default_agent_id}" if settings.default_agent_id else None
+    ref = (
+        model
+        or (f"xmagic:{agent}" if agent else None)
+        or (f"xmagic:{settings.default_agent_id}" if settings.default_agent_id else None)
     )
     if not ref:
         raise typer.BadParameter("Provide --model, --agent, or set a default agent id.")
@@ -37,7 +39,7 @@ def chat(
         provider = get_provider(model_ref, settings=settings)
     except (XMagicError, ImportError) as e:
         console.print(f"[red]{e}[/red]")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from None
 
     model_name = model_ref.model
 
@@ -62,4 +64,4 @@ def chat(
                 break
     except (XMagicError, NotImplementedError) as e:
         console.print(f"[red]{e}[/red]")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from None

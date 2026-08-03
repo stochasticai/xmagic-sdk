@@ -5,6 +5,52 @@ the plan and [TODO.md](TODO.md) for what's next.
 
 ---
 
+## 2026-07-29 — Docs accuracy pass
+
+- **README no longer advertises unimplemented features as working.** It pitched
+  multi-provider chat, BYO models, the async client, and `xmagic serve` as
+  capabilities; all four raise `NotImplementedError`. The Quickstart's second
+  command (`xmagic chat -m anthropic:...`) printed "Phase 3 (see DESIGN.md)"
+  rather than talking to a model. Split into working-today vs planned, each
+  planned item tagged with its phase.
+- Added `ruff format --check .` to the documented checks in README and
+  CONTRIBUTING — CI had started gating on it, so contributors would pass locally
+  and get a red PR. CONTRIBUTING also still claimed formatting was "not yet
+  enforced repo-wide".
+- Reconciled `TODO.md` Phase 6 (CI, badges, and git init were done but listed as
+  pending) and refreshed this log.
+
+## 2026-07-28 — CI repair, Python 3.14, open-source readiness
+
+**CI had been failing on every run since the workflows landed**, while
+`ruff check` passed locally. Cause: `ruff>=0.5` unbounded with no explicit
+`select`. CI resolved ruff 0.16.0, whose default rule set is wider than 0.15's,
+so it enforced 15 rules the local 0.15.21 never checked.
+
+- Declared `[tool.ruff.lint] select` explicitly and bounded the dev dependency
+  to `ruff>=0.16,<0.17`, so a ruff upgrade can change fix behavior but never
+  silently change which rules are enforced. `B008` ignored under `cli/` —
+  Typer's API requires callables as parameter defaults.
+- Cleared what the wider set legitimately found: `B904` (10 CLI handlers now
+  `raise ... from None`), `BLE001` (narrowed a blind `except Exception` in
+  `_parse_error` to `(ValueError, AttributeError)`), `PYI034` (`__enter__`
+  returns `Self`), `UP042` (`ChatType` → `StrEnum`; wire format unchanged since
+  the payload reads `.value`), plus `RUF022`/`UP037` autofixes.
+- **Python 3.14 added to the CI matrix** and `requires-python` bounded to
+  `">=3.11,<3.15"`. The previous open-ended `">=3.11"` asked resolvers to
+  satisfy *all* future Pythons; every litellm release caps out, so nothing
+  qualified and resolution degraded to an old pin. litellm ships cp314 wheels
+  as of 1.93.0.
+- Root cause of the local/CI drift was a stale gitignored `uv.lock` pinning
+  litellm 1.92.0 (declares `<3.14`, no macOS wheel) and holding ruff at 0.15.
+  `uv lock --upgrade` clears it — worth knowing "no committed lock" in practice
+  means an invisible per-developer lock that ages silently.
+- Open-source readiness (PLAN.md Phases 1–2): LICENSE, CoC, CONTRIBUTING,
+  ISSUES, CITATION.cff, issue/PR templates, PEP 639 metadata, sdist include
+  list, CI matrix, and a PyPI trusted-publishing release workflow.
+- Filed [#2](https://github.com/stochasticai/xmagic-sdk/issues/2) for Phase 1
+  live API validation.
+
 ## 2026-07-20
 
 - Added `PROGRESS.md` (this file) and `TODO.md` for ongoing tracking.

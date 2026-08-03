@@ -24,7 +24,7 @@ def new(
         target = new_skill(name, directory, description)
     except FileExistsError:
         console.print(f"[red]{directory / name} already exists[/red]")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from None
     console.print(f"[green]Created {target}/SKILL.md[/green]")
 
 
@@ -35,7 +35,7 @@ def validate(path: Path = typer.Argument(..., help="Skill directory or SKILL.md.
         manifest = validate_skill(path)
     except ValueError as e:
         console.print(f"[red]{e}[/red]")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from None
     console.print(f"[green]OK[/green] name={manifest.name!r} description={manifest.description!r}")
 
 
@@ -49,6 +49,6 @@ def pack(
         out = pack_skill(path, output)
     except ValueError as e:
         console.print(f"[red]{e}[/red]")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from None
     console.print(f"[green]Packed {out}[/green]")
     console.print("Upload in xMagic: Sidebar -> Skills -> Upload ZIP (no public API yet).")
