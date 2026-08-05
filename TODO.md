@@ -89,8 +89,11 @@ Largely delivered by the open-source readiness work (see [PLAN.md](PLAN.md)).
 - [x] CHANGELOG
 - [x] PyPI release (`xmagic-sdk`) — **0.1.0 published 2026-08-03**; tag `v0.1.0`,
       trusted publishing via `release.yml`
-- [ ] Examples directory (SDK usage, MCP tool, skill) — the last unchecked Phase 6
-      item, and the only one a user of the published package would notice
+- [x] Examples directory — `examples/` with basic chat, streaming, files+Drive,
+      and the MCP scaffold walkthrough (the last needs no API key)
+- [ ] Two examples still missing from `examples/`:
+      - multi-provider (`provider:model`) — blocked on Phase 3 adapters
+      - skills packaging walkthrough — buildable today, just not written yet
 
 ## Open questions (blockers noted in DESIGN.md §10)
 
