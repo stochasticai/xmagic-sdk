@@ -5,15 +5,12 @@ to [PROGRESS.md](PROGRESS.md) with a date.
 
 ## Phase 1 — Core client (next up)
 
-Live validation is tracked in
-[#2](https://github.com/stochasticai/xmagic-sdk/issues/2) and needs a real
-`XMAGIC_API_KEY` — it blocks the rest of this phase, since the async client and
-upload flow both mirror shapes that are still unconfirmed.
+Live validation ([#2](https://github.com/stochasticai/xmagic-sdk/issues/2)) is
+**done** — shapes are confirmed against a real agent and locked with recorded
+fixtures, so the rest of this phase is unblocked. `AsyncXMagicClient` is next: it
+mirrors a now-verified sync client, and it is currently exported from the package
+root while raising `NotImplementedError`.
 
-- [ ] Validate `xmagic chat --agent <id>` against a real agent with a live
-      `XMAGIC_API_KEY`; confirm request/response shapes for create-chat, query,
-      and SSE events (`reasoning`/`response`/`live_update`/`[DONE]`) — #2
-- [ ] Lock in verified shapes with respx-mocked tests + recorded SSE fixtures — #2
 - [ ] Implement `AsyncXMagicClient` (1:1 mirror of sync client)
 - [ ] `xmagic chat` polish: render `reasoning` events dimmed; `--chat-type`
       flag; reuse a session across interactive turns
@@ -89,11 +86,11 @@ Largely delivered by the open-source readiness work (see [PLAN.md](PLAN.md)).
 - [x] CI: ruff check + ruff format + pytest on Python 3.11–3.14, plus a
       build/`twine check` job
 - [x] README badges
-- [ ] Examples directory (SDK usage, MCP tool, skill)
-- [ ] CHANGELOG
-- [ ] PyPI release (`xmagic-sdk`) — workflow is written and gated on a
-      tag-vs-version match, but cannot publish until a PyPI trusted publisher
-      and a GitHub `pypi` environment exist (one-time setup, see PLAN.md §7)
+- [x] CHANGELOG
+- [x] PyPI release (`xmagic-sdk`) — **0.1.0 published 2026-08-03**; tag `v0.1.0`,
+      trusted publishing via `release.yml`
+- [ ] Examples directory (SDK usage, MCP tool, skill) — the last unchecked Phase 6
+      item, and the only one a user of the published package would notice
 
 ## Open questions (blockers noted in DESIGN.md §10)
 

@@ -24,13 +24,15 @@ and hosted docs.
 7. ✅ **`.github/workflows/release.yml`** — PyPI trusted publishing (OIDC) on
    GitHub Release, with a tag-vs-version guard. **`.github/workflows/ci.yml`** —
    ruff + pytest on Python 3.11/3.12/3.13, plus a build/twine-check job.
-   ⚠️ Requires one-time setup: a PyPI trusted publisher for `stochasticai/xmagic-sdk`
-   (`release.yml`, environment `pypi`) and a GitHub environment named `pypi`.
-8. ✅ **README badges** — PyPI version, Python versions, license, CI status
-   (PyPI badges render as "unknown" until the first publish). Also added
-   Contributing and License sections.
+   The one-time setup this needed — a PyPI trusted publisher for
+   `stochasticai/xmagic-sdk` (`release.yml`, environment `pypi`) and a GitHub
+   environment named `pypi` — is **done**, and the path is proven end to end:
+   **0.1.0 published to PyPI 2026-08-03** from tag `v0.1.0`.
+8. ✅ **README badges** — PyPI version, Python versions, license, CI status.
+   The PyPI badges now resolve against a real release. Also added Contributing
+   and License sections.
 
-## Phase 3 — Examples & docs (not started)
+## Phase 3 — Examples & docs (not started — now the only phase left)
 
 9. **`examples/`** — small runnable scripts:
    - basic chat
