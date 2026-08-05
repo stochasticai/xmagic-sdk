@@ -28,6 +28,23 @@ Phase 1 (core client) is complete as of these changes.
   MCP server scaffold, and skills packaging. The last two need no API key.
 - Test coverage for the retry/backoff contract and for the `chat` CLI, plus a
   structural test asserting the async API mirrors the sync one method for method.
+- **An `xmagic_sdk` compatibility shim.** Importing it now raises an `ImportError`
+  naming the replacement (`xmagic`), the version the change happened in, and
+  `pip install 'xmagic-sdk==0.0.3'` for anyone who needs the old API. Scheduled
+  for removal in 1.0. See Compatibility below.
+
+### Compatibility
+
+- **0.1.0 changed this distribution's import name from `xmagic_sdk` to `xmagic`,
+  and replaced its public API.** Releases 0.0.1-0.0.3 (November 2025) installed a
+  top-level `xmagic_sdk` package built with setuptools; 0.1.0 installs `xmagic`.
+  Because both ship under the distribution name `xmagic-sdk`, `pip install -U`
+  deletes the old package, so `import xmagic_sdk` breaks. The 0.0.x helpers
+  (`run_mcp_server`, `fetch_info_from_kb_v1` / `_v3`, `registry`) and the hosted
+  deployment commands (`xmagic mcp run` / `list` / `logs` / `start` / `stop` /
+  `delete` / `validate`, ~1,100 lines in `mcp/deploy_mcp.py`) have no equivalent
+  in the current release. `xmagic configure` and `xmagic chat` survive by name but
+  changed flags. Pin `xmagic-sdk==0.0.3` if you depend on any of it.
 
 ### Fixed
 
