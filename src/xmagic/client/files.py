@@ -11,9 +11,21 @@ in a ``file`` object.
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
-from xmagic.client.http import HttpTransport
+from xmagic.client.http import AsyncHttpTransport, HttpTransport
 from xmagic.client.models import UploadedFile
+
+UPLOAD_PATH = "/uploaded-files"
+
+
+def _upload_files_arg(path: Path) -> dict[str, Any]:
+    """Build the multipart payload.
+
+    Reads the file into memory so the transport's retry loop can safely re-send
+    the body (an open handle would be exhausted after attempt 1).
+    """
+    return {"file": (path.name, path.read_bytes())}
 
 
 class FilesAPI:
@@ -23,11 +35,20 @@ class FilesAPI:
         self._t = transport
 
     def upload(self, path: str | Path) -> UploadedFile:
-        """Upload a local file; returns the file record with its id.
-
-        Reads the file into memory so the transport's retry loop can safely
-        re-send the body (an open handle would be exhausted after attempt 1).
-        """
+        """Upload a local file; returns the file record with its id."""
         p = Path(path)
-        body = self._t.request("POST", "/uploaded-files", files={"file": (p.name, p.read_bytes())})
+        body = self._t.request("POST", UPLOAD_PATH, files=_upload_files_arg(p))
+        return UploadedFile(id=body["data"], filename=p.name)
+
+
+class AsyncFilesAPI:
+    """Async mirror of :class:`FilesAPI`."""
+
+    def __init__(self, transport: AsyncHttpTransport) -> None:
+        self._t = transport
+
+    async def upload(self, path: str | Path) -> UploadedFile:
+        """Upload a local file; returns the file record with its id."""
+        p = Path(path)
+        body = await self._t.request("POST", UPLOAD_PATH, files=_upload_files_arg(p))
         return UploadedFile(id=body["data"], filename=p.name)

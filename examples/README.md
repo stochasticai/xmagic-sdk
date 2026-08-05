@@ -13,9 +13,10 @@ uv run python examples/01_basic_chat.py
 | [`02_streaming.py`](02_streaming.py) | Consume SSE events as they arrive; separate `reasoning` from `response`, capture `message_id` from `metadata`. | yes |
 | [`03_files_and_drive.py`](03_files_and_drive.py) | Upload a file and reference it in a query, then index one into a Drive knowledge-base folder. | yes |
 | [`04_mcp_server.py`](04_mcp_server.py) | Scaffold a containerized MCP server (a custom tool) and walk through registering it. | **no** |
+| [`05_skills.py`](05_skills.py) | Scaffold, validate, and pack a skill into an upload-ready zip. | **no** |
 
-Start with `04_mcp_server.py` if you don't have credentials yet — it only writes
-files locally.
+Start with `04_mcp_server.py` or `05_skills.py` if you don't have credentials
+yet — they only write files locally.
 
 ## Setup
 
@@ -47,6 +48,9 @@ it finds neither.
 - Examples call the live API, which counts against your plan's rate limit
   (Free 20 rpm / Pro 100 / Business 500). The client retries `429` with backoff
   automatically.
+- `01`–`03` use the sync client. Everything they do is also available on
+  `AsyncXMagicClient`, which mirrors it 1:1 — `await` each call and iterate
+  `stream` with `async for`.
 - A **multi-provider** example (`provider:model` refs backed by your own key) is
   planned but not written yet: only the xMagic provider is implemented today, and
   the OpenAI/Anthropic/Google/LiteLLM adapters raise `NotImplementedError` until

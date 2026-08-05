@@ -37,12 +37,21 @@ class Completion:
     raw: dict[str, Any] = field(default_factory=dict)
 
 
+ChunkKind = Literal["response", "reasoning"]
+
+
 @dataclass
 class CompletionChunk:
-    """A streamed delta."""
+    """A streamed delta.
+
+    ``kind`` separates the model's visible answer from its thinking, so a caller
+    can render them differently. Adapters that expose no reasoning channel emit
+    the default and callers need not branch.
+    """
 
     text: str
     done: bool = False
+    kind: ChunkKind = "response"
 
 
 @dataclass

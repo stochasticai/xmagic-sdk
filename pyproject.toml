@@ -80,6 +80,7 @@ include = [
 [dependency-groups]
 dev = [
     "pytest>=8.0",
+    "pytest-asyncio>=1.0,<2",
     "respx>=0.21",
     # Bounded to one minor: ruff changes rule defaults and formatting between
     # minors, and with no committed lock an unbounded range lets CI drift ahead
@@ -107,6 +108,8 @@ select = ["E4", "E7", "E9", "F", "B", "BLE", "PYI", "RUF", "UP"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-m 'not live'"
+# Async tests are plain `async def` without a per-test decorator.
+asyncio_mode = "auto"
 markers = [
     "live: tests that hit the live xMagic backend",
 ]
