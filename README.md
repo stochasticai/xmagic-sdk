@@ -20,8 +20,8 @@ Working today:
 1. **MCP servers** — scaffold containerized (Dockerfile included) MCP servers you can
    register as xMagic custom tools.
 2. **xMagic API** — chat (sync + streaming), file uploads, Drive (knowledge base),
-   skills packaging. Request/response shapes are verified against the live API and
-   locked with recorded-fixture tests.
+   skills packaging, with a matching async client. Request/response shapes are
+   verified against the live API and locked with recorded-fixture tests.
 
 Planned:
 
@@ -29,8 +29,7 @@ Planned:
    Google, and (via LiteLLM) 100+ more. Only the xMagic provider is implemented so
    far; the others are stubs.
 4. **Bring your own model** *(Phase 3)* — `provider:model` refs with your own API keys.
-5. **Async client** *(Phase 1)* — `AsyncXMagicClient`, a 1:1 mirror of the sync client.
-6. **Local web app** *(Phase 5)* — `xmagic serve` runs the xMagic web app locally
+5. **Local web app** *(Phase 5)* — `xmagic serve` runs the xMagic web app locally
    via proxy.
 
 ## Install
@@ -112,6 +111,19 @@ xmagic chat --agent <agent_id>                            # interactive session
 
 Responses stream by default; `--no-stream` waits for the full reply instead.
 If you set `default_agent_id` during `configure`, drop the `--agent` flag.
+When the agent thinks out loud, its reasoning is printed dimmed, above the
+answer.
+
+Attach files with `-f` (repeatable), and pick the chat's UI context with
+`--chat-type`:
+
+```bash
+xmagic chat --agent <agent_id> -f notes.md -f data.csv "What changed?"
+xmagic chat --agent <agent_id> --chat-type playground "Try something"
+```
+
+An interactive session reuses a single chat, so the agent keeps its context
+across turns.
 
 ### 4. Use it from Python
 
@@ -133,6 +145,19 @@ resp = client.chats.query("<agent_id>", chat.id, "One-sentence summary?")
 `XMagicClient` is a context manager, so `with XMagicClient() as client:` closes
 the underlying HTTP connection for you. It retries `429` and `5xx` with
 exponential backoff, honoring `Retry-After`.
+
+`AsyncXMagicClient` mirrors it 1:1 — same resources, same arguments, same
+returns. Await each call, and iterate `stream` with `async for`:
+
+```python
+from xmagic import AsyncXMagicClient
+
+async with AsyncXMagicClient() as client:
+    chat = await client.chats.create("<agent_id>", title="demo")
+    async for event in client.chats.stream("<agent_id>", chat.id, "Explain xMagic skills"):
+        if event.type == "response":
+            print(event.text, end="")
+```
 
 ### 5. Build a custom tool (MCP server)
 

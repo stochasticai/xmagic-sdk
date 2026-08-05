@@ -10,10 +10,31 @@ codebase.**
 
 ## [Unreleased]
 
+Phase 1 (core client) is complete as of these changes.
+
 ### Added
 
-- `examples/` — runnable scripts for basic chat, streaming, files + Drive, and
-  the MCP server scaffold. The MCP one needs no API key.
+- **`AsyncXMagicClient`** — a full 1:1 async mirror of the sync client, replacing
+  the placeholder that raised `NotImplementedError`. Same resources, arguments,
+  and return types; `stream` is an async iterator. Backoff uses `asyncio.sleep`,
+  so waiting on a rate limit does not block the event loop.
+- **`xmagic chat` gains `-f/--file`** (repeatable) to attach files to a prompt,
+  and **`--chat-type`** to choose the chat's UI context.
+- **Reasoning is rendered dimmed** above the answer when an agent emits it.
+  `CompletionChunk` gained a `kind` field (`"response"` / `"reasoning"`) so
+  callers can distinguish the two; adapters with no reasoning channel emit the
+  default and callers need not branch.
+- `examples/` — runnable scripts for basic chat, streaming, files + Drive, the
+  MCP server scaffold, and skills packaging. The last two need no API key.
+- Test coverage for the retry/backoff contract and for the `chat` CLI, plus a
+  structural test asserting the async API mirrors the sync one method for method.
+
+### Fixed
+
+- **`Retry-After` carrying an HTTP-date crashed the retry loop** with
+  `ValueError` instead of retrying. RFC 9110 permits a date as well as a delay in
+  seconds; an unparseable or non-positive value now degrades to the normal
+  exponential backoff.
 
 Work in progress is tracked in [TODO.md](TODO.md).
 

@@ -35,6 +35,7 @@ class XMagicProvider(Provider):
         api_key: str | None = None,
         settings: Settings | None = None,
         chat_id: str | None = None,
+        chat_type: ChatType | str = ChatType.STANDARD,
         **options: Any,
     ) -> None:
         super().__init__(api_key=api_key, **options)
@@ -44,11 +45,23 @@ class XMagicProvider(Provider):
             else XMagicClient(api_key=api_key or settings.api_key, base_url=settings.base_url)
         )
         self._chat_id = chat_id
+        self._chat_type = chat_type
+
+    @property
+    def chat_id(self) -> str | None:
+        """The chat backing this provider, once one has been created."""
+        return self._chat_id
 
     def _ensure_chat(self, agent_id: str) -> str:
+        """Create the chat on first use, then reuse it.
+
+        Caching here is what gives an interactive session continuity: every turn
+        through the same provider instance lands in the same chat, so the agent
+        keeps its server-side history.
+        """
         if self._chat_id is None:
             chat = self._client.chats.create(
-                agent_id, title="xmagic-sdk session", chat_type=ChatType.STANDARD
+                agent_id, title="xmagic-sdk session", chat_type=self._chat_type
             )
             self._chat_id = chat.id
         return self._chat_id
@@ -67,6 +80,8 @@ class XMagicProvider(Provider):
                 yield CompletionChunk(text="", done=True)
             elif event.type == "response":
                 yield CompletionChunk(text=event.text)
+            elif event.type == "reasoning":
+                yield CompletionChunk(text=event.text, kind="reasoning")
 
     def capabilities(self) -> dict[str, bool]:
         return {"streaming": True, "tools": True, "vision": False}
