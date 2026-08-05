@@ -5,6 +5,35 @@ the plan and [TODO.md](TODO.md) for what's next.
 
 ---
 
+## 2026-08-03 — 0.1.0 released to PyPI
+
+- **`xmagic-sdk` 0.1.0 is on PyPI**, published from tag `v0.1.0` via the
+  trusted-publishing workflow. The one-time setup PLAN.md §7 flagged as blocking
+  (PyPI trusted publisher + a GitHub `pypi` environment) is done, so the release
+  path is proven end to end rather than only written. The README's PyPI badges
+  now resolve against a real release.
+- Added **CHANGELOG.md** covering 0.1.0. Note that PyPI also carries 0.0.1–0.0.3
+  from November 2025; those predate this repository's history, so 0.1.0 is the
+  first release cut from this codebase and the changelog starts there.
+- `CITATION.cff` gained `date-released: 2026-08-03`, which it had been carrying a
+  TODO comment for since Phase 1 of PLAN.md.
+
+## 2026-07-31 — Live API validation (#2 closed)
+
+- **Request/response shapes are confirmed against a live agent** and locked
+  down, closing [#2](https://github.com/stochasticai/xmagic-sdk/issues/2) —
+  the item TODO.md had listed as blocking the rest of Phase 1. Verified chat,
+  stream, upload, and Drive endpoints; replaced defensive `.get` chains with the
+  confirmed shapes; fixed `StreamEvent`'s `Literal` and `Message.output_assets`.
+- Added `tests/test_client_contracts.py` (324 lines) with respx-mocked tests over
+  9 recorded fixtures, including SSE frames, plus opt-in live tests that resolve
+  an API key from the environment, `.env`, or `xmagic configure`'s config.toml.
+  Suite is now 18 passing with the 3 live tests deselected by default.
+- Landed via PR #6 (`e0e39c2`), merged to main in `f932e6f`.
+- **Phase 1 is unblocked.** `AsyncXMagicClient` is next: it mirrors a now-verified
+  sync client, and it is the only `NotImplementedError` left in the package that
+  belongs to Phase 1 rather than a later phase.
+
 ## 2026-07-29 — Docs accuracy pass
 
 - **README no longer advertises unimplemented features as working.** It pitched
