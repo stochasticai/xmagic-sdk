@@ -9,8 +9,9 @@ Python SDK and CLI for [xMagic](https://xmagic.ai), Stochastic's AI agent platfo
 
 > **Status: alpha scaffold.** Parts of the surface below are still stubs that
 > raise `NotImplementedError` — each is marked with the roadmap phase that
-> implements it. See [DESIGN.md](DESIGN.md) for the design plan and
-> [TODO.md](TODO.md) for current work.
+> implements it. See [DESIGN.md](DESIGN.md) for the design plan,
+> [TODO.md](TODO.md) for current work, and [CHANGELOG.md](CHANGELOG.md) for
+> what shipped.
 
 ## What it does
 
@@ -19,9 +20,8 @@ Working today:
 1. **MCP servers** — scaffold containerized (Dockerfile included) MCP servers you can
    register as xMagic custom tools.
 2. **xMagic API** — chat (sync + streaming), file uploads, Drive (knowledge base),
-   skills packaging. The client is implemented but its request/response shapes
-   have not yet been verified against the live API
-   ([#2](https://github.com/stochasticai/xmagic-sdk/issues/2)).
+   skills packaging. Request/response shapes are verified against the live API and
+   locked with recorded-fixture tests.
 
 Planned:
 
