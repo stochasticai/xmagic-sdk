@@ -10,6 +10,11 @@ codebase.**
 
 ## [Unreleased]
 
+### Added
+
+- `examples/` — runnable scripts for basic chat, streaming, files + Drive, and
+  the MCP server scaffold. The MCP one needs no API key.
+
 Work in progress is tracked in [TODO.md](TODO.md).
 
 ## [0.1.0] — 2026-08-03

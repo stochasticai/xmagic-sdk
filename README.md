@@ -166,6 +166,10 @@ Upload the zip in the dashboard under **Skills**.
 
 ### Next steps
 
+Runnable scripts for each of the flows above live in
+[`examples/`](examples/) — chat, streaming, files and Drive, and the MCP
+scaffold walkthrough (that one needs no API key).
+
 `xmagic --help` lists every command, and each subcommand takes `--help` too.
 See [DESIGN.md](DESIGN.md) for how the pieces fit together.
 
