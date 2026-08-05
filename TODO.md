@@ -3,19 +3,16 @@
 Working task list, organized by DESIGN.md roadmap phase. Move completed items
 to [PROGRESS.md](PROGRESS.md) with a date.
 
-## Phase 1 — Core client (next up)
+## Phase 1 — Core client ✅ complete
 
-Live validation ([#2](https://github.com/stochasticai/xmagic-sdk/issues/2)) is
-**done** — shapes are confirmed against a real agent and locked with recorded
-fixtures, so the rest of this phase is unblocked. `AsyncXMagicClient` is next: it
-mirrors a now-verified sync client, and it is currently exported from the package
-root while raising `NotImplementedError`.
+Live validation ([#2](https://github.com/stochasticai/xmagic-sdk/issues/2))
+unblocked the rest of the phase, and it is now finished.
 
-- [ ] Implement `AsyncXMagicClient` (1:1 mirror of sync client)
-- [ ] `xmagic chat` polish: render `reasoning` events dimmed; `--chat-type`
+- [x] Implement `AsyncXMagicClient` (1:1 mirror of sync client)
+- [x] `xmagic chat` polish: render `reasoning` events dimmed; `--chat-type`
       flag; reuse a session across interactive turns
-- [ ] File-upload flow end-to-end (`-f` flag → `/uploaded-files` → query ref)
-- [ ] Retry/backoff behavior test for 429 with `Retry-After`
+- [x] File-upload flow end-to-end (`-f` flag → `/uploaded-files` → query ref)
+- [x] Retry/backoff behavior test for 429 with `Retry-After`
 
 ## Phase 2 — MCP toolkit
 
@@ -91,9 +88,8 @@ Largely delivered by the open-source readiness work (see [PLAN.md](PLAN.md)).
       trusted publishing via `release.yml`
 - [x] Examples directory — `examples/` with basic chat, streaming, files+Drive,
       and the MCP scaffold walkthrough (the last needs no API key)
-- [ ] Two examples still missing from `examples/`:
-      - multi-provider (`provider:model`) — blocked on Phase 3 adapters
-      - skills packaging walkthrough — buildable today, just not written yet
+- [x] Skills packaging example (`examples/05_skills.py`)
+- [ ] Multi-provider example (`provider:model`) — blocked on Phase 3 adapters
 
 ## Open questions (blockers noted in DESIGN.md §10)
 

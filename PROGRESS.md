@@ -5,6 +5,36 @@ the plan and [TODO.md](TODO.md) for what's next.
 
 ---
 
+## 2026-08-05 — Phase 1 complete: async client, chat polish, retry coverage
+
+- **`AsyncXMagicClient` implemented**, closing the last Phase 1 gap and the only
+  `NotImplementedError` in the package that wasn't honestly deferred to a later
+  phase — it was exported from the package root and raised on construction.
+  Sync and async transports now sit side by side in `client/http.py` and share
+  auth, retry, and SSE decoding; each resource module holds both classes over
+  shared path/payload helpers, so the two cannot drift on the wire. The async
+  tests replay the *same* recorded fixtures as the sync contract tests, plus a
+  structural parity test that fails if either side gains a method or renames an
+  argument.
+- **Found and fixed a real bug while writing the retry tests**: `Retry-After` is
+  allowed by RFC 9110 to carry an HTTP-date, and `float(retry_after)` raised
+  `ValueError` mid-retry rather than retrying. Unparseable or non-positive values
+  now fall back to exponential backoff. The README had advertised this retry
+  behavior since 0.1.0 with no test covering it.
+- **`xmagic chat`**: `-f/--file` (repeatable) uploads and references files on the
+  query, `--chat-type` selects the UI context, and reasoning renders dimmed above
+  the answer. `CompletionChunk` gained a `kind` field to carry that distinction
+  through the provider interface without forcing other adapters to care.
+  *Session reuse across interactive turns was already working* — the provider is
+  constructed once and `_ensure_chat` caches the chat id — so that item needed a
+  test, not an implementation.
+- Suite went 18 → 50 passing (3 live tests still deselected): 9 retry, 13 async,
+  10 CLI.
+- Added `examples/05_skills.py`; `examples/` is now 5 scripts, 2 of which need no
+  API key. Only the multi-provider example is left, still blocked on Phase 3.
+- Dev dependency: `pytest-asyncio` (bounded `>=1.0,<2`) with `asyncio_mode =
+  "auto"`.
+
 ## 2026-08-03 — 0.1.0 released to PyPI
 
 - **`xmagic-sdk` 0.1.0 is on PyPI**, published from tag `v0.1.0` via the
