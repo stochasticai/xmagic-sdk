@@ -30,14 +30,17 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-openai = ["openai>=1.30"]
-anthropic = ["anthropic>=0.34"]
-google = ["google-genai>=1.0"]
+# No per-vendor extras. The OpenAI, Anthropic, and Google adapters are extension
+# points, not working code — both `complete` and `stream` raise
+# NotImplementedError. LiteLLM already reaches those three vendors (and ~150
+# more) through one dependency, so shipping `[openai]` / `[anthropic]` /
+# `[google]` would install three heavy SDKs that nothing imports. Re-add an
+# extra next to whichever adapter is actually implemented.
 litellm = ["litellm>=1.40"]
 serve = ["starlette>=0.37", "uvicorn>=0.29"]
 mcp = ["mcp>=1.0"]
 all = [
-    "xmagic-sdk[openai,anthropic,google,litellm,serve,mcp]",
+    "xmagic-sdk[litellm,serve,mcp]",
 ]
 
 [project.scripts]

@@ -49,14 +49,32 @@ Two halves, and they are independent:
       client; the remote one is an xMagic API call. They may not want to share
       a command group
 
-## Phase 3 — Providers
+## Phase 3 — Providers (deprioritized 2026-08-05)
 
-- [ ] Implement `OpenAIProvider` (complete + stream)
-- [ ] Implement `AnthropicProvider`
-- [ ] Implement `GoogleProvider`
-- [ ] Implement `LiteLLMProvider` (long-tail escape hatch)
-- [ ] `xmagic models list` across configured providers
-- [ ] Provider capability flags (tools, vision) wired into CLI errors
+Worth knowing before picking this up: **xMagic documents no model selection at
+all.** `model` in `XMagicProvider` is an agent id, and `_query_payload` carries no
+model field. Checked against the live docs on 2026-08-05: none of the 15 endpoints
+in the API reference takes a `model` parameter, no endpoint lists models, and none
+of the 103 documented pages covers choosing one — the agent-config page's only
+mention is an "Allow Model's Knowledge" toggle, which is about pretrained
+knowledge, not model choice.
+
+How xMagic picks a model is therefore not a supported, documented surface, and we
+should not build against it or assume one exists. What follows for us: per-call
+model choice comes from LiteLLM alone, and one adapter covers every vendor the
+three native ones would have. The native adapters are now reserved extension
+points with no extra (DESIGN.md §4).
+
+- [ ] Implement `LiteLLMProvider` (complete + stream) — this *is* multi-provider
+      support now, and the only item here on anyone's critical path
+- [ ] `xmagic models list` — near-trivial off `litellm.model_list` (~1,900 models
+      across 149 providers as of litellm 1.95)
+- [ ] Provider capability flags — read `litellm.supports_function_calling` /
+      `supports_vision` rather than hand-maintaining a table
+- [ ] ~~`OpenAIProvider` / `AnthropicProvider` / `GoogleProvider`~~ — reserved,
+      not planned. Implement one only if a vendor-specific need (parameters,
+      auth, transport) makes routing through LiteLLM wrong, and add its extra
+      back at that point
 
 ## Phase 4 — Skills & Drive
 
@@ -89,7 +107,7 @@ Largely delivered by the open-source readiness work (see [PLAN.md](PLAN.md)).
 - [x] Examples directory — `examples/` with basic chat, streaming, files+Drive,
       and the MCP scaffold walkthrough (the last needs no API key)
 - [x] Skills packaging example (`examples/05_skills.py`)
-- [ ] Multi-provider example (`provider:model`) — blocked on Phase 3 adapters
+- [ ] Multi-provider example (`provider:model`) — blocked on `LiteLLMProvider`
 
 ## Open questions (blockers noted in DESIGN.md §10)
 
