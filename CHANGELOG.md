@@ -29,6 +29,20 @@ Phase 1 (core client) is complete as of these changes.
 - Test coverage for the retry/backoff contract and for the `chat` CLI, plus a
   structural test asserting the async API mirrors the sync one method for method.
 
+### Changed
+
+- **Dropped the `[openai]`, `[anthropic]`, and `[google]` extras.** They installed
+  three vendor SDKs that nothing imports — both `complete` and `stream` on those
+  adapters raise `NotImplementedError`, and LiteLLM already reaches the same
+  vendors (and ~150 more) through one dependency. `[all]` is now
+  `[litellm,serve,mcp]`; `anthropic` and the `google-genai` tree (google-auth,
+  protobuf, grpcio) no longer install at all. `openai` still does, but only
+  because LiteLLM depends on it — we no longer declare it. The adapter
+  classes and their `xmagic.providers` entry points are unchanged and remain
+  reserved extension points; an extra comes back alongside whichever one is
+  actually implemented. Their error messages now point at
+  `litellm:<vendor>/<model>` rather than at an extra that no longer exists.
+
 ### Fixed
 
 - **`Retry-After` carrying an HTTP-date crashed the retry loop** with

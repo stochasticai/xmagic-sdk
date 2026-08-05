@@ -107,10 +107,10 @@ src/xmagic/
 │   ├── base.py            # Provider ABC: complete(), stream(); ModelRef parsing
 │   ├── registry.py        # "provider:model" resolution, entry-point plugins
 │   ├── xmagic.py          # maps chat completion semantics onto agent chats
-│   ├── openai.py          # optional extra [openai]
-│   ├── anthropic.py       # optional extra [anthropic]
-│   ├── google.py          # optional extra [google]
-│   └── litellm.py         # optional extra [litellm] — long-tail escape hatch
+│   ├── openai.py          # reserved extension point — no extra, not implemented
+│   ├── anthropic.py       # reserved extension point — no extra, not implemented
+│   ├── google.py          # reserved extension point — no extra, not implemented
+│   └── litellm.py         # optional extra [litellm] — the multi-provider path
 ├── skills/
 │   └── packaging.py       # validate SKILL.md frontmatter, build/inspect zips
 ├── mcp/
@@ -163,8 +163,12 @@ Design rules:
 - `XMagicProvider` adapts agent-chat semantics to the message interface (creates an
   ephemeral `standard` chat per session unless given a `chat_id`).
 - Third parties register providers via the `xmagic.providers` entry-point group.
-- Provider SDKs are **optional extras**; importing an uninstalled adapter raises a
-  helpful `pip install "xmagic-sdk[openai]"` message.
+- **LiteLLM is the multi-provider path**, not one option among four. It reaches
+  OpenAI, Anthropic, Google and ~150 other vendors through a single optional
+  extra, so the per-vendor adapters stay reserved extension points: the classes
+  and entry points exist, but they ship no extra and no implementation. Build one
+  natively only if a vendor-specific need (parameters, auth, transport) makes
+  routing through LiteLLM wrong, and add its extra at that point.
 
 ---
 
@@ -275,8 +279,8 @@ Chosen approach: **local proxy of the hosted xMagic web app**.
   MCP template ships auth-on-by-default.
 - **Testing**: pytest + respx (httpx mocking); recorded SSE fixtures; template
   golden-file tests for `mcp init`; CLI tests via Typer's runner.
-- **Packaging**: uv + hatchling; extras: `[openai] [anthropic] [google] [litellm]
-  [serve] [mcp] [all]`; single console script `xmagic`.
+- **Packaging**: uv + hatchling; extras: `[litellm] [serve] [mcp] [all]`; single
+  console script `xmagic`. No per-vendor extras — see §4.
 - **Git conventions**: [Conventional Commits](https://www.conventionalcommits.org)
   for all commit messages (`feat:`, `fix:`, `docs:`, `test:`, `chore:`,
   `refactor:`; scope optional, e.g. `feat(mcp): ...`). Enables changelog
@@ -291,7 +295,7 @@ Chosen approach: **local proxy of the hosted xMagic web app**.
 | **0 — Scaffold** (this session) | Repo layout, pyproject, config, CLI skeleton, MCP templates |
 | **1 — Core client** | chats/query/stream/files, errors, retries; `xmagic chat` end-to-end |
 | **2 — MCP toolkit** | `mcp init/dev`, template hardening, register walkthrough |
-| **3 — Providers** | base + xmagic/openai/anthropic/google adapters, `models list`, litellm extra |
+| **3 — Providers** *(deprioritized)* | `LiteLLMProvider` + `models list`. xMagic documents no model selection (`model` is an agent id), so LiteLLM is the whole of multi-provider; the per-vendor adapters are reserved, see §4 and §10.6 |
 | **4 — Skills & Drive** | skills new/validate/pack, drive CRUD |
 | **5 — Serve** | proxy + fallback UI, `--upstream` for self-hosted |
 | **6 — Polish** | docs, examples, CI, PyPI release |
@@ -314,6 +318,15 @@ platform team in [#5](https://github.com/stochasticai/xmagic-sdk/issues/5).
    agent chat? Decides whether tools are testable against the real platform and
    scriptable in CI, or whether the dashboard-plus-chat loop is the only integration
    test available. See §6.1.
+6. **Is model selection a supported surface at all?** As of 2026-08-05 the docs say
+   no: none of the 15 endpoints in the API reference takes a `model` parameter, no
+   endpoint lists available models, and none of the 103 documented pages covers
+   choosing one (agent-config offers only an "Allow Model's Knowledge" toggle,
+   which concerns pretrained knowledge rather than model choice). Whatever the
+   platform does internally is undocumented, so we treat it as unsupported and
+   build nothing against it. If it is meant to be public, it needs documenting
+   before `xmagic models list` can mean anything on the xMagic side — today that
+   command can only report what LiteLLM can reach.
 
 ---
 

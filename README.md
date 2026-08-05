@@ -42,8 +42,10 @@ uv pip install "xmagic-sdk[all]"     # + all provider/serve/mcp extras
 ```
 
 Extras are granular if you don't want everything — `[mcp]` for the server
-scaffold, `[serve]` for the local web app, and `[openai]` / `[anthropic]` /
-`[google]` / `[litellm]` per provider. `pip` works too if you don't use `uv`.
+scaffold, `[serve]` for the local web app, and `[litellm]` for model providers.
+There are no per-vendor extras: LiteLLM reaches OpenAI, Anthropic, Google and
+~150 others through one dependency, so installing three vendor SDKs to get the
+same coverage would be waste. `pip` works too if you don't use `uv`.
 
 From a checkout:
 
