@@ -34,13 +34,18 @@ and hosted docs.
 
 ## Phase 3 — Examples & docs (not started — now the only phase left)
 
-9. **`examples/`** — small runnable scripts:
-   - basic chat
-   - streaming
-   - multi-provider (`provider:model`) — needs Phase 3 of the DESIGN.md roadmap
-     first; the adapters are stubs today
-   - file / Drive upload
-   - MCP server scaffold walkthrough
+9. ✅ **`examples/`** — small runnable scripts, 4 of 6 written:
+   - ✅ basic chat (`01_basic_chat.py`)
+   - ✅ streaming (`02_streaming.py`)
+   - ✅ file / Drive upload (`03_files_and_drive.py`)
+   - ✅ MCP server scaffold walkthrough (`04_mcp_server.py`) — the only one that
+     runs without an API key, so it doubles as the zero-credential entry point
+   - ⬜ multi-provider (`provider:model`) — still needs Phase 3 of the DESIGN.md
+     roadmap; the adapters are stubs today
+   - ⬜ skills packaging walkthrough — not blocked on anything, just unwritten
+
+   All three API examples exit cleanly with a pointed message when the key or
+   agent id is missing, rather than surfacing a traceback.
 10. **Docs for docs.xmagic.ai** — draft SDK/CLI reference + quickstart pages.
     The site is live and runs **Docusaurus v3.8.1** (served from S3), so pages
     are Markdown/MDX with frontmatter plus a sidebar entry. Still blocked on

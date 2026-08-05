@@ -65,6 +65,7 @@ packages = ["src/xmagic"]
 include = [
     "src",
     "tests",
+    "examples",
     "README.md",
     "CHANGELOG.md",
     "LICENSE",
