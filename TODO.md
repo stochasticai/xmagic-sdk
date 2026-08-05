@@ -91,6 +91,25 @@ Largely delivered by the open-source readiness work (see [PLAN.md](PLAN.md)).
 - [x] Skills packaging example (`examples/05_skills.py`)
 - [ ] Multi-provider example (`provider:model`) — blocked on Phase 3 adapters
 
+### Release hygiene (from the PyPI audit — see [PYPI_HISTORY.md](PYPI_HISTORY.md))
+
+Nothing here blocks a release; each one makes a burned version number less
+likely. 0.0.3 was spent on a one-line log change because PyPI won't accept a
+re-upload.
+
+- [ ] `release.yml` runs no tests or lint — it goes from checkout straight to
+      `uv build` + `twine check`, so a green tag can publish a red commit
+- [ ] Two version sources with no guard: `pyproject.toml` and
+      `src/xmagic/__init__.py`. Derive `__version__` from
+      `importlib.metadata.version("xmagic-sdk")`, or assert they agree in a test
+- [ ] Publish to TestPyPI from the *same* artifact that goes to PyPI, so the
+      rehearsal is a real one (the 0.0.2 rehearsal shipped a different sdist)
+- [ ] Add a second owner to the `xmagic-sdk` PyPI project — `internal_apis` is
+      currently the only role holder, so yank/delete/maintainer rights are
+      single-homed
+- [x] Document the install-vs-import name mismatch (`xmagic-sdk` / `xmagic`) and
+      the 0.0.x → 0.1.0 break, and ship a shim that explains it on import
+
 ## Open questions (blockers noted in DESIGN.md §10)
 
 - [ ] Public API for custom-tool registration / skill upload? (dashboard-only today)
