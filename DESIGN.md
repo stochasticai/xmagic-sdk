@@ -14,8 +14,8 @@ Status: **Draft v0.1** · Target: Python >= 3.10 · License: Apache-2.0
 2. **xMagic API access** — first-class Python client + CLI for chat (sync, streaming,
    async/webhook), tools, skills, agents, and Drive (knowledge base).
 3. **Multi-provider extensibility** — a thin `Provider` interface with first-party
-   adapters for xMagic, OpenAI, Anthropic, and Google; optional LiteLLM adapter for
-   the long tail of providers.
+   adapters for xMagic and OpenAI, plus a LiteLLM adapter for the long tail
+   (Anthropic and Google included). Anthropic/Google natives are reserved, §4.
 4. **Bring-your-own-model** — select any provider/model at call time or via config
    using your own API keys (`provider:model` notation, e.g. `anthropic:claude-sonnet-5`).
 5. **Local web app** — `xmagic serve` runs a local reverse proxy for the hosted xMagic
@@ -107,7 +107,7 @@ src/xmagic/
 │   ├── base.py            # Provider ABC: complete(), stream(); ModelRef parsing
 │   ├── registry.py        # "provider:model" resolution, entry-point plugins
 │   ├── xmagic.py          # maps chat completion semantics onto agent chats
-│   ├── openai.py          # reserved extension point — no extra, not implemented
+│   ├── openai.py          # implemented; optional extra [openai]
 │   ├── anthropic.py       # reserved extension point — no extra, not implemented
 │   ├── google.py          # reserved extension point — no extra, not implemented
 │   └── litellm.py         # optional extra [litellm] — the multi-provider path
@@ -150,10 +150,10 @@ Provider layer (BYO model):
 ```python
 from xmagic.providers import get_provider
 
-llm = get_provider("anthropic:claude-sonnet-5")  # or "xmagic:<agent_id>",
-result = llm.complete(messages=[...])  # "openai:gpt-4o", "google:gemini-2.5-pro",
-for chunk in llm.stream(messages=[...]):
-    ...  # "litellm:<anything>"
+llm = get_provider("openai:gpt-5")  # implemented; or "xmagic:<agent_id>"
+result = llm.complete(messages=[...], model="gpt-5")
+for chunk in llm.stream(messages=[...], model="gpt-5"):
+    ...  # "litellm:<anything>" once that adapter lands; anthropic:/google: reserved
 ```
 
 Design rules:
@@ -163,12 +163,15 @@ Design rules:
 - `XMagicProvider` adapts agent-chat semantics to the message interface (creates an
   ephemeral `standard` chat per session unless given a `chat_id`).
 - Third parties register providers via the `xmagic.providers` entry-point group.
-- **LiteLLM is the multi-provider path**, not one option among four. It reaches
-  OpenAI, Anthropic, Google and ~150 other vendors through a single optional
-  extra, so the per-vendor adapters stay reserved extension points: the classes
-  and entry points exist, but they ship no extra and no implementation. Build one
-  natively only if a vendor-specific need (parameters, auth, transport) makes
-  routing through LiteLLM wrong, and add its extra at that point.
+- **`OpenAIProvider` is the one vendor-native adapter**, and the worked example
+  of the pattern: message mapping, vendor errors translated into this SDK's own
+  hierarchy, and a stream ending in a terminal `done` chunk. It keeps `[openai]`.
+- **LiteLLM covers the rest.** It reaches Anthropic, Google and ~150 other
+  vendors through a single optional extra, so `AnthropicProvider` and
+  `GoogleProvider` stay reserved extension points: the classes and entry points
+  exist, but they ship no extra and no implementation. Build one natively only if
+  a vendor-specific need (parameters, auth, transport) makes routing through
+  LiteLLM wrong, and add its extra at that point -- copying `openai.py`.
 
 ---
 
@@ -279,8 +282,9 @@ Chosen approach: **local proxy of the hosted xMagic web app**.
   MCP template ships auth-on-by-default.
 - **Testing**: pytest + respx (httpx mocking); recorded SSE fixtures; template
   golden-file tests for `mcp init`; CLI tests via Typer's runner.
-- **Packaging**: uv + hatchling; extras: `[litellm] [serve] [mcp] [all]`; single
-  console script `xmagic`. No per-vendor extras — see §4.
+- **Packaging**: uv + hatchling; extras: `[openai] [litellm] [serve] [mcp] [all]`;
+  single console script `xmagic`. A vendor extra only where the adapter is
+  implemented — see §4.
 - **Git conventions**: [Conventional Commits](https://www.conventionalcommits.org)
   for all commit messages (`feat:`, `fix:`, `docs:`, `test:`, `chore:`,
   `refactor:`; scope optional, e.g. `feat(mcp): ...`). Enables changelog
@@ -295,7 +299,7 @@ Chosen approach: **local proxy of the hosted xMagic web app**.
 | **0 — Scaffold** (this session) | Repo layout, pyproject, config, CLI skeleton, MCP templates |
 | **1 — Core client** | chats/query/stream/files, errors, retries; `xmagic chat` end-to-end |
 | **2 — MCP toolkit** | `mcp init/dev`, template hardening, register walkthrough |
-| **3 — Providers** *(deprioritized)* | `LiteLLMProvider` + `models list`. xMagic documents no model selection (`model` is an agent id), so LiteLLM is the whole of multi-provider; the per-vendor adapters are reserved, see §4 and §10.6 |
+| **3 — Providers** *(partly done)* | `OpenAIProvider` ✅ implemented. Remaining: `LiteLLMProvider` + `models list`. xMagic documents no model selection (`model` is an agent id), so bring-your-own-model lives entirely in the adapters; Anthropic/Google stay reserved, see §4 and §10.6 |
 | **4 — Skills & Drive** | skills new/validate/pack, drive CRUD |
 | **5 — Serve** | proxy + fallback UI, `--upstream` for self-hosted |
 | **6 — Polish** | docs, examples, CI, PyPI release |
