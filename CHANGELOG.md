@@ -28,6 +28,13 @@ Phase 1 (core client) is complete as of these changes.
   MCP server scaffold, and skills packaging. The last two need no API key.
 - Test coverage for the retry/backoff contract and for the `chat` CLI, plus a
   structural test asserting the async API mirrors the sync one method for method.
+- **Four Drive routes** from the published API reference that the client lacked:
+  `get_folder` (with optional `include_counts`), `update_folder` (partial — it
+  sends only what you ask to change), `delete_files`, and `download_files`,
+  which returns the ZIP export as bytes. Both sync and async.
+  `HttpTransport`/`AsyncHttpTransport` gained `request_bytes` for the one
+  documented endpoint that answers `application/zip` rather than JSON; the retry
+  loop is now shared between both response shapes rather than duplicated.
 
 ### Fixed
 
