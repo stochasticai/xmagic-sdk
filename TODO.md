@@ -65,16 +65,18 @@ model choice comes from LiteLLM alone, and one adapter covers every vendor the
 three native ones would have. The native adapters are now reserved extension
 points with no extra (DESIGN.md §4).
 
-- [ ] Implement `LiteLLMProvider` (complete + stream) — this *is* multi-provider
-      support now, and the only item here on anyone's critical path
+- [x] Implement `OpenAIProvider` (complete + stream) — the worked example of a
+      vendor-native adapter, and the pattern to copy for any other. Keeps its
+      `[openai]` extra
+- [ ] Implement `LiteLLMProvider` (complete + stream) — covers the remaining
+      ~150 vendors, Anthropic and Google among them
 - [ ] `xmagic models list` — near-trivial off `litellm.model_list` (~1,900 models
       across 149 providers as of litellm 1.95)
 - [ ] Provider capability flags — read `litellm.supports_function_calling` /
       `supports_vision` rather than hand-maintaining a table
-- [ ] ~~`OpenAIProvider` / `AnthropicProvider` / `GoogleProvider`~~ — reserved,
-      not planned. Implement one only if a vendor-specific need (parameters,
-      auth, transport) makes routing through LiteLLM wrong, and add its extra
-      back at that point
+- [ ] ~~`AnthropicProvider` / `GoogleProvider`~~ — reserved, not planned. Build
+      one only if a vendor-specific need (parameters, auth, transport) makes
+      routing through LiteLLM wrong, and add its extra back at that point
 
 ## Phase 4 — Skills & Drive
 
