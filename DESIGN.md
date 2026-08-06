@@ -84,7 +84,7 @@ These constrain the design:
 └───────────────────────┼───┘   ┌──────────────────────────────┐
                         │       │  MCP toolkit                 │
 ┌───────────────────────▼───┐   │  scaffold templates:         │
-│   xMagic API client        │   │  server.py (FastMCP,         │
+│   xMagic API client        │   │  server.py (MCPServer,       │
 │   httpx sync+async, SSE,   │   │  streamable-http) +          │
 │   retries, pydantic models │   │  Dockerfile + compose        │
 └────────────────────────────┘   └──────────────────────────────┘
@@ -201,8 +201,8 @@ Config precedence: CLI flags > env (`XMAGIC_API_KEY`, `XMAGIC_BASE_URL`,
 my-tool/
 ├── Dockerfile              # python:3.12-slim + uv, non-root, HEALTHCHECK
 ├── compose.yaml            # local run on :8000
-├── pyproject.toml          # deps: mcp (FastMCP)
-├── src/my_tool/server.py   # FastMCP app, streamable-http transport at /mcp
+├── pyproject.toml          # deps: mcp>=2.0,<3 (MCPServer)
+├── src/my_tool/server.py   # MCPServer app, streamable-http transport at /mcp
 ├── .env.example            # TOOL_API_KEY for xMagic's optional key field
 └── README.md               # register-with-xMagic walkthrough
 ```
@@ -367,7 +367,7 @@ it must not become the documented path.
                             ▼
 ┌───────────────────────────────────────────────────────────┐
 │  coding-agent MCP server            (you deploy)          │
-│  FastMCP · streamable-HTTP /mcp · TOOL_API_KEY enforced   │
+│  MCPServer · streamable-HTTP /mcp · TOOL_API_KEY enforced │
 │                                                           │
 │    code_task_start   ──▶ job store ──┐                    │
 │    code_task_status  ◀───────────────┤                    │
@@ -425,7 +425,7 @@ Note `async_query` (§2) does **not** help here: it is chat-side delivery, not t
 
 ### 11.6 pi driver
 
-The MCP server is Python (FastMCP, consistent with the existing template in §6), so the
+The MCP server is Python (MCPServer, consistent with the existing template in §6), so the
 driver is a subprocess wrapper over pi's RPC mode:
 
 ```python
@@ -571,7 +571,7 @@ identifiers, which L1 already catches deterministically.
           ▼
 ┌──────────────────────────────────────────────────────┐
 │  redactor MCP server            (your infra)         │
-│  FastMCP · streamable-HTTP /mcp · TOOL_API_KEY       │
+│  MCPServer · streamable-HTTP /mcp · TOOL_API_KEY     │
 │                                                      │
 │   1. fetch bytes by ref                              │
 │   2. extract text + offset/bbox map                  │
