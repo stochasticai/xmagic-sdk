@@ -48,7 +48,7 @@ def test_mcp_scaffold(tmp_path: Path):
     server = project / "src" / "my_tool" / "server.py"
     assert server.is_file()
     content = server.read_text()
-    assert "FastMCP" in content and "streamable_http_app" in content
+    assert "MCPServer" in content and "streamable_http_app" in content
     assert "{name}" not in content  # template fully rendered
 
 
@@ -59,19 +59,61 @@ def test_mcp_scaffold_rejects_bad_names(tmp_path: Path):
         scaffold_mcp_server("../evil", tmp_path)
 
 
-def test_mcp_generated_server_compiles_and_enforces_auth(tmp_path: Path):
-    """The rendered server.py must be valid Python and include the auth middleware."""
-    import py_compile
+def _import_generated_server(tmp_path: Path, name: str):
+    """Scaffold a project and actually import its rendered server.
+
+    This used to be a `py_compile` check, which only parses. It cannot catch an
+    import that no longer resolves -- which is precisely how
+    `from mcp.server.fastmcp import FastMCP` survived in the template after mcp
+    2.0 moved that class to `mcp.server.mcpserver.MCPServer`. The generated
+    project's dependency was an unbounded `mcp>=1.0`, so `xmagic mcp init`
+    produced projects that compiled and could not start.
+    """
+    import importlib.util
 
     from xmagic.mcp import scaffold_mcp_server
 
-    project = scaffold_mcp_server("compile-check", tmp_path)
-    server = project / "src" / "compile_check" / "server.py"
-    py_compile.compile(str(server), doraise=True)
-    content = server.read_text()
+    module_name = name.replace("-", "_")
+    project = scaffold_mcp_server(name, tmp_path)
+    path = project / "src" / module_name / "server.py"
+    spec = importlib.util.spec_from_file_location(f"generated_{module_name}", path)
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module, path
+
+
+def test_mcp_generated_server_imports_and_enforces_auth(tmp_path: Path):
+    pytest.importorskip("mcp")
+    module, path = _import_generated_server(tmp_path, "import-check")
+
+    content = path.read_text()
     assert "ApiKeyMiddleware" in content
     assert "TOOL_API_KEY" in content
     assert "{{" not in content  # all escapes rendered
+    # Mounted where the generated README tells users to register the tool.
+    assert "/mcp" in [getattr(route, "path", None) for route in module.app.routes]
+
+
+async def test_mcp_generated_server_answers_a_real_tool_call(tmp_path: Path):
+    """Drive the generated server over MCP, in-process.
+
+    `Client` accepts a server instance and speaks the protocol over an in-memory
+    transport, so this exercises the real request path -- no container, no port,
+    no tunnel. It is the check that would have caught the mcp 2.0 break.
+    """
+    pytest.importorskip("mcp")
+    import json
+
+    from mcp import Client
+
+    module, _ = _import_generated_server(tmp_path, "roundtrip-check")
+    async with Client(module.server) as client:
+        listed = await client.list_tools()
+        assert {tool.name for tool in listed.tools} == {"ping", "example_lookup"}
+        result = await client.call_tool("ping", {"message": "hello"})
+
+    assert json.loads(result.content[0].text) == {"ok": True, "message": "hello"}
 
 
 def test_mcp_generated_dockerfile_installs_deps_before_src(tmp_path: Path):
