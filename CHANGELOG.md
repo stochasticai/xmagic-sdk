@@ -29,19 +29,28 @@ Phase 1 (core client) is complete as of these changes.
 - Test coverage for the retry/backoff contract and for the `chat` CLI, plus a
   structural test asserting the async API mirrors the sync one method for method.
 
+- **`OpenAIProvider` is implemented** — the first non-xMagic model you can
+  actually call: `xmagic chat -m openai:gpt-5`, or `get_provider("openai:gpt-5")`
+  from Python, over the same `Provider` interface the xMagic path uses. Blocking
+  and streaming, extra request params passed through, and OpenAI's exceptions
+  translated into this SDK's own hierarchy, so a 429 from OpenAI raises the same
+  `RateLimitError` a 429 from xMagic would. Unlike the xMagic adapter, `model` is
+  a real model name rather than an agent id: there is no chat to create and no
+  server-side session, so multi-turn context is whatever the caller passes.
+  Optional extra: `xmagic-sdk[openai]`.
+
 ### Changed
 
-- **Dropped the `[openai]`, `[anthropic]`, and `[google]` extras.** They installed
-  three vendor SDKs that nothing imports — both `complete` and `stream` on those
-  adapters raise `NotImplementedError`, and LiteLLM already reaches the same
-  vendors (and ~150 more) through one dependency. `[all]` is now
-  `[litellm,serve,mcp]`; `anthropic` and the `google-genai` tree (google-auth,
-  protobuf, grpcio) no longer install at all. `openai` still does, but only
-  because LiteLLM depends on it — we no longer declare it. The adapter
-  classes and their `xmagic.providers` entry points are unchanged and remain
-  reserved extension points; an extra comes back alongside whichever one is
-  actually implemented. Their error messages now point at
-  `litellm:<vendor>/<model>` rather than at an extra that no longer exists.
+- **Dropped the `[anthropic]` and `[google]` extras.** They installed vendor SDKs
+  that nothing imports — both `complete` and `stream` on those adapters raise
+  `NotImplementedError`, and LiteLLM already reaches both vendors (and ~150 more)
+  through one dependency. `[all]` is now `[openai,litellm,serve,mcp]`;
+  `anthropic` and the `google-genai` tree (google-auth, protobuf, grpcio) no
+  longer install at all. The two adapter classes and their `xmagic.providers`
+  entry points are unchanged and remain reserved extension points; an extra comes
+  back alongside whichever one is actually implemented. Their error messages now
+  point at `litellm:<vendor>/<model>` rather than at an extra that no longer
+  exists.
 
 ### Fixed
 
@@ -49,6 +58,10 @@ Phase 1 (core client) is complete as of these changes.
   `ValueError` instead of retrying. RFC 9110 permits a date as well as a delay in
   seconds; an unparseable or non-positive value now degrades to the normal
   exponential backoff.
+- **`xmagic chat` silently swallowed bracketed text in error messages.** Rich
+  read `[providers.openai]` as a style tag and dropped it, turning "add
+  `[providers.openai]` api_key to ..." into advice pointing at nothing. Error
+  text is now escaped before rendering.
 
 Work in progress is tracked in [TODO.md](TODO.md).
 
