@@ -60,9 +60,17 @@ Two halves, and they are independent:
 
 ## Phase 4 — Skills & Drive
 
-- [ ] Verify Drive endpoint paths against docs.xmagic.ai/api-drive
-      (current paths in `client/drive.py` are unverified — see docstring)
-- [ ] `xmagic drive download` (ZIP export) and recursive listing
+- [x] Verify Drive endpoint paths against the published API reference — done
+      2026-08-06; the existing paths are correct, and four documented routes we
+      lacked are now implemented (folder details, folder update, file deletion,
+      ZIP export)
+- [ ] **`list_folders` / `list_files` silently truncate at 20 items.** The live
+      response carries `data.pagination` (`page`, `page_size`, `total_count`)
+      and we return only `data.results`. The request-side parameter names are
+      undocumented, so this needs an answer before it can be fixed correctly —
+      raised on [#5](https://github.com/stochasticai/xmagic-sdk/issues/5)
+- [ ] CLI surface for the new Drive routes (`xmagic drive download`, `rm`,
+      `rename`) and recursive listing
 - [ ] Richer SKILL.md validation (proper YAML parsing vs current line-based)
 - [ ] Wire skills upload / tool registration APIs if xMagic publishes them
       (open question §10.1)
