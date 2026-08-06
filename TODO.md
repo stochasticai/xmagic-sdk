@@ -18,8 +18,9 @@ unblocked the rest of the phase, and it is now finished.
 
 - [ ] `xmagic mcp dev`: docker compose wrapper with `--tunnel`
       (cloudflared/ngrok) instead of printed instructions
-- [ ] Run a real `docker build` of the generated project in CI (structure is
-      verified; base-image layer build is not). Matters more if DESIGN.md §11
+- [ ] Run a real `docker build` of the generated project in CI (the Python
+      side is now covered — the suite imports the generated server and drives it
+      over MCP — but the base-image layer build is not). Matters more if DESIGN.md §11
       and §12 land — more templates through the same scaffold, same blind spot
 - [ ] Decide how tools get exercised without a full deploy — see "Local tool
       invocation" below and DESIGN.md §6
@@ -36,18 +37,17 @@ so a failing tool and a tool the agent simply declined to use look identical.
 
 Two halves, and they are independent:
 
-- [ ] **Local** — `xmagic tools list --url` and `xmagic tools call NAME --url`,
+- [x] **Local** — `xmagic tools list --url` and `xmagic tools call NAME --url`,
       speaking MCP streamable HTTP directly to a running server. No xMagic
-      account, no tunnel, no registration. Fully within our control; unblocks
-      iterating on the §11/§12 templates
+      account, no tunnel, no registration. Landed under `xmagic tools`; also
+      gives `mcp init` a real integration test via MCP's in-memory transport
 - [ ] **Remote** — can a *registered* tool be invoked through the xMagic API
       rather than only as a side effect of an agent chat? Would make tools
       testable against the real platform and scriptable in CI. Platform
       question, not ours to decide — see Open questions
-- [ ] Decide whether these belong under `xmagic tools` (alongside `register`)
-      or `xmagic mcp` (alongside `init`/`dev`). The local one is really an MCP
-      client; the remote one is an xMagic API call. They may not want to share
-      a command group
+- [x] Decided: both live under `xmagic tools`. Users reach for this wanting to
+      *test a tool*, not to speak a protocol, so grouping by intent beats
+      grouping by what each one talks to
 
 ## Phase 3 — Providers
 
