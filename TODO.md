@@ -111,10 +111,12 @@ Ready now, roughly in order of value per unit of work:
       usage on every response. Cost visibility is usually the first thing a team
       asks for after its first bill
 - [ ] **Tool calling as a typed surface.** `capabilities()` advertises
-      `tools: True`, but `Provider.complete` has no `tools` parameter — today it
-      works only by `**params` passthrough to OpenAI, with no schema generation
-      from type hints, no typed tool-call result, and no execution loop. The
-      largest conceptual gap for something calling itself an agent SDK
+      `tools: True`, but `Provider.complete` has no `tools` parameter, and
+      `ChatMessage` has no `tool_call_id` so it cannot represent a tool result
+      at all. Designed in DESIGN.md §13; review thread
+      [#16](https://github.com/stochasticai/xmagic-sdk/issues/16). Stage A
+      (types + blocking path) and C (schemas from typed callables) are the
+      milestone that matters
 - [ ] **Structured output** — `response_format` passthrough plus a "parse into
       this pydantic model" helper. Table stakes across every peer SDK
 - [ ] **Logging, and a `User-Agent` header.** There is no logging anywhere in the
