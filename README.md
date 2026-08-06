@@ -162,7 +162,7 @@ async with AsyncXMagicClient() as client:
 ### 5. Build a custom tool (MCP server)
 
 ```bash
-xmagic mcp init my-tool          # scaffold: Dockerfile, compose, FastMCP server
+xmagic mcp init my-tool          # scaffold: Dockerfile, compose, MCP server
 cd my-tool && docker compose up --build
 ```
 
