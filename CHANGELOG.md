@@ -28,6 +28,17 @@ Phase 1 (core client) is complete as of these changes.
   MCP server scaffold, and skills packaging. The last two need no API key.
 - Test coverage for the retry/backoff contract and for the `chat` CLI, plus a
   structural test asserting the async API mirrors the sync one method for method.
+- **`xmagic tools list` and `xmagic tools call`** — an MCP client that talks
+  straight to a running custom-tool server. No xMagic account, no tunnel, no
+  dashboard registration, and no waiting for an agent to decide to call the
+  tool. `--arg key=value` (repeatable, JSON-coerced so numbers reach a typed
+  tool as numbers), `--json-args` for a whole object, `--json` for scriptable
+  output, and a non-zero exit when the tool reports an error so it works in CI.
+  Requires `xmagic-sdk[mcp]`.
+
+  This also gives `xmagic mcp init` its first real integration test: the suite
+  scaffolds a project, imports it, and drives it over MCP's in-memory transport
+  — no container, no port.
 
 ### Fixed
 
