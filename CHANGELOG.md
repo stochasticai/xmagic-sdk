@@ -28,6 +28,12 @@ Phase 1 (core client) is complete as of these changes.
   MCP server scaffold, and skills packaging. The last two need no API key.
 - Test coverage for the retry/backoff contract and for the `chat` CLI, plus a
   structural test asserting the async API mirrors the sync one method for method.
+- **Token usage is surfaced.** `token_usage` events reached the client and were
+  then dropped by the provider. `Completion` and the terminal `CompletionChunk`
+  now carry a `Usage` (input/output/total tokens, plus the raw payload). The
+  shape is unconfirmed — it comes from the backend's private `TokenType` enum
+  rather than the API reference — so parsing degrades to `None` rather than
+  raising, and never reports zeros it did not measure.
 - **`xmagic tools list` and `xmagic tools call`** — an MCP client that talks
   straight to a running custom-tool server. No xMagic account, no tunnel, no
   dashboard registration, and no waiting for an agent to decide to call the
@@ -41,6 +47,14 @@ Phase 1 (core client) is complete as of these changes.
   — no container, no port.
 
 ### Fixed
+
+- **Streamed errors were silently discarded.** `XMagicProvider.stream` branched
+  on `done`/`response`/`reasoning` with no `else`, so an `error` frame fell
+  through and vanished: the caller received whatever text arrived before the
+  failure and a clean end of stream, indistinguishable from a short successful
+  answer. `xmagic chat` printed the partial text and exited `0`. An `error` event
+  now raises `XMagicAPIError`. **This is a visible behaviour change** — calls that
+  previously returned truncated text now raise.
 
 - **`xmagic mcp init` generated projects that could not start.** The template
   imported `mcp.server.fastmcp.FastMCP`; mcp 2.0 moved that class to
