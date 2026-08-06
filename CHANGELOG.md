@@ -31,6 +31,19 @@ Phase 1 (core client) is complete as of these changes.
 
 ### Fixed
 
+- **`xmagic mcp init` generated projects that could not start.** The template
+  imported `mcp.server.fastmcp.FastMCP`; mcp 2.0 moved that class to
+  `mcp.server.mcpserver.MCPServer`, and both the generated project and this
+  package declared an unbounded `mcp>=1.0` — so a fresh install resolved to 2.x
+  and every scaffolded server failed at import with `ModuleNotFoundError`. The
+  template is ported, and both dependency declarations are now bounded to
+  `>=2.0,<3`.
+
+  The scaffold test could not have caught this: it used `py_compile`, which
+  parses without resolving imports. It now imports the rendered module for real
+  and drives it over MCP's in-memory transport — scaffold, `list_tools`, call
+  `ping`, assert the response — so a broken generated server fails CI rather
+  than reaching users.
 - **`Retry-After` carrying an HTTP-date crashed the retry loop** with
   `ValueError` instead of retrying. RFC 9110 permits a date as well as a delay in
   seconds; an unparseable or non-positive value now degrades to the normal

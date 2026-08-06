@@ -35,7 +35,9 @@ anthropic = ["anthropic>=0.34"]
 google = ["google-genai>=1.0"]
 litellm = ["litellm>=1.40"]
 serve = ["starlette>=0.37", "uvicorn>=0.29"]
-mcp = ["mcp>=1.0"]
+# Bounded to one major: mcp 2.0 relocated FastMCP, which broke the generated
+# server template while the unbounded range still resolved "successfully".
+mcp = ["mcp>=2.0,<3"]
 all = [
     "xmagic-sdk[openai,anthropic,google,litellm,serve,mcp]",
 ]
