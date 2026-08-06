@@ -27,6 +27,13 @@ unblocked the rest of the phase, and it is now finished.
 - [ ] Confirm which header xMagic actually sends the custom-tool API key in
       (`x-api-key` vs `Authorization: Bearer`) — template accepts both for now
 - [ ] Optional SSE (legacy transport) flag for the template if xMagic requires it
+- [ ] **Check `/v1/mcp-servers` before building `mcp dev --tunnel`.** The 0.0.x
+      SDK (PyPI, Nov 2025) drove a platform deployment API — create, list, status,
+      update, delete, logs, stop, `validate-code` — and read a live endpoint URL
+      off the finished deployment. If any of that is still public, tunnelling to a
+      local container solves a problem the platform already solved, and `mcp init`
+      should scaffold *for* it. Asked as Q2 follow-up in
+      [#5](https://github.com/stochasticai/xmagic-sdk/issues/5)
 
 ### Local tool invocation
 
@@ -91,7 +98,59 @@ Largely delivered by the open-source readiness work (see [PLAN.md](PLAN.md)).
 - [x] Skills packaging example (`examples/05_skills.py`)
 - [ ] Multi-provider example (`provider:model`) — blocked on Phase 3 adapters
 
+## SDK surface — surveyed, not yet scoped
+
+From a survey of what agent-platform SDKs commonly expose (2026-08-05). These are
+ours to build — nothing external blocks them. Deliberately not assigned to a
+phase; listed so they stop being invisible.
+
+Ready now, roughly in order of value per unit of work:
+
+- [ ] **Token usage** on `Completion` / `CompletionChunk`. `token_usage` already
+      arrives as an SSE event and is discarded on the floor, and OpenAI returns
+      usage on every response. Cost visibility is usually the first thing a team
+      asks for after its first bill
+- [ ] **Tool calling as a typed surface.** `capabilities()` advertises
+      `tools: True`, but `Provider.complete` has no `tools` parameter — today it
+      works only by `**params` passthrough to OpenAI, with no schema generation
+      from type hints, no typed tool-call result, and no execution loop. The
+      largest conceptual gap for something calling itself an agent SDK
+- [ ] **Structured output** — `response_format` passthrough plus a "parse into
+      this pydantic model" helper. Table stakes across every peer SDK
+- [ ] **Logging, and a `User-Agent` header.** There is no logging anywhere in the
+      package, so a failing call cannot be inspected; and the client identifies
+      itself to no one, which rules out server-side version telemetry
+- [ ] **`--json` output for the CLI.** Nothing is scriptable today without
+      parsing Rich-formatted text
+- [ ] **Stream cancellation and deterministic close.** `sse()` yields from inside
+      a `with connect_sse(...)`, so a caller who breaks out of the loop leaves the
+      response open until GC; there is no way to cancel an in-flight query
+- [ ] **A test double for consumers** — export the recorded fixtures or a fake
+      client, so downstream users can test against this SDK without network
+
+Larger, and worth their own design pass:
+
+- [ ] Observability: OpenTelemetry spans, request-id capture, callbacks/hooks
+- [ ] Middleware / request interceptors
+- [ ] Human-in-the-loop: interrupt a run, approve, resume
+- [ ] Multimodal input (images, audio). `Message.output_assets` already hints at
+      artifacts coming back the other way
+- [ ] Pagination — nothing paginates; Drive listings return whole result sets
+- [ ] Prompt caching, batch APIs, idempotency keys
+
+Blocked on the platform, tracked in
+[#5](https://github.com/stochasticai/xmagic-sdk/issues/5) rather than here:
+conversation history and chat listing (Q10), a usage/cost API (Q11), feedback
+capture (Q12), and whether guardrails / agent versioning / scheduling / threads /
+worklists / forms / evaluation / integrations are reachable by API at all (Q13).
+
 ## Open questions (blockers noted in DESIGN.md §10)
+
+Consolidated for the platform team in
+[#5](https://github.com/stochasticai/xmagic-sdk/issues/5), which now also carries
+Q9–Q14 from the 2026-08-05 audit — including evidence that the 0.0.x SDK called a
+`/v1/mcp-servers` deployment API and spoke a **non-MCP** REST tool contract, which
+bears on the two questions there marked blocking.
 
 - [ ] Public API for custom-tool registration / skill upload? (dashboard-only today)
 - [ ] Can a registered custom tool be **invoked** directly through the API,
