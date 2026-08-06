@@ -4,7 +4,11 @@ version = "0.1.0"
 description = "MCP server for xMagic custom tools"
 requires-python = ">=3.11"
 dependencies = [
-    "mcp>=1.0",
+    # Bounded to one major on purpose. An unbounded "mcp>=1.0" is what broke
+    # this template once already: mcp 2.0 moved FastMCP to
+    # mcp.server.mcpserver.MCPServer, so generated projects resolved to a
+    # version whose import did not exist.
+    "mcp>=2.0,<3",
     "starlette>=0.37",
     "uvicorn>=0.29",
 ]

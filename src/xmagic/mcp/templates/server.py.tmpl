@@ -7,7 +7,7 @@ URL of this endpoint in xMagic: Sidebar -> Custom tools -> Create tool.
 import logging
 import os
 
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import JSONResponse
@@ -21,10 +21,10 @@ log = logging.getLogger("{module}")
 TOOL_API_KEY = os.environ.get("TOOL_API_KEY", "")
 PORT = int(os.environ.get("PORT", "8000"))
 
-mcp = FastMCP("{name}")
+server = MCPServer("{name}")
 
 
-@mcp.tool()
+@server.tool()
 def ping(message: str = "pong") -> dict:
     """Health-check tool. Replace with your real tools.
 
@@ -34,7 +34,7 @@ def ping(message: str = "pong") -> dict:
     return {{"ok": True, "message": message}}
 
 
-@mcp.tool()
+@server.tool()
 def example_lookup(query: str) -> dict:
     """Example tool: look something up and return structured results."""
     log.info("example_lookup: %s", query)
@@ -62,7 +62,7 @@ class ApiKeyMiddleware(BaseHTTPMiddleware):
         return await call_next(request)
 
 
-app = mcp.streamable_http_app()
+app = server.streamable_http_app()
 if TOOL_API_KEY:
     app.add_middleware(ApiKeyMiddleware)
 else:
