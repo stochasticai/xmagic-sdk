@@ -80,7 +80,9 @@ def test_agent_lists_agents() -> None:
 def test_agent_config_skips_patch_when_unchanged(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr("xmagic.cli.agents._edit_file", lambda path: None)
 
-    respx.get(TEMP_URL).mock(return_value=Response(200, json={"data": {"id": "cfg-1", "organization_id": "org-1"}}))
+    respx.get(TEMP_URL).mock(
+        return_value=Response(200, json={"data": {"id": "cfg-1", "organization_id": "org-1"}})
+    )
     respx.get(EXPORT_URL).mock(return_value=Response(200, json=_export_payload()))
     patch_route = respx.patch(PATCH_URL).mock(return_value=Response(200, json={"success": True}))
 
@@ -99,7 +101,9 @@ def test_agent_config_patches_edited_yaml(monkeypatch: pytest.MonkeyPatch) -> No
 
     monkeypatch.setattr("xmagic.cli.agents._edit_file", edit_file)
 
-    respx.get(TEMP_URL).mock(return_value=Response(200, json={"data": {"id": "cfg-1", "organization_id": "org-1"}}))
+    respx.get(TEMP_URL).mock(
+        return_value=Response(200, json={"data": {"id": "cfg-1", "organization_id": "org-1"}})
+    )
     respx.get(EXPORT_URL).mock(return_value=Response(200, json=_export_payload()))
     patch_route = respx.patch(PATCH_URL).mock(return_value=Response(200, json={"success": True}))
 
@@ -113,7 +117,9 @@ def test_agent_config_patches_edited_yaml(monkeypatch: pytest.MonkeyPatch) -> No
 
 
 @respx.mock
-def test_agent_config_uses_default_agent_from_config(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+def test_agent_config_uses_default_agent_from_config(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
     config_path = tmp_path / "config.toml"
     config_path.write_text(
         "\n".join(
@@ -130,7 +136,9 @@ def test_agent_config_uses_default_agent_from_config(monkeypatch: pytest.MonkeyP
     monkeypatch.setenv("XMAGIC_CONFIG_PATH", str(config_path))
     monkeypatch.setattr("xmagic.cli.agents._edit_file", lambda path: None)
 
-    respx.get(TEMP_URL).mock(return_value=Response(200, json={"data": {"id": "cfg-1", "organization_id": "org-1"}}))
+    respx.get(TEMP_URL).mock(
+        return_value=Response(200, json={"data": {"id": "cfg-1", "organization_id": "org-1"}})
+    )
     respx.get(EXPORT_URL).mock(return_value=Response(200, json=_export_payload()))
 
     result = runner.invoke(app, ["agents", "config"])
@@ -152,7 +160,9 @@ def _saved_config_payload() -> dict:
 
 @respx.mock
 def test_deploy_no_phones_deploys_cleanly() -> None:
-    respx.get(TEMP_URL).mock(return_value=Response(200, json={"data": {"id": "cfg-1", "organization_id": "org-1"}}))
+    respx.get(TEMP_URL).mock(
+        return_value=Response(200, json={"data": {"id": "cfg-1", "organization_id": "org-1"}})
+    )
     respx.get(PHONES_URL).mock(return_value=Response(200, json=_phones_payload([])))
     save_route = respx.post(SAVE_URL).mock(return_value=Response(200, json=_saved_config_payload()))
     deploy_route = respx.post(DEPLOY_URL).mock(return_value=Response(200, json={"success": True}))
@@ -167,21 +177,33 @@ def test_deploy_no_phones_deploys_cleanly() -> None:
 
 @respx.mock
 def test_deploy_skips_phone_when_user_enters_zero() -> None:
-    respx.get(TEMP_URL).mock(return_value=Response(200, json={"data": {"id": "cfg-1", "organization_id": "org-1"}}))
+    respx.get(TEMP_URL).mock(
+        return_value=Response(200, json={"data": {"id": "cfg-1", "organization_id": "org-1"}})
+    )
     respx.get(PHONES_URL).mock(
         return_value=Response(
             200,
-            json=_phones_payload([
-                {"id": "phone-1", "phone_number": "+14155551234", "persona_id_associated_to": None},
-            ]),
+            json=_phones_payload(
+                [
+                    {
+                        "id": "phone-1",
+                        "phone_number": "+14155551234",
+                        "persona_id_associated_to": None,
+                    },
+                ]
+            ),
         )
     )
     respx.post(SAVE_URL).mock(return_value=Response(200, json=_saved_config_payload()))
     respx.post(DEPLOY_URL).mock(return_value=Response(200, json={"success": True}))
-    assoc_route = respx.post(PHONE_ASSOC_URL).mock(return_value=Response(200, json={"success": True}))
+    assoc_route = respx.post(PHONE_ASSOC_URL).mock(
+        return_value=Response(200, json={"success": True})
+    )
 
     # user inputs "0" to skip phone selection
-    result = runner.invoke(app, ["agents", "deploy", "--agent", "agent-1", "--version", "v1"], input="0\n")
+    result = runner.invoke(
+        app, ["agents", "deploy", "--agent", "agent-1", "--version", "v1"], input="0\n"
+    )
 
     assert result.exit_code == 0, result.output
     assert not assoc_route.called
@@ -190,22 +212,34 @@ def test_deploy_skips_phone_when_user_enters_zero() -> None:
 
 @respx.mock
 def test_deploy_attaches_phone_no_subagents() -> None:
-    respx.get(TEMP_URL).mock(return_value=Response(200, json={"data": {"id": "cfg-1", "organization_id": "org-1"}}))
+    respx.get(TEMP_URL).mock(
+        return_value=Response(200, json={"data": {"id": "cfg-1", "organization_id": "org-1"}})
+    )
     respx.get(PHONES_URL).mock(
         return_value=Response(
             200,
-            json=_phones_payload([
-                {"id": "phone-1", "phone_number": "+14155551234", "persona_id_associated_to": None},
-            ]),
+            json=_phones_payload(
+                [
+                    {
+                        "id": "phone-1",
+                        "phone_number": "+14155551234",
+                        "persona_id_associated_to": None,
+                    },
+                ]
+            ),
         )
     )
     respx.get(JOBS_URL).mock(return_value=Response(200, json={"data": []}))
-    assoc_route = respx.post(PHONE_ASSOC_URL).mock(return_value=Response(200, json={"success": True}))
+    assoc_route = respx.post(PHONE_ASSOC_URL).mock(
+        return_value=Response(200, json={"success": True})
+    )
     respx.post(SAVE_URL).mock(return_value=Response(200, json=_saved_config_payload()))
     respx.post(DEPLOY_URL).mock(return_value=Response(200, json={"success": True}))
 
     # select phone 1, no subagent prompt (empty list)
-    result = runner.invoke(app, ["agents", "deploy", "--agent", "agent-1", "--version", "v1"], input="1\n")
+    result = runner.invoke(
+        app, ["agents", "deploy", "--agent", "agent-1", "--version", "v1"], input="1\n"
+    )
 
     assert result.exit_code == 0, result.output
     assert assoc_route.called
@@ -218,29 +252,47 @@ def test_deploy_attaches_phone_no_subagents() -> None:
 
 @respx.mock
 def test_deploy_attaches_phone_with_subagent() -> None:
-    respx.get(TEMP_URL).mock(return_value=Response(200, json={"data": {"id": "cfg-1", "organization_id": "org-1"}}))
+    respx.get(TEMP_URL).mock(
+        return_value=Response(200, json={"data": {"id": "cfg-1", "organization_id": "org-1"}})
+    )
     respx.get(PHONES_URL).mock(
         return_value=Response(
             200,
-            json=_phones_payload([
-                {"id": "phone-1", "phone_number": "+14155551234", "persona_id_associated_to": None},
-            ]),
+            json=_phones_payload(
+                [
+                    {
+                        "id": "phone-1",
+                        "phone_number": "+14155551234",
+                        "persona_id_associated_to": None,
+                    },
+                ]
+            ),
         )
     )
     respx.get(JOBS_URL).mock(
         return_value=Response(
             200,
-            json={"data": [
-                {"id": "sub-1", "name": "Sales Bot", "id_shared_between_versions": "sub-shared-1"},
-            ]},
+            json={
+                "data": [
+                    {
+                        "id": "sub-1",
+                        "name": "Sales Bot",
+                        "id_shared_between_versions": "sub-shared-1",
+                    },
+                ]
+            },
         )
     )
-    assoc_route = respx.post(PHONE_ASSOC_URL).mock(return_value=Response(200, json={"success": True}))
+    assoc_route = respx.post(PHONE_ASSOC_URL).mock(
+        return_value=Response(200, json={"success": True})
+    )
     respx.post(SAVE_URL).mock(return_value=Response(200, json=_saved_config_payload()))
     respx.post(DEPLOY_URL).mock(return_value=Response(200, json={"success": True}))
 
     # select phone 1, then subagent 1
-    result = runner.invoke(app, ["agents", "deploy", "--agent", "agent-1", "--version", "v1"], input="1\n1\n")
+    result = runner.invoke(
+        app, ["agents", "deploy", "--agent", "agent-1", "--version", "v1"], input="1\n1\n"
+    )
 
     assert result.exit_code == 0, result.output
     assert assoc_route.called
@@ -256,21 +308,27 @@ def test_deploy_requires_agent_id() -> None:
 
 
 @respx.mock
-def test_deploy_uses_default_agent_from_config(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_deploy_uses_default_agent_from_config(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     config_path = tmp_path / "config.toml"
     config_path.write_text(
-        "\n".join([
-            "[xmagic]",
-            'api_key = "test-key"',
-            f'base_url = "{DEFAULT_BASE_URL}"',
-            'default_agent_id = "agent-1"',
-            "",
-        ]),
+        "\n".join(
+            [
+                "[xmagic]",
+                'api_key = "test-key"',
+                f'base_url = "{DEFAULT_BASE_URL}"',
+                'default_agent_id = "agent-1"',
+                "",
+            ]
+        ),
         encoding="utf-8",
     )
     monkeypatch.setenv("XMAGIC_CONFIG_PATH", str(config_path))
 
-    respx.get(TEMP_URL).mock(return_value=Response(200, json={"data": {"id": "cfg-1", "organization_id": "org-1"}}))
+    respx.get(TEMP_URL).mock(
+        return_value=Response(200, json={"data": {"id": "cfg-1", "organization_id": "org-1"}})
+    )
     respx.get(PHONES_URL).mock(return_value=Response(200, json=_phones_payload([])))
     respx.post(SAVE_URL).mock(return_value=Response(200, json=_saved_config_payload()))
     respx.post(DEPLOY_URL).mock(return_value=Response(200, json={"success": True}))
@@ -284,7 +342,9 @@ def test_deploy_uses_default_agent_from_config(tmp_path: Path, monkeypatch: pyte
 @respx.mock
 def test_deploy_voice_disabled_skips_phone_step() -> None:
     """If /phones returns 501 (voice not enabled), the deploy should still succeed."""
-    respx.get(TEMP_URL).mock(return_value=Response(200, json={"data": {"id": "cfg-1", "organization_id": "org-1"}}))
+    respx.get(TEMP_URL).mock(
+        return_value=Response(200, json={"data": {"id": "cfg-1", "organization_id": "org-1"}})
+    )
     respx.get(PHONES_URL).mock(return_value=Response(501, json={"error": "NOT_CONFIGURED"}))
     respx.post(SAVE_URL).mock(return_value=Response(200, json=_saved_config_payload()))
     respx.post(DEPLOY_URL).mock(return_value=Response(200, json={"success": True}))
