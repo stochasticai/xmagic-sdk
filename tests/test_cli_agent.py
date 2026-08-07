@@ -323,5 +323,5 @@ def test_deploy_rejects_agent_from_another_workspace() -> None:
     assert result.exit_code == 1
     assert "Agent Org" in result.output
     assert "org-2" in result.output
-    assert "xmagic workspaces switch org-2" in result.output
+    assert "xmagic workspaces org-2" in result.output
     assert agents_route.call_count == 2
