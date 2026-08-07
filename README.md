@@ -49,6 +49,16 @@ and `[litellm]` for the long tail. There is no `[anthropic]` or `[google]`:
 those adapters aren't implemented, and LiteLLM already reaches both. `pip` works
 too if you don't use `uv`.
 
+> **You install `xmagic-sdk` but import `xmagic`.** The two names differ because
+> `xmagic` on PyPI belongs to an unrelated project registered in 2022, so it was
+> never available to us.
+>
+> If you used this package **before 0.1.0**, note that releases 0.0.1–0.0.3
+> installed a `xmagic_sdk` module with a completely different API. Upgrading
+> removes it, so `import xmagic_sdk` will now raise an error explaining the
+> change. Pin `xmagic-sdk==0.0.3` if you still depend on that API — see
+> [CHANGELOG.md](CHANGELOG.md) for what moved.
+
 From a checkout:
 
 ```bash
@@ -257,6 +267,14 @@ See [DESIGN.md](DESIGN.md) for how the pieces fit together.
 **A command prints `... lands in Phase N (see DESIGN.md)`** — that feature is
 scaffolded but not implemented yet. See the status note at the top of this
 README.
+
+**`ModuleNotFoundError: No module named 'xmagic'`** — the import name is
+`xmagic`, but the package to install is `xmagic-sdk`. See the note under
+[Install](#install).
+
+**`ImportError` mentioning `xmagic_sdk`** — you upgraded from 0.0.x, where the
+module was called `xmagic_sdk`. It is `xmagic` from 0.1.0 on, with a different
+API; the error text names what changed.
 
 **`401` from your MCP server** — the generated server requires `TOOL_API_KEY`
 when set. Send it as either `x-api-key` or `Authorization: Bearer <key>`.

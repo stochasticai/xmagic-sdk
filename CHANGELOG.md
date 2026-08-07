@@ -75,6 +75,10 @@ Phase 1 (core client) is complete as of these changes.
   back alongside whichever one is actually implemented. Their error messages now
   point at `litellm:<vendor>/<model>` rather than at an extra that no longer
   exists.
+- **An `xmagic_sdk` compatibility shim.** Importing it now raises an `ImportError`
+  naming the replacement (`xmagic`), the version the change happened in, and
+  `pip install 'xmagic-sdk==0.0.3'` for anyone who needs the old API. Scheduled
+  for removal in 1.0. See Compatibility below.
 
 ### Fixed
 
@@ -107,6 +111,19 @@ Phase 1 (core client) is complete as of these changes.
   read `[providers.openai]` as a style tag and dropped it, turning "add
   `[providers.openai]` api_key to ..." into advice pointing at nothing. Error
   text is now escaped before rendering.
+
+### Compatibility
+
+- **0.1.0 changed this distribution's import name from `xmagic_sdk` to `xmagic`,
+  and replaced its public API.** Releases 0.0.1-0.0.3 (November 2025) installed a
+  top-level `xmagic_sdk` package built with setuptools; 0.1.0 installs `xmagic`.
+  Because both ship under the distribution name `xmagic-sdk`, `pip install -U`
+  deletes the old package, so `import xmagic_sdk` breaks. The 0.0.x helpers
+  (`run_mcp_server`, `fetch_info_from_kb_v1` / `_v3`, `registry`) and the hosted
+  deployment commands (`xmagic mcp run` / `list` / `logs` / `start` / `stop` /
+  `delete` / `validate`, ~1,100 lines in `mcp/deploy_mcp.py`) have no equivalent
+  in the current release. `xmagic configure` and `xmagic chat` survive by name but
+  changed flags. Pin `xmagic-sdk==0.0.3` if you depend on any of it.
 
 Work in progress is tracked in [TODO.md](TODO.md).
 
