@@ -29,12 +29,30 @@ class ChatMessage:
 
 
 @dataclass
+class Usage:
+    """Token counts for one exchange, where the provider reports them.
+
+    Every field is optional because providers disagree on what they send, and
+    xMagic's shape is unconfirmed -- ``token_usage`` comes from the backend's
+    private ``TokenType`` enum rather than the published API reference, and no
+    recorded live stream has contained one. ``raw`` keeps whatever arrived, so a
+    caller can reach past this model when it turns out to be wrong.
+    """
+
+    input_tokens: int | None = None
+    output_tokens: int | None = None
+    total_tokens: int | None = None
+    raw: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
 class Completion:
     """Provider-neutral completion result."""
 
     text: str
     model: str
     raw: dict[str, Any] = field(default_factory=dict)
+    usage: Usage | None = None
 
 
 ChunkKind = Literal["response", "reasoning"]
@@ -52,6 +70,8 @@ class CompletionChunk:
     text: str
     done: bool = False
     kind: ChunkKind = "response"
+    usage: Usage | None = None
+    """Set on the terminal chunk when the provider reported token counts."""
 
 
 @dataclass
