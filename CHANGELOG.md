@@ -39,6 +39,13 @@ Phase 1 (core client) is complete as of these changes.
   This also gives `xmagic mcp init` its first real integration test: the suite
   scaffolds a project, imports it, and drives it over MCP's in-memory transport
   — no container, no port.
+- **Four Drive routes** from the published API reference that the client lacked:
+  `get_folder` (with optional `include_counts`), `update_folder` (partial — it
+  sends only what you ask to change), `delete_files`, and `download_files`,
+  which returns the ZIP export as bytes. Both sync and async.
+  `HttpTransport`/`AsyncHttpTransport` gained `request_bytes` for the one
+  documented endpoint that answers `application/zip` rather than JSON; the retry
+  loop is now shared between both response shapes rather than duplicated.
 
 ### Fixed
 
