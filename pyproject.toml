@@ -30,16 +30,19 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+# One vendor extra, for the one implemented vendor adapter. The Anthropic and
+# Google adapters are reserved extension points whose `complete`/`stream` raise
+# NotImplementedError, so `[anthropic]` / `[google]` would install heavy SDKs
+# that nothing imports — LiteLLM already reaches those vendors. Add an extra
+# next to whichever adapter is actually implemented, as `[openai]` is here.
 openai = ["openai>=1.30"]
-anthropic = ["anthropic>=0.34"]
-google = ["google-genai>=1.0"]
 litellm = ["litellm>=1.40"]
 serve = ["starlette>=0.37", "uvicorn>=0.29"]
 # Bounded to one major: mcp 2.0 relocated FastMCP, which broke the generated
 # server template while the unbounded range still resolved "successfully".
 mcp = ["mcp>=2.0,<3"]
 all = [
-    "xmagic-sdk[openai,anthropic,google,litellm,serve,mcp]",
+    "xmagic-sdk[openai,litellm,serve,mcp]",
 ]
 
 [project.scripts]
@@ -61,7 +64,10 @@ requires = ["hatchling>=1.27"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/xmagic"]
+# `xmagic_sdk` is a shim, not a package: releases 0.0.1-0.0.3 of this same
+# distribution installed a top-level `xmagic_sdk`, so an in-place upgrade would
+# otherwise turn `import xmagic_sdk` into a bare ModuleNotFoundError. Remove in 1.0.
+packages = ["src/xmagic", "src/xmagic_sdk"]
 
 [tool.hatch.build.targets.sdist]
 include = [
