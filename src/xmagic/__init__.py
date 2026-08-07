@@ -10,6 +10,8 @@ Quickstart::
     print(resp.text)
 """
 
+from importlib.metadata import PackageNotFoundError, version as _installed_version
+
 from xmagic.client import AsyncXMagicClient, XMagicClient
 from xmagic.config import Settings
 from xmagic.errors import (
@@ -20,7 +22,10 @@ from xmagic.errors import (
     XMagicError,
 )
 
-__version__ = "0.1.0"
+try:
+    __version__ = _installed_version("xmagic-sdk")
+except PackageNotFoundError:  # running from a source checkout, not installed
+    __version__ = "0.0.0+unknown"
 
 __all__ = [
     "AsyncXMagicClient",
