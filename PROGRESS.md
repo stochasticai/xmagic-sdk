@@ -5,6 +5,52 @@ the plan and [TODO.md](TODO.md) for what's next.
 
 ---
 
+## 2026-08-06/07 — PyPI audit, MCP repair, OpenAI provider, release hygiene
+
+A long session. The through-line is that several things believed to be working
+were not, and were only found by running them rather than reading them.
+
+**Live defect: `xmagic mcp init` generated projects that could not start.** The
+template imported `mcp.server.fastmcp.FastMCP`; mcp 2.0 moved that class, and both
+the template and this package declared an unbounded `mcp>=1.0`, so a fresh install
+resolved to 2.x and every scaffolded server died at import. **This is still true of
+the published 0.1.0** — the fix is on main, unreleased. The scaffold test could not
+have caught it: it used `py_compile`, which parses without resolving imports.
+Ported to `MCPServer`, bounded to `>=2.0,<3`, and the test now imports the rendered
+module for real and drives it over MCP's in-memory transport (#11).
+
+**Live defect: streamed errors were silently discarded.** `XMagicProvider.stream`
+branched on done/response/reasoning with no `else`, so an `error` frame vanished —
+a failed generation was indistinguishable from a short successful one, and
+`xmagic chat` exited 0. Now raises (#20). There was no provider-level test file at
+all, which is exactly how it went unnoticed.
+
+**Also shipped:** local tool invocation, `xmagic tools list/call --url`, which
+closes the deploy → tunnel → register → hope-the-agent-calls-it dev loop and gives
+`mcp init` its first real integration test (#14). A weekly drift check that tests
+the *published* artifact from PyPI, since CI only ever exercises the working tree
+(#13). `OpenAIProvider`, the first non-xMagic model (#9). Four documented Drive
+routes (#15). Token usage surfaced (#20). Release gating and a TestPyPI rehearsal
+(#19), and one source of version truth (#18).
+
+**PyPI audit** ([PYPI_HISTORY.md](PYPI_HISTORY.md), #7). `xmagic-sdk` carries two
+unrelated packages: 0.0.1–0.0.3 installed `xmagic_sdk` with a different API, so
+`pip install -U` breaks `import xmagic_sdk`. 0.0.3 was a version number spent on a
+one-line log change; 0.0.1 was a 1,225-byte name reservation. The `xmagic` name on
+PyPI belongs to an unrelated account since 2022, so the install/import mismatch is
+permanent. `xmagic-sdk` has a single PyPI role holder.
+
+**Platform questions.** Unpacking the 0.0.3 wheel turned up a `/v1/mcp-servers`
+deployment API and a **non-MCP REST tool contract**, both bearing on questions #5
+marks as blocking. #21 then confirmed the `agents` hierarchy is the old `personas`
+tree renamed — response fields still say `persona_id`. Q5 is resolved; Q13 and Q15
+narrowed; Q16 added for the auth-dependent `subagents`→`jobs` key transform.
+
+**Corrected along the way:** xMagic documents no model selection anywhere, so
+multi-provider was deprioritised to LiteLLM plus one native adapter. Undocumented
+behaviour is treated as unsupported rather than built against — a rule this session
+broke once and then adopted deliberately.
+
 ## 2026-08-05 — Phase 1 complete: async client, chat polish, retry coverage
 
 - **`AsyncXMagicClient` implemented**, closing the last Phase 1 gap and the only

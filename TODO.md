@@ -128,6 +128,39 @@ Ready now, roughly in order of value per unit of work:
 - [ ] **A test double for consumers** — export the recorded fixtures or a fake
       client, so downstream users can test against this SDK without network
 
+Correctness and packaging gaps found in an audit on 2026-08-05, each verified
+against the tree on 2026-08-07:
+
+- [ ] **Ship a `py.typed` marker.** The package is thoroughly annotated and
+      **none of it reaches consumers**: PEP 561 treats an installed package
+      without the marker as untyped, so every downstream mypy/pyright sees
+      `Any`. One empty file plus one `pyproject.toml` line — the cheapest
+      high-impact fix in the repo
+- [ ] **SSE inherits the 60s read timeout.** `sse()` passes the shared client
+      into `connect_sse` (`client/http.py:123`, `:163`), so an agent that pauses
+      longer than `settings.timeout` between tokens raises `ReadTimeout`
+      mid-stream. Slow or thinking-heavy agents hit this; there is no separate
+      stream timeout
+- [ ] **Export `ConfigurationError` and `ChatType` at the package root.**
+      `ConfigurationError` is what `XMagicClient()` raises on the most likely
+      first-run failure, and users cannot `from xmagic import ConfigurationError`
+      to catch it. `ChatType` is a documented parameter of `chats.create`. Both
+      currently require importing from paths that look private
+- [ ] **Fill the error hierarchy.** `_STATUS_MAP` covers 400/401/404/429 only
+      (`errors.py:43-48`): no 403, and no `ServerError`, so a 503 after exhausted
+      retries surfaces as a bare `XMagicAPIError`. Raw `httpx.ConnectError` also
+      leaks to callers unwrapped — `tests/test_retries.py` currently enshrines
+      that. And `XMagicAPIError` exposes no `.response`, `.headers`, `.body`, or
+      request id
+- [ ] **Add jitter to retry backoff.** `min(2**attempt, 30)` (`http.py:38`) is
+      deterministic, so clients that fail together retry in lockstep
+- [ ] **Add a typechecker to CI.** No mypy or pyright anywhere, which compounds
+      the `py.typed` gap: nothing verifies the annotations we would be publishing
+- [ ] **`metadata` stream events are dropped**, and they carry `message_id` — so
+      a streaming caller cannot learn the id of the message it just received.
+      Named in a comment in `providers/xmagic.py`; filed here so it is not only a
+      comment
+
 Larger, and worth their own design pass:
 
 - [ ] Observability: OpenTelemetry spans, request-id capture, callbacks/hooks
