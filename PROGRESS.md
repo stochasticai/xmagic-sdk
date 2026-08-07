@@ -5,7 +5,7 @@ the plan and [TODO.md](TODO.md) for what's next.
 
 ---
 
-## 2026-08-06/07 — PyPI audit, MCP repair, OpenAI provider, release hygiene
+## 2026-08-06/07 — MCP repair, OpenAI provider, release hygiene
 
 A long session. The through-line is that several things believed to be working
 were not, and were only found by running them rather than reading them.
@@ -33,12 +33,7 @@ the *published* artifact from PyPI, since CI only ever exercises the working tre
 routes (#15). Token usage surfaced (#20). Release gating and a TestPyPI rehearsal
 (#19), and one source of version truth (#18).
 
-**PyPI audit** ([PYPI_HISTORY.md](PYPI_HISTORY.md), #7). `xmagic-sdk` carries two
-unrelated packages: 0.0.1–0.0.3 installed `xmagic_sdk` with a different API, so
-`pip install -U` breaks `import xmagic_sdk`. 0.0.3 was a version number spent on a
-one-line log change; 0.0.1 was a 1,225-byte name reservation. The `xmagic` name on
-PyPI belongs to an unrelated account since 2022, so the install/import mismatch is
-permanent. `xmagic-sdk` has a single PyPI role holder.
+**PyPI audit** — see the entry below for the full account.
 
 **Platform questions.** Unpacking the 0.0.3 wheel turned up a `/v1/mcp-servers`
 deployment API and a **non-MCP REST tool contract**, both bearing on questions #5
@@ -50,6 +45,47 @@ narrowed; Q16 added for the auth-dependent `subagents`→`jobs` key transform.
 multi-provider was deprioritised to LiteLLM plus one native adapter. Undocumented
 behaviour is treated as unsupported rather than built against — a rule this session
 broke once and then adopted deliberately.
+
+## 2026-08-05 — PyPI audit: name mismatch, ownership, and a legacy shim
+
+Audited this project's PyPI presence. Findings are written up in
+[PYPI_HISTORY.md](PYPI_HISTORY.md); the short version:
+
+- **`xmagic-sdk` carries two unrelated packages.** Releases 0.0.1–0.0.3
+  (November 2025, setuptools) installed a top-level `xmagic_sdk` module with a
+  different public API; 0.1.0 installs `xmagic`. Same distribution name, so
+  `pip install -U` deletes the old package and `import xmagic_sdk` breaks. Gone
+  with it: `run_mcp_server`, `fetch_info_from_kb_v1`/`_v3`, and the hosted
+  deployment commands (`xmagic mcp run`/`list`/`logs`/`start`/`stop`/`delete`/
+  `validate`, ~1,100 lines in `mcp/deploy_mcp.py`). `configure` and `chat`
+  survive by name with different flags, which makes the break quieter, not
+  smaller. ~275 non-mirror downloads in the six months before 0.1.0, essentially
+  all 0.0.3.
+- **Added a raising `xmagic_sdk` shim** (`src/xmagic_sdk/__init__.py`) so that
+  import fails with the replacement name, the version boundary, the specific
+  dead APIs, and `pip install 'xmagic-sdk==0.0.3'` as the escape hatch. A
+  re-export shim was impossible — nothing in the 0.0.x API has a counterpart
+  today, so the choice was a pointed error or silence. Pinned by
+  `tests/test_legacy_shim.py`, removable at 1.0. Verified by installing a built
+  wheel into a clean venv.
+- **`xmagic` on PyPI is owned by someone else**, and always was: account
+  `XOne_Team` (Amr Elmenyawy), which registered it alongside `XMagics` and
+  `XOne-Magic` in **August 2022** — three years before xMagic. Their published
+  code is an SMS helper. So the install/import mismatch is permanent, not an
+  oversight, and renaming the distribution would need a PEP 541 transfer. The
+  ownership is not visible via the JSON API or the project page (JS challenge);
+  PyPI's XML-RPC `package_roles` still answers it, and the recipe is in the
+  write-up.
+- **`xmagic-sdk` has a single role holder**, `internal_apis`, which owns no other
+  packages. Trusted publishing means routine releases don't depend on it, but
+  yank/delete/maintainer rights do.
+- **0.0.3 was a burned version number** — 44 minutes after 0.0.2, for a single
+  `logger.warning` → `logger.debug` line. 0.0.1 was a 1,225-byte name
+  reservation whose only module read `version = "0.0.1"`. Filed the release
+  guards that would prevent a repeat under Phase 6 in [TODO.md](TODO.md); the
+  sharpest is that `release.yml` runs no tests before publishing.
+
+Suite 50 → 53 passing.
 
 ## 2026-08-05 — Phase 1 complete: async client, chat polish, retry coverage
 
