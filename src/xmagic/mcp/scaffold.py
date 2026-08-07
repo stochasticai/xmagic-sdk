@@ -1,6 +1,6 @@
 """Project generator behind ``xmagic mcp init``.
 
-Generates a containerized MCP server (FastMCP, streamable-HTTP at /mcp) with a
+Generates a containerized MCP server (MCPServer, streamable-HTTP at /mcp) with a
 Dockerfile that satisfies xMagic's custom-tool contract: public HTTPS MCP
 endpoint, optional API key, structured JSON responses, logging.
 """

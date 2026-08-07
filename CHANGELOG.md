@@ -28,6 +28,17 @@ Phase 1 (core client) is complete as of these changes.
   MCP server scaffold, and skills packaging. The last two need no API key.
 - Test coverage for the retry/backoff contract and for the `chat` CLI, plus a
   structural test asserting the async API mirrors the sync one method for method.
+- **`xmagic tools list` and `xmagic tools call`** — an MCP client that talks
+  straight to a running custom-tool server. No xMagic account, no tunnel, no
+  dashboard registration, and no waiting for an agent to decide to call the
+  tool. `--arg key=value` (repeatable, JSON-coerced so numbers reach a typed
+  tool as numbers), `--json-args` for a whole object, `--json` for scriptable
+  output, and a non-zero exit when the tool reports an error so it works in CI.
+  Requires `xmagic-sdk[mcp]`.
+
+  This also gives `xmagic mcp init` its first real integration test: the suite
+  scaffolds a project, imports it, and drives it over MCP's in-memory transport
+  — no container, no port.
 - **An `xmagic_sdk` compatibility shim.** Importing it now raises an `ImportError`
   naming the replacement (`xmagic`), the version the change happened in, and
   `pip install 'xmagic-sdk==0.0.3'` for anyone who needs the old API. Scheduled
@@ -48,6 +59,19 @@ Phase 1 (core client) is complete as of these changes.
 
 ### Fixed
 
+- **`xmagic mcp init` generated projects that could not start.** The template
+  imported `mcp.server.fastmcp.FastMCP`; mcp 2.0 moved that class to
+  `mcp.server.mcpserver.MCPServer`, and both the generated project and this
+  package declared an unbounded `mcp>=1.0` — so a fresh install resolved to 2.x
+  and every scaffolded server failed at import with `ModuleNotFoundError`. The
+  template is ported, and both dependency declarations are now bounded to
+  `>=2.0,<3`.
+
+  The scaffold test could not have caught this: it used `py_compile`, which
+  parses without resolving imports. It now imports the rendered module for real
+  and drives it over MCP's in-memory transport — scaffold, `list_tools`, call
+  `ping`, assert the response — so a broken generated server fails CI rather
+  than reaching users.
 - **`Retry-After` carrying an HTTP-date crashed the retry loop** with
   `ValueError` instead of retrying. RFC 9110 permits a date as well as a delay in
   seconds; an unparseable or non-positive value now degrades to the normal
