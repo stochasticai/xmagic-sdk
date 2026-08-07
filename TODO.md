@@ -246,6 +246,7 @@ bears on the two questions there marked blocking.
 - [ ] Can a registered custom tool be **invoked** directly through the API,
       independently of an agent chat? (see "Local tool invocation", Phase 2)
 - [ ] Exact MCP transport xMagic's runtime speaks (streamable HTTP assumed)
-- [ ] Are agent list/management endpoints public? (needed for `xmagic agents list`)
+- [x] Are agent list/management endpoints public? (`xmagic agents` and its
+      `config`/`deploy` subcommands are implemented)
 - [ ] Behavioral differences between chat types beyond UI context (guardrails,
       history, tool availability)?

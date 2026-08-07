@@ -97,12 +97,16 @@ src/xmagic/
 ├── __init__.py            # XMagicClient, AsyncXMagicClient, __version__
 ├── config.py              # Settings: env > file (~/.config/xmagic/config.toml) > defaults
 ├── errors.py              # XMagicError hierarchy (Auth, RateLimit, NotFound, ...)
+├── config_codec.py        # YAML↔JSON codec for agent config editing (PyYAML)
 ├── client/
 │   ├── http.py            # httpx transport, x-api-key, retries/backoff, SSE
 │   ├── models.py          # Pydantic v2 models (Chat, Message, StreamEvent, ...)
 │   ├── chats.py           # create chat, query (sync/stream/async), messages
 │   ├── files.py           # uploaded-files
-│   └── drive.py           # knowledge-base folders/files
+│   ├── drive.py           # knowledge-base folders/files
+│   ├── agents.py          # agent list, temporary config CRUD, save/deploy, subagents
+│   ├── phones.py          # phone number listing and association
+│   └── workspaces.py      # workspace listing and switching
 ├── providers/
 │   ├── base.py            # Provider ABC: complete(), stream(); ModelRef parsing
 │   ├── registry.py        # "provider:model" resolution, entry-point plugins
@@ -120,7 +124,8 @@ src/xmagic/
 │   └── proxy.py           # reverse proxy + fallback UI (extra: [serve])
 └── cli/
     ├── main.py            # Typer app, sub-app mounting
-    └── ...                # chat.py, mcp.py, skills.py, tools.py, drive.py, serve.py, configure.py
+   └── ...                # agents.py, chat.py, configure.py, drive.py, mcp.py,
+                     # serve.py, skills.py, tools.py, workspaces.py
 ```
 
 ---
@@ -180,7 +185,10 @@ Design rules:
 ```
 xmagic configure                      # interactive setup; writes config.toml
 xmagic chat [--agent ID | --model provider:model] [--stream/--no-stream] [-f FILE]
-xmagic agents list                    # as API coverage allows
+xmagic workspaces [NAME | --id ID]    # list or switch accessible workspaces
+xmagic agents                         # list agents in current workspace
+xmagic agents config [--agent ID] [-C "prompt"]  # edit temp config as YAML, or via Composer
+xmagic agents deploy [--agent ID] [--version NAME]  # save + deploy; optional phone association
 xmagic drive ls|upload|download ...
 xmagic skills new NAME                # scaffold SKILL.md + layout
 xmagic skills validate PATH           # frontmatter/zip lint
@@ -318,7 +326,7 @@ platform team in [#5](https://github.com/stochasticai/xmagic-sdk/issues/5).
    legacy transport kept available behind a template flag).
 3. Web-app proxy viability against the hosted app's CSP/auth — validate early in
    Phase 5; fallback UI is the hedge.
-4. Are agent listing/management endpoints public? (Needed for `xmagic agents list`.)
+4. ~~Are agent listing/management endpoints public?~~ **Resolved** — `GET /agents`, temporary-config read/write, save, and deploy endpoints are live and confirmed. `xmagic agents` is implemented.
 5. Can a registered custom tool be **invoked** through the API, independently of an
    agent chat? Decides whether tools are testable against the real platform and
    scriptable in CI, or whether the dashboard-plus-chat loop is the only integration

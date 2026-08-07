@@ -89,6 +89,41 @@ def client() -> XMagicClient:
 
 
 @respx.mock
+def test_phone_list_requests_org_scope_and_preserves_attachments(client: XMagicClient) -> None:
+    route = respx.get(f"{DEFAULT_BASE_URL}/phones").mock(
+        return_value=Response(
+            200,
+            json={
+                "data": {
+                    "org_phone_numbers": [
+                        {
+                            "id": "phone-1",
+                            "phone_number": "+15550000001",
+                            "persona_id_associated_to": "agent-1",
+                            "subagent_id_associated_to": "subagent-shared-1",
+                        }
+                    ],
+                    "shared_phone_numbers": [
+                        {
+                            "id": "shared-phone-1",
+                            "phone_number": "+15550000002",
+                            "persona_id_associated_to": "other-agent",
+                        }
+                    ],
+                }
+            },
+        )
+    )
+
+    phones = client.phones.list()
+
+    assert route.calls.last.request.url.params["scope"] == "org"
+    assert [phone.id for phone in phones] == ["phone-1"]
+    assert phones[0].persona_id_associated_to == "agent-1"
+    assert phones[0].subagent_id_associated_to == "subagent-shared-1"
+
+
+@respx.mock
 def test_create_chat_request_and_response_shape(client: XMagicClient) -> None:
     fixture = _load_json_fixture("create_chat_response.json")
     route = respx.post(f"{DEFAULT_BASE_URL}/agents/agent-1/chats").mock(

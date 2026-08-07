@@ -19,9 +19,11 @@ import respx
 from httpx import Response
 
 from xmagic import AsyncXMagicClient
+from xmagic.client.agents import AgentsAPI, AsyncAgentsAPI
 from xmagic.client.chats import AsyncChatsAPI, ChatsAPI
 from xmagic.client.drive import AsyncDriveAPI, DriveAPI
 from xmagic.client.files import AsyncFilesAPI, FilesAPI
+from xmagic.client.workspaces import AsyncWorkspacesAPI, WorkspacesAPI
 from xmagic.client.models import ChatType
 from xmagic.config import DEFAULT_BASE_URL
 from xmagic.errors import ConfigurationError, RateLimitError
@@ -216,7 +218,13 @@ async def test_context_manager_closes_transport() -> None:
 
 @pytest.mark.parametrize(
     ("sync_cls", "async_cls"),
-    [(ChatsAPI, AsyncChatsAPI), (FilesAPI, AsyncFilesAPI), (DriveAPI, AsyncDriveAPI)],
+    [
+        (ChatsAPI, AsyncChatsAPI),
+        (FilesAPI, AsyncFilesAPI),
+        (DriveAPI, AsyncDriveAPI),
+        (WorkspacesAPI, AsyncWorkspacesAPI),
+        (AgentsAPI, AsyncAgentsAPI),
+    ],
 )
 def test_async_mirrors_sync_signatures(sync_cls: type, async_cls: type) -> None:
     """The async API is a 1:1 mirror — same methods, same arguments.
