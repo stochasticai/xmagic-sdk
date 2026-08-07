@@ -30,16 +30,19 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+# One vendor extra, for the one implemented vendor adapter. The Anthropic and
+# Google adapters are reserved extension points whose `complete`/`stream` raise
+# NotImplementedError, so `[anthropic]` / `[google]` would install heavy SDKs
+# that nothing imports — LiteLLM already reaches those vendors. Add an extra
+# next to whichever adapter is actually implemented, as `[openai]` is here.
 openai = ["openai>=1.30"]
-anthropic = ["anthropic>=0.34"]
-google = ["google-genai>=1.0"]
 litellm = ["litellm>=1.40"]
 serve = ["starlette>=0.37", "uvicorn>=0.29"]
 # Bounded to one major: mcp 2.0 relocated FastMCP, which broke the generated
 # server template while the unbounded range still resolved "successfully".
 mcp = ["mcp>=2.0,<3"]
 all = [
-    "xmagic-sdk[openai,anthropic,google,litellm,serve,mcp]",
+    "xmagic-sdk[openai,litellm,serve,mcp]",
 ]
 
 [project.scripts]
