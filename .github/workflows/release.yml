@@ -81,6 +81,17 @@ jobs:
             exit 1
           fi
 
+      - name: Sync dependencies
+        run: uv sync --all-extras
+
+      - name: Lint and format
+        run: |
+          uv run ruff check .
+          uv run ruff format --check .
+
+      - name: Test
+        run: uv run pytest
+
       - name: Build sdist and wheel
         run: uv build
 
@@ -102,10 +113,25 @@ jobs:
     permissions:
       id-token: write # required for trusted publishing
     steps:
-      - uses: actions/download-artifact@v4
+      - name: Download built dist
+        uses: actions/download-artifact@v4
         with:
           name: dist
           path: dist/
+
+      # Rehearse on TestPyPI with the exact bytes PyPI is about to receive. The
+      # one historical rehearsal (0.0.2, Nov 2025) built its own sdist -- 28,934
+      # bytes against PyPI's 28,947 -- so it never rehearsed what shipped.
+      #
+      # Never blocks the release: without a TestPyPI trusted publisher this step
+      # fails, and a missing rehearsal is not a reason to withhold a good build.
+      # Configure one at https://test.pypi.org/manage/project/xmagic-sdk/settings/publishing/
+      - name: Publish to TestPyPI (rehearsal)
+        continue-on-error: true
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: https://test.pypi.org/legacy/
+          skip-existing: true
 
       - name: Publish
         uses: pypa/gh-action-pypi-publish@release/v1
