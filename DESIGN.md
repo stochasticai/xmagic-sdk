@@ -305,6 +305,7 @@ Chosen approach: **local proxy of the hosted xMagic web app**.
 | **6 — Polish** | docs, examples, CI, PyPI release |
 | **7 — Document redactor** *(proposed)* | `mcp init --template redactor`; see §12 |
 | **8 — Coding-agent bridge** *(proposed)* | `mcp init --template coding-agent`; see §11 |
+| **9 — Tool calling** *(proposed)* | Typed `tools=` on the provider interface; see §13 |
 
 ## 10. Open questions
 
@@ -709,3 +710,134 @@ tractable; designing one up front is not.
    and "local models" becomes an L2-only story.
 6. **Is a redaction product in scope for this repo at all,** even as a template? Same
    question as §11.9 Q1, and the answers should probably agree.
+
+---
+
+## 13. Tool calling as a typed surface (proposed)
+
+> **Status: proposed, not accepted.** Nothing here is implemented. Review thread:
+> [#16](https://github.com/stochasticai/xmagic-sdk/issues/16).
+
+The provider layer cannot express the one capability that makes an agent an agent.
+
+### 13.1 The gap
+
+`Provider` is `complete`, `stream`, `capabilities`. **None of them mentions tools**,
+yet `XMagicProvider.capabilities()` returns `tools: True`. Three concrete
+consequences:
+
+- `ChatMessage` is `role` + `content`. `Role` already includes `"tool"`, but there is
+  no `tool_call_id`, so a tool *result* cannot be correlated with the call that asked
+  for it. The message type physically cannot represent one.
+- `Completion` is `text`, `model`, `raw`. A tool call has nowhere to arrive, so a
+  caller would dig it out of `raw` — provider-specific, which is what the abstraction
+  exists to prevent.
+- Tools therefore "work" only by `**params` passthrough to one adapter. That is not a
+  surface; it is a hole that happens to line up.
+
+### 13.2 What the ecosystem settled on
+
+Verified against `openai` 2.53.0 rather than recalled:
+
+| Piece | Shape |
+|---|---|
+| Tool definition | `{"type": "function", "function": {name, description, parameters, strict}}` — `parameters` is JSON Schema |
+| Call returned | assistant message carries `tool_calls`: `{id, type, function: {name, arguments}}` |
+| `arguments` | typed **`str`** — a JSON string, parsed by the caller, malformed if `strict` is off |
+| Result returned | a separate message `{role: "tool", tool_call_id, content}` |
+| Streaming | deltas of `{index, id, function}` where `function.arguments` arrives as **JSON fragments**, accumulated by `index`, with no completion event |
+
+Anthropic diverges on every one of those: `input` arrives already parsed, results go
+back as a `tool_result` block inside a **user** message keyed by `tool_use_id`, and
+content is a list of typed blocks rather than a string.
+
+**LiteLLM normalizes all of it to the OpenAI shape.** So building the typed surface
+against OpenAI's model is not a bet on one vendor — it is the shape the ecosystem
+converged on, and the shape `LiteLLMProvider` will hand us for every other vendor.
+
+The higher-level SDKs (OpenAI Agents, Anthropic's tool runner, Vercel AI SDK, Pydantic
+AI, LangChain) then converge on two conveniences: derive the JSON Schema from a typed
+Python function, and ship the execution loop.
+
+### 13.3 The real blocker is `content: str`
+
+Not the missing `tool_call_id`. An assistant turn that only calls tools has **no
+text**, and Anthropic-style content is a list of blocks. Adding one id field papers
+over a type that cannot represent the conversation.
+
+Proposed: `content: str | list[ContentPart]`, with plain `str` remaining valid and
+idiomatic for the overwhelmingly common case. Existing callers do not change.
+
+### 13.4 Decisions proposed
+
+- **D1 — `arguments` is a parsed dict, not a JSON string.** OpenAI's string is a wire
+  detail. Making every caller `json.loads` it, with no guarantee it parses, is the
+  abstraction failing at its only job.
+- **D2 — `content` becomes `str | list[ContentPart]`.** See 13.3.
+- **D3 — tool results travel as `ChatMessage(role="tool", tool_call_id=...)`.** Adapters
+  map to each vendor's carrier; the neutral layer keeps one shape.
+- **D4 — `capabilities()["tools"]` means per-call tool definitions**, so
+  `XMagicProvider` reports `False` and rejects a `tools=` argument rather than
+  silently ignoring it. xMagic's tools are real but registered platform-side and
+  attached to an agent, which is a different capability and deserves a different flag.
+- **D5 — set `strict` where the vendor supports it.** The difference between usually
+  valid arguments and valid arguments.
+
+### 13.5 Surface sketch
+
+```python
+@dataclass
+class ToolDef:
+    name: str
+    description: str
+    parameters: dict[str, Any]  # JSON Schema
+
+
+@dataclass
+class ToolCall:
+    id: str
+    name: str
+    arguments: dict[str, Any]  # parsed, per D1
+
+
+completion = provider.complete(messages, model=..., tools=[ToolDef(...)])
+for call in completion.tool_calls:
+    result = run(call.name, call.arguments)
+    messages.append(ChatMessage(role="tool", tool_call_id=call.id, content=result))
+```
+
+### 13.6 Staging
+
+| Stage | Scope | Why here |
+|---|---|---|
+| **A — types + blocking** | `ToolDef`/`ToolCall`, `ChatMessage` and `Completion` changes, OpenAI mapping both ways | Load-bearing; nothing else exists without it |
+| **B — streaming** | Accumulate `arguments` fragments by `index`, emit a complete `ToolCall` | Fiddly and independently testable |
+| **C — schemas from callables** | Typed Python function → JSON Schema, via pydantic | Turns the feature from a schema-writing exercise into something pleasant |
+| **D — execution loop** | call → execute → feed back → repeat | See the open question below; may not be ours to ship |
+
+**A and C are the milestone that matters.** B and D should follow contact with a real
+use, not precede it.
+
+### 13.7 What lands where
+
+Everything is `providers/base.py` plus one adapter, both already in this package. No
+new dependency: pydantic is a core dependency and does the schema generation.
+
+### 13.8 Open questions for review
+
+1. **Is the execution loop (D) in scope?** §1 lists "agent orchestration frameworks
+   (we expose primitives, not a graph runtime)" as a **non-goal**. A call-execute-feed-back
+   loop is a primitive rather than a runtime, and every peer SDK now ships one — but it
+   is close enough to the line to be worth an explicit decision rather than a drift.
+2. **Does changing `ChatMessage` count as breaking at 0.x?** It is public API
+   (`xmagic.providers.ChatMessage`). D2 and D3 are additive and existing construction
+   keeps working, but the type genuinely changes.
+3. **Should `capabilities()` be reshaped rather than patched?** D4 makes one flag
+   honest; the flags are a `dict[str, bool]` with no defined vocabulary, which will not
+   survive many more capabilities.
+4. **Does xMagic expose any per-call tool surface at all?** D4 assumes not, on the
+   evidence that the documented query payload has no tool field. Consolidated for the
+   platform team in [#5](https://github.com/stochasticai/xmagic-sdk/issues/5).
+5. **Should this wait for `LiteLLMProvider`?** Building A against OpenAI alone risks
+   encoding one vendor's model; building it against LiteLLM's normalization proves the
+   shape generalizes. Sequencing question, not a design one.
