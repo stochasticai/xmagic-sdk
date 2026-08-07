@@ -83,6 +83,19 @@ def _result(response: httpx.Response) -> dict[str, Any]:
     return response.json()
 
 
+def _raw(response: httpx.Response) -> bytes:
+    """Raise a typed error for an error response, else return the body bytes.
+
+    The Drive ZIP export is the one documented endpoint that answers
+    ``application/zip`` rather than JSON, so it cannot go through ``_result``.
+    Error responses are still JSON, so error handling is unchanged.
+    """
+    if response.is_error:
+        error_code, message = _parse_error(response)
+        raise error_for_status(response.status_code, error_code, message)
+    return response.content
+
+
 def _parse_error(response: httpx.Response) -> tuple[str | None, str]:
     try:
         body = response.json()
@@ -106,13 +119,21 @@ class HttpTransport:
 
     def request(self, method: str, path: str, **kwargs: Any) -> dict[str, Any]:
         """Issue a request; return the parsed JSON body. Raises XMagicAPIError."""
+        return _result(self._send(method, path, **kwargs))
+
+    def request_bytes(self, method: str, path: str, **kwargs: Any) -> bytes:
+        """Issue a request; return the raw body. For non-JSON responses."""
+        return _raw(self._send(method, path, **kwargs))
+
+    def _send(self, method: str, path: str, **kwargs: Any) -> httpx.Response:
+        """The retry loop, shared by every response shape."""
         for attempt in range(self.settings.max_retries + 1):
             response = self._client.request(method, path, **kwargs)
             if response.status_code in _RETRYABLE and attempt < self.settings.max_retries:
                 time.sleep(_retry_delay(response, attempt))
                 continue
             break
-        return _result(response)
+        return response
 
     def sse(self, method: str, path: str, **kwargs: Any) -> Iterator[dict[str, Any]]:
         """Stream Server-Sent Events, yielding parsed JSON payloads.
@@ -146,13 +167,21 @@ class AsyncHttpTransport:
 
     async def request(self, method: str, path: str, **kwargs: Any) -> dict[str, Any]:
         """Issue a request; return the parsed JSON body. Raises XMagicAPIError."""
+        return _result(await self._send(method, path, **kwargs))
+
+    async def request_bytes(self, method: str, path: str, **kwargs: Any) -> bytes:
+        """Issue a request; return the raw body. For non-JSON responses."""
+        return _raw(await self._send(method, path, **kwargs))
+
+    async def _send(self, method: str, path: str, **kwargs: Any) -> httpx.Response:
+        """The retry loop, shared by every response shape."""
         for attempt in range(self.settings.max_retries + 1):
             response = await self._client.request(method, path, **kwargs)
             if response.status_code in _RETRYABLE and attempt < self.settings.max_retries:
                 await asyncio.sleep(_retry_delay(response, attempt))
                 continue
             break
-        return _result(response)
+        return response
 
     async def sse(self, method: str, path: str, **kwargs: Any) -> AsyncIterator[dict[str, Any]]:
         """Stream Server-Sent Events, yielding parsed JSON payloads.
