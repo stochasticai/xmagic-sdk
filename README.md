@@ -22,13 +22,15 @@ Working today:
 2. **xMagic API** — chat (sync + streaming), file uploads, Drive (knowledge base),
    skills packaging, with a matching async client. Request/response shapes are
    verified against the live API and locked with recorded-fixture tests.
+3. **Bring your own model** — `provider:model` refs backed by your own key.
+   `xmagic:<agent_id>` and `openai:<model>` work today, over one `Provider`
+   interface.
 
 Planned:
 
-3. **Multi-provider** *(Phase 3)* — one interface across xMagic, OpenAI, Anthropic,
-   Google, and (via LiteLLM) 100+ more. Only the xMagic provider is implemented so
-   far; the others are stubs.
-4. **Bring your own model** *(Phase 3)* — `provider:model` refs with your own API keys.
+4. **More providers** *(Phase 3)* — `litellm:` for the ~150 vendors LiteLLM
+   reaches, including Anthropic and Google. Their native adapters
+   (`anthropic:`, `google:`) are reserved but unimplemented.
 5. **Local web app** *(Phase 5)* — `xmagic serve` runs the xMagic web app locally
    via proxy.
 
@@ -42,8 +44,10 @@ uv pip install "xmagic-sdk[all]"     # + all provider/serve/mcp extras
 ```
 
 Extras are granular if you don't want everything — `[mcp]` for the server
-scaffold, `[serve]` for the local web app, and `[openai]` / `[anthropic]` /
-`[google]` / `[litellm]` per provider. `pip` works too if you don't use `uv`.
+scaffold, `[serve]` for the local web app, `[openai]` for the OpenAI provider,
+and `[litellm]` for the long tail. There is no `[anthropic]` or `[google]`:
+those adapters aren't implemented, and LiteLLM already reaches both. `pip` works
+too if you don't use `uv`.
 
 > **You install `xmagic-sdk` but import `xmagic`.** The two names differ because
 > `xmagic` on PyPI belongs to an unrelated project registered in 2022, so it was
@@ -104,7 +108,7 @@ api_key = "xm-..."
 base_url = "https://api.xmagic.ai/xmagic-backend/v1"
 default_agent_id = "..."
 
-[providers.openai]        # provider keys, once Phase 3 lands
+[providers.openai]        # used by `-m openai:<model>`
 api_key = "sk-..."
 ```
 
@@ -213,6 +217,38 @@ xmagic skills pack my-skill      # -> my-skill.zip, ready to upload
 
 Upload the zip in the dashboard under **Skills**.
 
+### 7. Use a non-xMagic model
+
+`chat` takes a `provider:model` ref backed by your own key. OpenAI is
+implemented:
+
+```bash
+export OPENAI_API_KEY="sk-..."
+xmagic chat -m openai:gpt-5 "Hello!"
+```
+
+Or from Python, through the same `Provider` interface the xMagic path uses:
+
+```python
+from xmagic.providers import ChatMessage, get_provider
+
+provider = get_provider("openai:gpt-5")  # reads OPENAI_API_KEY
+for chunk in provider.stream([ChatMessage(role="user", content="Hello!")], model="gpt-5"):
+    print(chunk.text, end="")
+```
+
+Two differences from the xMagic path are worth knowing. `model` is a real model
+name here, not an agent id — OpenAI picks per call, so there's no agent and no
+server-side session, and multi-turn context is whatever you pass in `messages`.
+And `-f/--file` is xMagic-only, since uploads are an xMagic feature.
+
+Errors arrive as this SDK's own types, so you catch `XMagicError` regardless of
+which vendor failed — a 429 from OpenAI raises the same `RateLimitError` a 429
+from xMagic would.
+
+`anthropic:` and `google:` are not implemented; use `litellm:` for those once
+that adapter lands (Phase 3).
+
 ### Next steps
 
 Runnable scripts for each of the flows above live in
@@ -221,15 +257,6 @@ scaffold walkthrough (that one needs no API key).
 
 `xmagic --help` lists every command, and each subcommand takes `--help` too.
 See [DESIGN.md](DESIGN.md) for how the pieces fit together.
-
-Once the provider adapters land (Phase 3), `chat` will accept a
-`provider:model` ref backed by your own key:
-
-```bash
-xmagic chat -m anthropic:claude-sonnet-5 "Hello!"   # not yet implemented
-```
-
-Today that path exits with a `NotImplementedError` pointing at the roadmap.
 
 ## Troubleshooting
 

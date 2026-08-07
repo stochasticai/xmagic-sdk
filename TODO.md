@@ -56,20 +56,48 @@ Two halves, and they are independent:
       *test a tool*, not to speak a protocol, so grouping by intent beats
       grouping by what each one talks to
 
-## Phase 3 — Providers
+## Phase 3 — Providers (deprioritized 2026-08-05)
 
-- [ ] Implement `OpenAIProvider` (complete + stream)
-- [ ] Implement `AnthropicProvider`
-- [ ] Implement `GoogleProvider`
-- [ ] Implement `LiteLLMProvider` (long-tail escape hatch)
-- [ ] `xmagic models list` across configured providers
-- [ ] Provider capability flags (tools, vision) wired into CLI errors
+Worth knowing before picking this up: **xMagic documents no model selection at
+all.** `model` in `XMagicProvider` is an agent id, and `_query_payload` carries no
+model field. Checked against the live docs on 2026-08-05: none of the 15 endpoints
+in the API reference takes a `model` parameter, no endpoint lists models, and none
+of the 103 documented pages covers choosing one — the agent-config page's only
+mention is an "Allow Model's Knowledge" toggle, which is about pretrained
+knowledge, not model choice.
+
+How xMagic picks a model is therefore not a supported, documented surface, and we
+should not build against it or assume one exists. What follows for us: per-call
+model choice comes from LiteLLM alone, and one adapter covers every vendor the
+three native ones would have. The native adapters are now reserved extension
+points with no extra (DESIGN.md §4).
+
+- [x] Implement `OpenAIProvider` (complete + stream) — the worked example of a
+      vendor-native adapter, and the pattern to copy for any other. Keeps its
+      `[openai]` extra
+- [ ] Implement `LiteLLMProvider` (complete + stream) — covers the remaining
+      ~150 vendors, Anthropic and Google among them
+- [ ] `xmagic models list` — near-trivial off `litellm.model_list` (~1,900 models
+      across 149 providers as of litellm 1.95)
+- [ ] Provider capability flags — read `litellm.supports_function_calling` /
+      `supports_vision` rather than hand-maintaining a table
+- [ ] ~~`AnthropicProvider` / `GoogleProvider`~~ — reserved, not planned. Build
+      one only if a vendor-specific need (parameters, auth, transport) makes
+      routing through LiteLLM wrong, and add its extra back at that point
 
 ## Phase 4 — Skills & Drive
 
-- [ ] Verify Drive endpoint paths against docs.xmagic.ai/api-drive
-      (current paths in `client/drive.py` are unverified — see docstring)
-- [ ] `xmagic drive download` (ZIP export) and recursive listing
+- [x] Verify Drive endpoint paths against the published API reference — done
+      2026-08-06; the existing paths are correct, and four documented routes we
+      lacked are now implemented (folder details, folder update, file deletion,
+      ZIP export)
+- [ ] **`list_folders` / `list_files` silently truncate at 20 items.** The live
+      response carries `data.pagination` (`page`, `page_size`, `total_count`)
+      and we return only `data.results`. The request-side parameter names are
+      undocumented, so this needs an answer before it can be fixed correctly —
+      raised on [#5](https://github.com/stochasticai/xmagic-sdk/issues/5)
+- [ ] CLI surface for the new Drive routes (`xmagic drive download`, `rm`,
+      `rename`) and recursive listing
 - [ ] Richer SKILL.md validation (proper YAML parsing vs current line-based)
 - [ ] Wire skills upload / tool registration APIs if xMagic publishes them
       (open question §10.1)
@@ -96,7 +124,7 @@ Largely delivered by the open-source readiness work (see [PLAN.md](PLAN.md)).
 - [x] Examples directory — `examples/` with basic chat, streaming, files+Drive,
       and the MCP scaffold walkthrough (the last needs no API key)
 - [x] Skills packaging example (`examples/05_skills.py`)
-- [ ] Multi-provider example (`provider:model`) — blocked on Phase 3 adapters
+- [ ] Multi-provider example (`provider:model`) — blocked on `LiteLLMProvider`
 
 ## SDK surface — surveyed, not yet scoped
 
