@@ -773,13 +773,15 @@ idiomatic for the overwhelmingly common case. Existing callers do not change.
 class ToolDef:
     name: str
     description: str
-    parameters: dict[str, Any]          # JSON Schema
+    parameters: dict[str, Any]  # JSON Schema
+
 
 @dataclass
 class ToolCall:
     id: str
     name: str
-    arguments: dict[str, Any]           # parsed, per D1
+    arguments: dict[str, Any]  # parsed, per D1
+
 
 completion = provider.complete(messages, model=..., tools=[ToolDef(...)])
 for call in completion.tool_calls:
