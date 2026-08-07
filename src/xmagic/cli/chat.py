@@ -7,6 +7,7 @@ from typing import Any
 
 import typer
 from rich.console import Console
+from rich.markup import escape
 
 from xmagic.client import XMagicClient
 from xmagic.client.models import ChatType
@@ -78,7 +79,10 @@ def chat(
     try:
         provider = get_provider(model_ref, settings=settings, **options)
     except (XMagicError, ImportError) as e:
-        console.print(f"[red]{e}[/red]")
+        # `escape`, because error text is data. Without it Rich reads bracketed
+        # content as markup and silently drops it -- "[providers.openai] api_key"
+        # rendered as " api_key", pointing at nothing.
+        console.print(f"[red]{escape(str(e))}[/red]")
         raise typer.Exit(1) from None
 
     model_name = model_ref.model
@@ -121,5 +125,5 @@ def chat(
             except (EOFError, KeyboardInterrupt, typer.Abort):
                 break
     except (XMagicError, NotImplementedError) as e:
-        console.print(f"[red]{e}[/red]")
+        console.print(f"[red]{escape(str(e))}[/red]")
         raise typer.Exit(1) from None

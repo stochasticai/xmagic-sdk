@@ -28,6 +28,12 @@ Phase 1 (core client) is complete as of these changes.
   MCP server scaffold, and skills packaging. The last two need no API key.
 - Test coverage for the retry/backoff contract and for the `chat` CLI, plus a
   structural test asserting the async API mirrors the sync one method for method.
+- **Token usage is surfaced.** `token_usage` events reached the client and were
+  then dropped by the provider. `Completion` and the terminal `CompletionChunk`
+  now carry a `Usage` (input/output/total tokens, plus the raw payload). The
+  shape is unconfirmed — it comes from the backend's private `TokenType` enum
+  rather than the API reference — so parsing degrades to `None` rather than
+  raising, and never reports zeros it did not measure.
 - **`xmagic tools list` and `xmagic tools call`** — an MCP client that talks
   straight to a running custom-tool server. No xMagic account, no tunnel, no
   dashboard registration, and no waiting for an agent to decide to call the
@@ -39,25 +45,50 @@ Phase 1 (core client) is complete as of these changes.
   This also gives `xmagic mcp init` its first real integration test: the suite
   scaffolds a project, imports it, and drives it over MCP's in-memory transport
   — no container, no port.
+- **Four Drive routes** from the published API reference that the client lacked:
+  `get_folder` (with optional `include_counts`), `update_folder` (partial — it
+  sends only what you ask to change), `delete_files`, and `download_files`,
+  which returns the ZIP export as bytes. Both sync and async.
+  `HttpTransport`/`AsyncHttpTransport` gained `request_bytes` for the one
+  documented endpoint that answers `application/zip` rather than JSON; the retry
+  loop is now shared between both response shapes rather than duplicated.
+
+- **`OpenAIProvider` is implemented** — the first non-xMagic model you can
+  actually call: `xmagic chat -m openai:gpt-5`, or `get_provider("openai:gpt-5")`
+  from Python, over the same `Provider` interface the xMagic path uses. Blocking
+  and streaming, extra request params passed through, and OpenAI's exceptions
+  translated into this SDK's own hierarchy, so a 429 from OpenAI raises the same
+  `RateLimitError` a 429 from xMagic would. Unlike the xMagic adapter, `model` is
+  a real model name rather than an agent id: there is no chat to create and no
+  server-side session, so multi-turn context is whatever the caller passes.
+  Optional extra: `xmagic-sdk[openai]`.
+
+### Changed
+
+- **Dropped the `[anthropic]` and `[google]` extras.** They installed vendor SDKs
+  that nothing imports — both `complete` and `stream` on those adapters raise
+  `NotImplementedError`, and LiteLLM already reaches both vendors (and ~150 more)
+  through one dependency. `[all]` is now `[openai,litellm,serve,mcp]`;
+  `anthropic` and the `google-genai` tree (google-auth, protobuf, grpcio) no
+  longer install at all. The two adapter classes and their `xmagic.providers`
+  entry points are unchanged and remain reserved extension points; an extra comes
+  back alongside whichever one is actually implemented. Their error messages now
+  point at `litellm:<vendor>/<model>` rather than at an extra that no longer
+  exists.
 - **An `xmagic_sdk` compatibility shim.** Importing it now raises an `ImportError`
   naming the replacement (`xmagic`), the version the change happened in, and
   `pip install 'xmagic-sdk==0.0.3'` for anyone who needs the old API. Scheduled
   for removal in 1.0. See Compatibility below.
 
-### Compatibility
-
-- **0.1.0 changed this distribution's import name from `xmagic_sdk` to `xmagic`,
-  and replaced its public API.** Releases 0.0.1-0.0.3 (November 2025) installed a
-  top-level `xmagic_sdk` package built with setuptools; 0.1.0 installs `xmagic`.
-  Because both ship under the distribution name `xmagic-sdk`, `pip install -U`
-  deletes the old package, so `import xmagic_sdk` breaks. The 0.0.x helpers
-  (`run_mcp_server`, `fetch_info_from_kb_v1` / `_v3`, `registry`) and the hosted
-  deployment commands (`xmagic mcp run` / `list` / `logs` / `start` / `stop` /
-  `delete` / `validate`, ~1,100 lines in `mcp/deploy_mcp.py`) have no equivalent
-  in the current release. `xmagic configure` and `xmagic chat` survive by name but
-  changed flags. Pin `xmagic-sdk==0.0.3` if you depend on any of it.
-
 ### Fixed
+
+- **Streamed errors were silently discarded.** `XMagicProvider.stream` branched
+  on `done`/`response`/`reasoning` with no `else`, so an `error` frame fell
+  through and vanished: the caller received whatever text arrived before the
+  failure and a clean end of stream, indistinguishable from a short successful
+  answer. `xmagic chat` printed the partial text and exited `0`. An `error` event
+  now raises `XMagicAPIError`. **This is a visible behaviour change** — calls that
+  previously returned truncated text now raise.
 
 - **`xmagic mcp init` generated projects that could not start.** The template
   imported `mcp.server.fastmcp.FastMCP`; mcp 2.0 moved that class to
@@ -76,6 +107,23 @@ Phase 1 (core client) is complete as of these changes.
   `ValueError` instead of retrying. RFC 9110 permits a date as well as a delay in
   seconds; an unparseable or non-positive value now degrades to the normal
   exponential backoff.
+- **`xmagic chat` silently swallowed bracketed text in error messages.** Rich
+  read `[providers.openai]` as a style tag and dropped it, turning "add
+  `[providers.openai]` api_key to ..." into advice pointing at nothing. Error
+  text is now escaped before rendering.
+
+### Compatibility
+
+- **0.1.0 changed this distribution's import name from `xmagic_sdk` to `xmagic`,
+  and replaced its public API.** Releases 0.0.1-0.0.3 (November 2025) installed a
+  top-level `xmagic_sdk` package built with setuptools; 0.1.0 installs `xmagic`.
+  Because both ship under the distribution name `xmagic-sdk`, `pip install -U`
+  deletes the old package, so `import xmagic_sdk` breaks. The 0.0.x helpers
+  (`run_mcp_server`, `fetch_info_from_kb_v1` / `_v3`, `registry`) and the hosted
+  deployment commands (`xmagic mcp run` / `list` / `logs` / `start` / `stop` /
+  `delete` / `validate`, ~1,100 lines in `mcp/deploy_mcp.py`) have no equivalent
+  in the current release. `xmagic configure` and `xmagic chat` survive by name but
+  changed flags. Pin `xmagic-sdk==0.0.3` if you depend on any of it.
 
 Work in progress is tracked in [TODO.md](TODO.md).
 
