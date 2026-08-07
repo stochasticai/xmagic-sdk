@@ -64,7 +64,10 @@ requires = ["hatchling>=1.27"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/xmagic"]
+# `xmagic_sdk` is a shim, not a package: releases 0.0.1-0.0.3 of this same
+# distribution installed a top-level `xmagic_sdk`, so an in-place upgrade would
+# otherwise turn `import xmagic_sdk` into a bare ModuleNotFoundError. Remove in 1.0.
+packages = ["src/xmagic", "src/xmagic_sdk"]
 
 [tool.hatch.build.targets.sdist]
 include = [
