@@ -10,7 +10,18 @@ codebase.**
 
 ## [Unreleased]
 
-Phase 1 (core client) is complete as of these changes.
+## [0.2.0] — 2026-08-07
+
+Phase 1 (core client) completed, the MCP toolkit gained a working dev loop, and
+the first non-xMagic model became callable.
+
+Two fixes here were live defects rather than latent ones: `xmagic mcp init`
+generated projects that could not start, and streamed errors were discarded so
+that a failed generation looked like a short successful one. Both were found by
+running the code rather than reading it, and both are covered by tests now.
+
+Read **Changed** and **Compatibility** before upgrading — two extras were removed
+and one streaming behaviour changed.
 
 ### Added
 
@@ -186,5 +197,6 @@ it (see [DESIGN.md](DESIGN.md)).
   unverified against docs.xmagic.ai/api-drive (Phase 4).
 
 [#2]: https://github.com/stochasticai/xmagic-sdk/issues/2
-[Unreleased]: https://github.com/stochasticai/xmagic-sdk/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/stochasticai/xmagic-sdk/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/stochasticai/xmagic-sdk/releases/tag/v0.2.0
 [0.1.0]: https://github.com/stochasticai/xmagic-sdk/releases/tag/v0.1.0
