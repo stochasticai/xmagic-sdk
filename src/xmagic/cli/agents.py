@@ -116,18 +116,34 @@ def agent(ctx: typer.Context) -> None:
 
 @app.command("config")
 def config(
-    agent_id: str | None = typer.Option(None, "--agent", help="Agent id. Falls back to configured default agent."),
-    compose: str | None = typer.Option(None, "--composer", "-C", help="Send a prompt to Composer to update the agent configuration."),
+    agent_id: str | None = typer.Option(
+        None, "--agent", help="Agent id. Falls back to configured default agent."
+    ),
+    compose: str | None = typer.Option(
+        None,
+        "--composer",
+        "-C",
+        help="Send a prompt to Composer to update the agent configuration.",
+    ),
 ) -> None:
     """Edit the agent temporary config in YAML and push updates to backend."""
     settings = Settings.load()
     target_agent_id = agent_id or settings.default_agent_id
     if not target_agent_id:
-        raise typer.BadParameter("Provide --agent or set default_agent_id with xmagic configure --agent.")
+        raise typer.BadParameter(
+            "Provide --agent or set default_agent_id with xmagic configure --agent."
+        )
     if compose is not None:
         from xmagic.cli.chat import chat as _chat
 
-        _chat(prompt=compose, agent=target_agent_id, chat_type=ChatType.CONFIGURATION, stream=True, model=None, file=[])
+        _chat(
+            prompt=compose,
+            agent=target_agent_id,
+            chat_type=ChatType.CONFIGURATION,
+            stream=True,
+            model=None,
+            file=[],
+        )
         return
 
     temp_path: Path | None = None
@@ -135,13 +151,21 @@ def config(
         with XMagicClient() as client:
             config_json = client.agents.export_temporary_config(target_agent_id)
             original_yaml = json_to_yaml(config_json)
-            with tempfile.NamedTemporaryFile(mode="w", prefix=f"xmagic-agent-{target_agent_id}-", suffix=".yaml", delete=False, encoding="utf-8") as tmp:
+            with tempfile.NamedTemporaryFile(
+                mode="w",
+                prefix=f"xmagic-agent-{target_agent_id}-",
+                suffix=".yaml",
+                delete=False,
+                encoding="utf-8",
+            ) as tmp:
                 tmp.write(original_yaml)
                 temp_path = Path(tmp.name)
             _edit_file(temp_path)
             edited_yaml = temp_path.read_text(encoding="utf-8")
             if edited_yaml == original_yaml:
-                console.print("[yellow]No changes detected. Temporary config was not updated.[/yellow]")
+                console.print(
+                    "[yellow]No changes detected. Temporary config was not updated.[/yellow]"
+                )
                 return
             client.agents.update_temporary_config(target_agent_id, yaml_to_json(edited_yaml))
             console.print(f"[green]Updated temporary config for agent {target_agent_id}.[/green]")
@@ -155,14 +179,20 @@ def config(
 
 @app.command("deploy")
 def deploy(
-    agent_id: str | None = typer.Option(None, "--agent", help="Agent id. Falls back to configured default agent."),
-    version: str | None = typer.Option(None, "--version", help="Version name. Defaults to current date and time."),
+    agent_id: str | None = typer.Option(
+        None, "--agent", help="Agent id. Falls back to configured default agent."
+    ),
+    version: str | None = typer.Option(
+        None, "--version", help="Version name. Defaults to current date and time."
+    ),
 ) -> None:
     """Save the current temporary config as a named version and deploy it."""
     settings = Settings.load()
     target_agent_id = agent_id or settings.default_agent_id
     if not target_agent_id:
-        raise typer.BadParameter("Provide --agent or set default_agent_id with xmagic configure --agent.")
+        raise typer.BadParameter(
+            "Provide --agent or set default_agent_id with xmagic configure --agent."
+        )
     version_name = version or _default_version_name()
 
     try:
@@ -186,7 +216,12 @@ def deploy(
                     phone_table.add_row(str(i), phone.phone_number, attached)
                 console.print(phone_table)
                 try:
-                    choice = int(typer.prompt("Attach a phone number? Enter number from table (0 to skip)", default="0"))
+                    choice = int(
+                        typer.prompt(
+                            "Attach a phone number? Enter number from table (0 to skip)",
+                            default="0",
+                        )
+                    )
                 except ValueError:
                     choice = 0
                 if 1 <= choice <= len(phones):
@@ -202,19 +237,28 @@ def deploy(
                             sub_table.add_row(str(i), subagent.name or subagent.id)
                         console.print(sub_table)
                         try:
-                            sub_choice = int(typer.prompt("Select a subagent to manage incoming calls (0 = All subagents)", default="0"))
+                            sub_choice = int(
+                                typer.prompt(
+                                    "Select a subagent to manage incoming calls (0 = All subagents)",
+                                    default="0",
+                                )
+                            )
                         except ValueError:
                             sub_choice = 0
                         if 1 <= sub_choice <= len(subagents):
                             subagent = subagents[sub_choice - 1]
-                            selected_subagent_id = subagent.id_shared_between_versions or subagent.id
+                            selected_subagent_id = (
+                                subagent.id_shared_between_versions or subagent.id
+                            )
 
             if selected_phone_id:
                 client.phones.associate(selected_phone_id, target_agent_id, selected_subagent_id)
                 console.print("[green]Phone number associated.[/green]")
             saved = client.agents.save_config(target_agent_id, version_name)
             client.agents.deploy_config(target_agent_id, saved.id)
-        console.print(f"[green]Deployed version '{version_name}' for agent {target_agent_id}.[/green]")
+        console.print(
+            f"[green]Deployed version '{version_name}' for agent {target_agent_id}.[/green]"
+        )
     except (XMagicError, ValueError) as e:
         console.print(f"[red]{e}[/red]")
         raise typer.Exit(1) from None

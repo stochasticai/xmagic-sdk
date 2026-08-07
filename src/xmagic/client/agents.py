@@ -139,7 +139,9 @@ class AsyncAgentsAPI:
             raise ValueError("Unexpected exported config response shape")
         return data
 
-    async def update_temporary_config(self, agent_id: str, config_json: dict[str, Any]) -> dict[str, Any]:
+    async def update_temporary_config(
+        self, agent_id: str, config_json: dict[str, Any]
+    ) -> dict[str, Any]:
         """Update temporary config using JSON payload produced from YAML."""
         return await self._t.request(
             "PATCH",
