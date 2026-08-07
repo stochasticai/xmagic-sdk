@@ -172,7 +172,7 @@ async with AsyncXMagicClient() as client:
 ### 5. Build a custom tool (MCP server)
 
 ```bash
-xmagic mcp init my-tool          # scaffold: Dockerfile, compose, FastMCP server
+xmagic mcp init my-tool          # scaffold: Dockerfile, compose, MCP server
 cd my-tool && docker compose up --build
 ```
 
@@ -184,7 +184,21 @@ tunnel:
 cloudflared tunnel --url http://localhost:8000
 ```
 
-Then register the resulting `https://.../mcp` URL in the dashboard under
+Before going anywhere near a tunnel, exercise it locally — `tools list` and
+`tools call` speak MCP straight to the server:
+
+```bash
+xmagic tools list --url http://localhost:8000/mcp --api-key "$TOOL_API_KEY"
+xmagic tools call ping --url http://localhost:8000/mcp --api-key "$TOOL_API_KEY" -a message=hi
+```
+
+That skips the whole tunnel → register → open a chat → hope-the-agent-calls-it
+loop, which otherwise makes a broken tool and a tool the agent declined to use
+look identical. Pass `--json` for scriptable output; `call` exits non-zero when
+the tool reports an error, so it works in CI. Repeat `-a key=value` for multiple
+arguments, or pass `--json-args '{"k": "v"}'`.
+
+Then register the resulting public `https://.../mcp` URL in the dashboard under
 **Custom tools → Create tool**. `xmagic tools register --name ... --url ...`
 prints the full checklist. Set `TOOL_API_KEY` in your `.env` to require a
 shared secret — the generated server rejects unauthenticated calls with `401`.
