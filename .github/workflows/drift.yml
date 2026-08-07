@@ -1,0 +1,109 @@
+name: Drift check
+
+# CI proves the code is correct against the dependencies and the API of the day it
+# runs. Nothing here re-checks it afterwards, and twice now the world moved
+# underneath a green build:
+#
+#   * ruff 0.16 widened its default rule set, turning CI red against a local run
+#     that passed.
+#   * mcp 2.0 relocated FastMCP, so `xmagic mcp init` in the *published* 0.1.0
+#     began generating projects that cannot start. Nothing in this repository
+#     could have noticed: the released artifact is not exercised by CI.
+#
+# So this workflow deliberately tests things CI does not:
+#   1. the repository against freshly resolved dependencies, no cache;
+#   2. the artifact users actually install, from PyPI;
+#   3. the live xMagic API, whose wire shapes we verified once, in July 2026.
+
+on:
+  schedule:
+    - cron: "0 6 * * 1" # Mondays, 06:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  fresh-resolve:
+    name: repo against freshly resolved deps
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: false # the point is to resolve fresh
+
+      - name: Sync, ignoring every cache
+        run: uv sync --all-extras --refresh
+
+      - name: Record what we resolved
+        # On failure this is the first thing anyone will want; printing it
+        # unconditionally means the good runs are a baseline to diff against.
+        run: uv pip list
+
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .
+      - run: uv run pytest
+
+  released-artifact:
+    name: published wheel still scaffolds a working server
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: false
+
+      - name: Install xmagic-sdk from PyPI
+        # No checkout on purpose. This job is a user, not a contributor: it
+        # exercises the artifact on the index, which is what decays.
+        run: |
+          uv venv
+          uv pip install "xmagic-sdk[mcp]"
+          uv pip show xmagic-sdk | head -2
+
+      - name: Scaffold a tool and import it
+        # `xmagic mcp init` is the flagship feature and its output is a Python
+        # project whose imports must resolve against today's dependencies. This
+        # is the check that the mcp 2.0 break needed and did not have.
+        run: |
+          uv run xmagic mcp init drift_probe
+          uv pip install -r drift_probe/pyproject.toml
+          uv run python -c "
+          import importlib.util, sys
+          spec = importlib.util.spec_from_file_location(
+              'drift_probe_server', 'drift_probe/src/drift_probe/server.py'
+          )
+          module = importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(module)
+          paths = [getattr(r, 'path', None) for r in module.app.routes]
+          assert '/mcp' in paths, f'transport not mounted at /mcp: {paths}'
+          print('generated server imports and mounts /mcp')
+          "
+
+  live-contracts:
+    name: live xMagic API contracts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+
+      - run: uv sync --all-extras
+
+      - name: Run the live contract tests
+        # Skips rather than fails when the secret is absent, so a fork or an
+        # unconfigured repo gets a green no-op instead of noise. Configure
+        # XMAGIC_API_KEY and XMAGIC_TEST_AGENT_ID to arm it.
+        env:
+          XMAGIC_API_KEY: ${{ secrets.XMAGIC_API_KEY }}
+          XMAGIC_TEST_AGENT_ID: ${{ secrets.XMAGIC_TEST_AGENT_ID }}
+        run: |
+          if [ -z "${XMAGIC_API_KEY}" ]; then
+            echo "::notice::XMAGIC_API_KEY not configured — skipping live contract tests."
+            exit 0
+          fi
+          XMAGIC_LIVE_TESTS=1 uv run pytest -m live -v
