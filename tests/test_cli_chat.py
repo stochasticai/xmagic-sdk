@@ -178,3 +178,18 @@ def test_no_stream_uses_blocking_query() -> None:
     assert result.exit_code == 0, result.output
     assert "blocking answer" in result.output
     assert '"is_stream":false' in query.calls.last.request.read().decode()
+
+
+def test_error_text_is_not_swallowed_as_rich_markup(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Bracketed content in an error must survive to the terminal.
+
+    Rich reads `[providers.openai]` as a style tag and drops it, which turned
+    "add [providers.openai] api_key to ..." into "add  api_key to ..." -- advice
+    pointing at nothing. Errors are data; they get escaped.
+    """
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.setenv("XMAGIC_API_KEY", "xm-test")
+    result = CliRunner().invoke(app, ["chat", "-m", "openai:gpt-5", "hi"])
+
+    assert result.exit_code == 1
+    assert "[providers.openai]" in result.output
