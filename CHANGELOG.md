@@ -10,6 +10,32 @@ codebase.**
 
 ## [Unreleased]
 
+### Added
+
+- **`ChatType`, `ConfigurationError`, `PermissionDeniedError`, `ServerError`,
+  `APIConnectionError` and `BadRequestError` are exported from the package root.**
+  `ConfigurationError` is what `XMagicClient()` raises when no key is configured —
+  the likeliest first-run failure — and `ChatType` is a documented argument of
+  `chats.create`. Both previously required importing from paths that look private.
+
+### Fixed
+
+- **Streaming no longer dies on a slow agent.** `settings.timeout` is a *unary*
+  budget, and applying its read deadline to an SSE stream measured the gap
+  *between tokens* instead — so an agent thinking for longer than 60s killed its
+  own answer mid-stream. Streaming requests now use an unbounded read timeout;
+  connect, write and pool stay bounded, and unary requests are unchanged.
+- **Transport failures are now `APIConnectionError`** rather than a raw
+  `httpx.ConnectError`, so `except XMagicError` covers the most common real
+  failure — the server being unreachable. The original is kept on `__cause__`.
+- **403 and 5xx are typed.** 403 raises `PermissionDeniedError`; any 5xx raises
+  `ServerError` rather than the bare base class, so "the server failed" is
+  distinguishable from "we do not recognise this status".
+- **Retry backoff is jittered.** Equal jitter puts each delay in
+  `[nominal/2, nominal]`, so clients rate-limited together stop retrying in
+  lockstep — while never waiting *less* than half the nominal backoff. An
+  explicit `Retry-After` is still honoured exactly.
+
 ## [0.2.0] — 2026-08-07
 
 Phase 1 (core client) completed, the MCP toolkit gained a working dev loop, and

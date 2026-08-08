@@ -14,7 +14,13 @@ from httpx import Response
 
 from xmagic import XMagicClient
 from xmagic.config import DEFAULT_BASE_URL
-from xmagic.errors import BadRequestError, RateLimitError, XMagicAPIError
+from xmagic.errors import (
+    APIConnectionError,
+    BadRequestError,
+    RateLimitError,
+    XMagicAPIError,
+    XMagicError,
+)
 
 URL = f"{DEFAULT_BASE_URL}/agents/agent-1/chats"
 
@@ -45,7 +51,8 @@ def test_429_retries_and_then_succeeds(sleeps: list[float]) -> None:
 
     assert chat.id == "chat-1"
     assert route.call_count == 2
-    assert sleeps == [1.0]
+    assert len(sleeps) == 1
+    assert 0.5 <= sleeps[0] <= 1.0  # first backoff, equal-jittered
 
 
 @respx.mock
@@ -72,8 +79,12 @@ def test_backoff_is_exponential_without_retry_after(sleeps: list[float]) -> None
         client.chats.create("agent-1")
 
     assert exc.value.status_code == 503
-    # max_retries=3 -> 4 attempts, 3 sleeps, doubling each time.
-    assert sleeps == [1.0, 2.0, 4.0]
+    # max_retries=3 -> 4 attempts, 3 sleeps, doubling each time. Jitter makes the
+    # exact value random, so assert the band it must fall in: equal jitter puts
+    # each delay in [nominal/2, nominal].
+    assert len(sleeps) == 3
+    for delay, nominal in zip(sleeps, (1.0, 2.0, 4.0), strict=True):
+        assert nominal / 2 <= delay <= nominal
 
 
 @respx.mock
@@ -94,7 +105,8 @@ def test_http_date_retry_after_falls_back_to_backoff(sleeps: list[float]) -> Non
         chat = client.chats.create("agent-1")
 
     assert chat.id == "chat-1"
-    assert sleeps == [1.0]
+    assert len(sleeps) == 1
+    assert 0.5 <= sleeps[0] <= 1.0
 
 
 @respx.mock
@@ -109,7 +121,7 @@ def test_retries_exhausted_raises_typed_error(sleeps: list[float]) -> None:
     assert exc.value.status_code == 429
     assert "rate limit exceeded" in str(exc.value)
     assert route.call_count == 3  # initial attempt + 2 retries
-    assert sleeps == [1.0, 2.0]
+    assert len(sleeps) == 2
 
 
 @respx.mock
@@ -142,15 +154,29 @@ def test_backoff_delay_is_capped(sleeps: list[float]) -> None:
         client.chats.create("agent-1")
 
     # min(2**attempt, 30): doubles to 16, then flattens at the 30s ceiling.
-    assert sleeps == [1.0, 2.0, 4.0, 8.0, 16.0, 30.0, 30.0, 30.0]
+    # The ceiling is what matters -- no delay may exceed it, jitter or not.
+    nominals = [1.0, 2.0, 4.0, 8.0, 16.0, 30.0, 30.0, 30.0]
+    assert len(sleeps) == len(nominals)
+    for delay, nominal in zip(sleeps, nominals, strict=True):
+        assert nominal / 2 <= delay <= nominal
+    assert max(sleeps) <= 30.0
 
 
 @respx.mock
-def test_connection_errors_are_not_swallowed(sleeps: list[float]) -> None:
-    """Transport-level failures propagate; only HTTP status codes drive retries."""
+def test_connection_errors_surface_as_this_sdk_error(sleeps: list[float]) -> None:
+    """Transport-level failures propagate, wrapped; only statuses drive retries.
+
+    This test previously asserted a bare `httpx.ConnectError` escaped -- which
+    enshrined a leak: a caller writing `except XMagicError` would miss the single
+    most common real-world failure, the server being unreachable. It is now
+    wrapped, with the original kept on `__cause__` so nothing is lost.
+    """
     respx.post(URL).mock(side_effect=httpx.ConnectError("no route to host"))
 
-    with _client() as client, pytest.raises(httpx.ConnectError):
+    with _client() as client, pytest.raises(APIConnectionError) as exc:
         client.chats.create("agent-1")
 
+    assert "no route to host" in str(exc.value)
+    assert isinstance(exc.value.__cause__, httpx.ConnectError)
+    assert isinstance(exc.value, XMagicError)  # catchable as one of ours
     assert sleeps == []

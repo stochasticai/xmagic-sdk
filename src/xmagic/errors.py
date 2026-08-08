@@ -40,15 +40,40 @@ class RateLimitError(XMagicAPIError):
     """429 — plan rate limit exceeded (Free 20rpm / Pro 100 / Business 500)."""
 
 
+class PermissionDeniedError(XMagicAPIError):
+    """403 — authenticated, but not allowed to do this."""
+
+
+class ServerError(XMagicAPIError):
+    """5xx — the API failed. Retried first; this is what survives exhaustion."""
+
+
+class APIConnectionError(XMagicError):
+    """The request never got a response: DNS, TCP, TLS, or a timeout.
+
+    Wraps the underlying ``httpx`` exception rather than letting it escape, so
+    callers can catch ``XMagicError`` and mean it. The original is kept on
+    ``__cause__``.
+    """
+
+
 _STATUS_MAP: dict[int, type[XMagicAPIError]] = {
     400: BadRequestError,
     401: AuthenticationError,
+    403: PermissionDeniedError,
     404: NotFoundError,
     429: RateLimitError,
 }
 
 
 def error_for_status(status_code: int, error_code: str | None, message: str) -> XMagicAPIError:
-    """Map an HTTP status to the matching typed exception."""
-    cls = _STATUS_MAP.get(status_code, XMagicAPIError)
+    """Map an HTTP status to the matching typed exception.
+
+    Anything at 5xx becomes ``ServerError`` rather than the bare base class, so
+    "the server broke" is distinguishable from "we do not recognise this status"
+    without the caller inspecting ``status_code``.
+    """
+    cls = _STATUS_MAP.get(status_code)
+    if cls is None:
+        cls = ServerError if status_code >= 500 else XMagicAPIError
     return cls(status_code, error_code, message)

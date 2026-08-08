@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import random
 import time
 from collections.abc import AsyncIterator, Iterator
 from typing import Any
@@ -16,7 +17,7 @@ import httpx
 from httpx_sse import aconnect_sse, connect_sse
 
 from xmagic.config import Settings
-from xmagic.errors import ConfigurationError, error_for_status
+from xmagic.errors import APIConnectionError, ConfigurationError, error_for_status
 
 _RETRYABLE = {429, 500, 502, 503, 504}
 
@@ -24,6 +25,22 @@ _MISSING_KEY = (
     "No xMagic API key found. Set XMAGIC_API_KEY, run `xmagic configure`, "
     "or pass api_key= explicitly. Keys: https://xmagic.ai -> profile -> API keys."
 )
+
+
+def _jittered(delay: float) -> float:
+    """Spread retries so clients that failed together do not retry together.
+
+    Equal jitter: half the delay, plus a random half. The result lands in
+    ``[delay/2, delay]``, so a fleet that was rate-limited in lockstep comes
+    back gradually rather than in one synchronised wave -- while never retrying
+    *sooner* than half the nominal backoff, which full jitter would allow and
+    which is the wrong direction to move against a server already saying no.
+
+    Applied to our own backoff only. An explicit ``Retry-After`` is the server's
+    instruction and is honoured exactly.
+    """
+    half = delay / 2
+    return half + random.uniform(0, half)
 
 
 def _retry_delay(response: httpx.Response, attempt: int) -> float:
@@ -35,7 +52,7 @@ def _retry_delay(response: httpx.Response, attempt: int) -> float:
     read as a number degrades to the backoff schedule rather than raising
     mid-retry. A non-positive value is treated the same way.
     """
-    backoff = float(min(2**attempt, 30))
+    backoff = _jittered(float(min(2**attempt, 30)))
     raw = response.headers.get("Retry-After")
     if not raw:
         return backoff
@@ -71,6 +88,26 @@ def _client_kwargs(settings: Settings) -> dict[str, Any]:
         "headers": {"x-api-key": settings.api_key},
         "timeout": settings.timeout,
     }
+
+
+def _stream_timeout(settings: Settings) -> httpx.Timeout:
+    """Timeouts for a streaming request.
+
+    `settings.timeout` is a *unary* budget: how long one request/response may
+    take. Applying its read timeout to an SSE stream measures the gap between
+    tokens instead, so an agent that thinks for longer than 60s -- entirely
+    normal for a reasoning model -- kills its own stream mid-answer.
+
+    Connect, write and pool stay bounded. Read is unbounded, because there is no
+    defensible value for "the agent has gone quiet for too long"; the caller
+    ends the stream by ending iteration.
+    """
+    return httpx.Timeout(
+        connect=settings.timeout,
+        write=settings.timeout,
+        pool=settings.timeout,
+        read=None,
+    )
 
 
 def _result(response: httpx.Response) -> dict[str, Any]:
@@ -128,7 +165,10 @@ class HttpTransport:
     def _send(self, method: str, path: str, **kwargs: Any) -> httpx.Response:
         """The retry loop, shared by every response shape."""
         for attempt in range(self.settings.max_retries + 1):
-            response = self._client.request(method, path, **kwargs)
+            try:
+                response = self._client.request(method, path, **kwargs)
+            except httpx.HTTPError as e:
+                raise APIConnectionError(f"{type(e).__name__}: {e}") from e
             if response.status_code in _RETRYABLE and attempt < self.settings.max_retries:
                 time.sleep(_retry_delay(response, attempt))
                 continue
@@ -141,6 +181,7 @@ class HttpTransport:
         Yields ``{"event": <name>, "data": <parsed json or str>}`` and stops at
         the ``[DONE]`` terminator.
         """
+        kwargs.setdefault("timeout", _stream_timeout(self.settings))
         with connect_sse(self._client, method, path, **kwargs) as source:
             for sse in source.iter_sse():
                 data = _decode_sse(sse.data)
@@ -176,7 +217,10 @@ class AsyncHttpTransport:
     async def _send(self, method: str, path: str, **kwargs: Any) -> httpx.Response:
         """The retry loop, shared by every response shape."""
         for attempt in range(self.settings.max_retries + 1):
-            response = await self._client.request(method, path, **kwargs)
+            try:
+                response = await self._client.request(method, path, **kwargs)
+            except httpx.HTTPError as e:
+                raise APIConnectionError(f"{type(e).__name__}: {e}") from e
             if response.status_code in _RETRYABLE and attempt < self.settings.max_retries:
                 await asyncio.sleep(_retry_delay(response, attempt))
                 continue
@@ -189,6 +233,7 @@ class AsyncHttpTransport:
         Yields ``{"event": <name>, "data": <parsed json or str>}`` and stops at
         the ``[DONE]`` terminator.
         """
+        kwargs.setdefault("timeout", _stream_timeout(self.settings))
         async with aconnect_sse(self._client, method, path, **kwargs) as source:
             async for sse in source.aiter_sse():
                 data = _decode_sse(sse.data)
