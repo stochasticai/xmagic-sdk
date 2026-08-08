@@ -21,6 +21,7 @@ from xmagic.errors import (
     APIConnectionError,
     APITimeoutError,
     ConfigurationError,
+    XMagicAPIError,
     XMagicError,
     error_for_status,
 )
@@ -69,20 +70,28 @@ def _retry_delay(response: httpx.Response, attempt: int) -> float:
     return _backoff(attempt)
 
 
-def _stream_error(response: httpx.Response) -> None:
-    """Raise the typed API error for an error status on a streaming request.
+def _stream_api_error(response: httpx.Response) -> XMagicAPIError:
+    """The typed error for an error status on a streaming request.
 
-    ``connect_sse`` validates only the content type, so without this a 401 on a
-    stream surfaces as ``SSEError("Expected ... 'text/event-stream', got
+    ``connect_sse`` validates only the content type, so without this check a 401
+    on a stream surfaces as ``SSEError("Expected ... 'text/event-stream', got
     'application/json'")`` — a description of the symptom, from the wrong
-    exception tree, for what is really an auth failure. The body must be read
-    explicitly: nothing is buffered yet on a streaming response.
+    exception tree, for what is really an auth failure.
+    """
+    error_code, message = _parse_error(response)
+    return error_for_status(response.status_code, error_code, message, response=response)
+
+
+def _stream_error(response: httpx.Response) -> None:
+    """Raise if a streaming response carries an error status.
+
+    The body has to be read explicitly: a streaming response has buffered
+    nothing yet, so ``_parse_error`` would have no content to work with.
     """
     if not response.is_error:
         return
     response.read()
-    error_code, message = _parse_error(response)
-    raise error_for_status(response.status_code, error_code, message, response=response)
+    raise _stream_api_error(response)
 
 
 async def _astream_error(response: httpx.Response) -> None:
@@ -90,8 +99,7 @@ async def _astream_error(response: httpx.Response) -> None:
     if not response.is_error:
         return
     await response.aread()
-    error_code, message = _parse_error(response)
-    raise error_for_status(response.status_code, error_code, message, response=response)
+    raise _stream_api_error(response)
 
 
 def _protocol_error(exc: SSEError, base_url: str) -> XMagicError:
