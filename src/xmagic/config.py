@@ -9,6 +9,8 @@ Config file location: ``~/.config/xmagic/config.toml`` (override with
     api_key = "xm-..."
     base_url = "https://api.xmagic.ai/xmagic-backend/v1"
     default_agent_id = "..."
+    timeout = 60.0
+    stream_timeout = 300.0
 
     [providers.openai]
     api_key = "sk-..."
@@ -51,6 +53,14 @@ class Settings(BaseModel):
     base_url: str = DEFAULT_BASE_URL
     default_agent_id: str | None = None
     timeout: float = Field(default=60.0, description="Request timeout in seconds")
+    stream_timeout: float | None = Field(
+        default=300.0,
+        description=(
+            "Seconds to wait for the next stream event before giving up "
+            "(None waits forever). Separate from `timeout` because it bounds the "
+            "gap between events, not a whole request."
+        ),
+    )
     max_retries: int = Field(default=3, description="Retries on 429/5xx")
     provider_keys: dict[str, str] = Field(
         default_factory=dict,
