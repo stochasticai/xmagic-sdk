@@ -14,13 +14,14 @@ from collections.abc import AsyncIterator, Iterator
 from typing import Any
 
 import httpx
-from httpx_sse import aconnect_sse, connect_sse
+from httpx_sse import SSEError, aconnect_sse, connect_sse
 
 from xmagic.config import Settings
 from xmagic.errors import (
     APIConnectionError,
     APITimeoutError,
     ConfigurationError,
+    XMagicError,
     error_for_status,
 )
 
@@ -66,6 +67,40 @@ def _retry_delay(response: httpx.Response, attempt: int) -> float:
         if seconds > 0:
             return seconds
     return _backoff(attempt)
+
+
+def _stream_error(response: httpx.Response) -> None:
+    """Raise the typed API error for an error status on a streaming request.
+
+    ``connect_sse`` validates only the content type, so without this a 401 on a
+    stream surfaces as ``SSEError("Expected ... 'text/event-stream', got
+    'application/json'")`` — a description of the symptom, from the wrong
+    exception tree, for what is really an auth failure. The body must be read
+    explicitly: nothing is buffered yet on a streaming response.
+    """
+    if not response.is_error:
+        return
+    response.read()
+    error_code, message = _parse_error(response)
+    raise error_for_status(response.status_code, error_code, message, response=response)
+
+
+async def _astream_error(response: httpx.Response) -> None:
+    """Async mirror of :func:`_stream_error`; only the body read differs."""
+    if not response.is_error:
+        return
+    await response.aread()
+    error_code, message = _parse_error(response)
+    raise error_for_status(response.status_code, error_code, message, response=response)
+
+
+def _protocol_error(exc: SSEError, base_url: str) -> XMagicError:
+    """A 2xx that is not an event stream — the server broke the contract.
+
+    Distinct from :class:`APIConnectionError`, which would claim we never got
+    through when in fact we got a perfectly good response of the wrong kind.
+    """
+    return XMagicError(f"{base_url} answered a stream request with a non-SSE body: {exc}")
 
 
 def _transport_error(
@@ -200,12 +235,15 @@ class HttpTransport:
         kwargs.setdefault("timeout", _stream_timeout(self.settings))
         try:
             with connect_sse(self._client, method, path, **kwargs) as source:
+                _stream_error(source.response)
                 for sse in source.iter_sse():
                     data = _decode_sse(sse.data)
                     if data is _DONE:
                         yield {"event": "done", "data": ""}
                         return
                     yield {"event": sse.event or "message", "data": data}
+        except SSEError as e:  # a TransportError subclass, so it must come first
+            raise _protocol_error(e, self.settings.base_url) from e
         except httpx.TransportError as e:
             raise _transport_error(e, self.settings.base_url, streaming=True) from e
 
@@ -255,12 +293,15 @@ class AsyncHttpTransport:
         kwargs.setdefault("timeout", _stream_timeout(self.settings))
         try:
             async with aconnect_sse(self._client, method, path, **kwargs) as source:
+                await _astream_error(source.response)
                 async for sse in source.aiter_sse():
                     data = _decode_sse(sse.data)
                     if data is _DONE:
                         yield {"event": "done", "data": ""}
                         return
                     yield {"event": sse.event or "message", "data": data}
+        except SSEError as e:  # a TransportError subclass, so it must come first
+            raise _protocol_error(e, self.settings.base_url) from e
         except httpx.TransportError as e:
             raise _transport_error(e, self.settings.base_url, streaming=True) from e
 
