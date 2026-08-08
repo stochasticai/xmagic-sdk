@@ -141,6 +141,15 @@ and one streaming behaviour changed.
   the two cannot share a number. Streams now use `stream_timeout` (default 300s)
   for reads while connect/write/pool keep the normal bound. Thinking-heavy agents
   were the ones hitting this.
+- **A failed streaming call reported the wrong thing entirely.** `connect_sse`
+  validates only the content type, so a 401 on `chats.stream` raised
+  `httpx_sse.SSEError("Expected response header Content-Type to contain
+  'text/event-stream', got 'application/json'")` — the symptom rather than the
+  cause, from a third-party exception tree, for what was really an auth failure.
+  Error statuses on a stream now raise the same typed error the equivalent unary
+  call would (`AuthenticationError`, `RateLimitError`, `ServerError`, …), body
+  and all. A 2xx response that genuinely isn't an event stream raises
+  `XMagicError` naming that, rather than being mistaken for a network fault.
 - **Transport failures leaked `httpx` exceptions.** A DNS failure, refused
   connection, or timeout raised `httpx.ConnectError` / `httpx.ReadTimeout`
   straight through, so catching everything this SDK can raise meant catching
