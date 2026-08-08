@@ -64,6 +64,27 @@ and one streaming behaviour changed.
   documented endpoint that answers `application/zip` rather than JSON; the retry
   loop is now shared between both response shapes rather than duplicated.
 
+- **The package is typed for consumers (`py.typed`).** Every module here is
+  annotated, and none of it reached downstream type checkers: PEP 561 treats an
+  installed package without the marker as untyped, so `xmagic` resolved to `Any`
+  in every consumer's mypy and pyright run. The marker now ships in both the
+  wheel and the sdist.
+- **`stream_timeout`** (default 300s, `None` waits forever) — streams no longer
+  inherit the 60s request timeout. See Fixed.
+- **`PermissionDeniedError` (403) and `ServerError` (5xx)**, plus
+  **`APIConnectionError`** and **`APITimeoutError`** for failures that never
+  produced a response. Any unmapped 5xx raises `ServerError`, so a backend fault
+  is distinguishable from a client mistake without reading `status_code`.
+- **`XMagicAPIError` exposes the response**: `.response`, `.headers`, `.body`,
+  `.message`, and a best-effort `.request_id` (`x-request-id`, `request-id`, or
+  `x-correlation-id`), so a support thread can quote an id rather than a
+  screenshot. All are `None` for streamed error frames, which arrive inside an
+  HTTP 200 body and have no error response to attach.
+- **`ConfigurationError`, `ChatType`, `BadRequestError`, and the new error types
+  are exported from the package root.** `ConfigurationError` is what
+  `XMagicClient()` raises on the likeliest first-run failure — a missing API key
+  — and catching it previously meant importing from `xmagic.errors`, a path that
+  looks private.
 - **`OpenAIProvider` is implemented** — the first non-xMagic model you can
   actually call: `xmagic chat -m openai:gpt-5`, or `get_provider("openai:gpt-5")`
   from Python, over the same `Provider` interface the xMagic path uses. Blocking
@@ -114,6 +135,24 @@ and one streaming behaviour changed.
   and drives it over MCP's in-memory transport — scaffold, `list_tools`, call
   `ping`, assert the response — so a broken generated server fails CI rather
   than reaching users.
+- **Streaming inherited the 60s request timeout**, so an agent that paused longer
+  than `timeout` between two events raised `ReadTimeout` mid-answer. On a stream
+  the read timeout bounds the *gap between events*, not the whole exchange, so
+  the two cannot share a number. Streams now use `stream_timeout` (default 300s)
+  for reads while connect/write/pool keep the normal bound. Thinking-heavy agents
+  were the ones hitting this.
+- **Transport failures leaked `httpx` exceptions.** A DNS failure, refused
+  connection, or timeout raised `httpx.ConnectError` / `httpx.ReadTimeout`
+  straight through, so catching everything this SDK can raise meant catching
+  `XMagicError` *and* importing httpx. They now raise `APIConnectionError` /
+  `APITimeoutError`, with the original as `__cause__` and a message naming which
+  timeout setting to raise. **Visible behaviour change** for anyone who caught
+  the httpx types directly.
+- **Retry backoff was deterministic**, so clients that failed together retried in
+  lockstep and re-synchronized the load spike that caused the failure. Backoff
+  now carries equal jitter: each delay is drawn from `[ceiling/2, ceiling]`, so
+  it still grows and still respects the 30s cap. `Retry-After` is deliberately
+  left un-jittered — the server named a time.
 - **`Retry-After` carrying an HTTP-date crashed the retry loop** with
   `ValueError` instead of retrying. RFC 9110 permits a date as well as a delay in
   seconds; an unparseable or non-positive value now degrades to the normal
