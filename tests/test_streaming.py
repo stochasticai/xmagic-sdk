@@ -12,10 +12,20 @@ import pytest
 import respx
 from httpx import Response
 
-from xmagic import XMagicClient
+from xmagic import AsyncXMagicClient, XMagicClient
 from xmagic.client.http import _stream_timeout
 from xmagic.config import DEFAULT_BASE_URL, Settings
-from xmagic.errors import APITimeoutError
+from xmagic.errors import (
+    APIConnectionError,
+    APITimeoutError,
+    AuthenticationError,
+    NotFoundError,
+    PermissionDeniedError,
+    RateLimitError,
+    ServerError,
+    XMagicAPIError,
+    XMagicError,
+)
 
 QUERY_URL = f"{DEFAULT_BASE_URL}/agents/agent-1/chats/chat-1/query"
 
@@ -75,6 +85,75 @@ def test_mid_stream_timeout_is_typed_and_names_stream_timeout() -> None:
         list(client.chats.stream("agent-1", "chat-1", "hello"))
 
     assert "stream_timeout" in str(exc.value)
+
+
+@pytest.mark.parametrize(
+    ("status", "expected"),
+    [
+        (401, AuthenticationError),
+        (403, PermissionDeniedError),
+        (404, NotFoundError),
+        (429, RateLimitError),
+        (503, ServerError),
+    ],
+)
+def test_error_status_on_a_stream_raises_the_same_error_as_a_unary_call(
+    status: int, expected: type[XMagicAPIError]
+) -> None:
+    """A stream that fails before it starts is an API error, not a network one.
+
+    `connect_sse` checks only the content type, so these used to arrive as
+    `SSEError` complaining about `application/json` -- the symptom, from the
+    wrong exception tree. A 401 is a 401 whether or not you asked for a stream.
+    """
+    with respx.mock:
+        respx.post(QUERY_URL).mock(
+            return_value=Response(status, json={"message": "denied"}),
+        )
+        with _client(max_retries=0) as client, pytest.raises(expected) as exc:
+            list(client.chats.stream("agent-1", "chat-1", "hello"))
+
+    assert exc.value.status_code == status
+    assert "denied" in str(exc.value)
+    assert exc.value.body is not None  # the body was read despite streaming
+
+
+@respx.mock
+def test_error_status_on_a_stream_is_not_reported_as_unreachable() -> None:
+    """Guards the specific mislabel: an auth failure claiming we never connected."""
+    respx.post(QUERY_URL).mock(return_value=Response(401, json={"message": "bad key"}))
+
+    with _client(max_retries=0) as client, pytest.raises(XMagicAPIError) as exc:
+        list(client.chats.stream("agent-1", "chat-1", "hello"))
+
+    assert not isinstance(exc.value, APIConnectionError)
+    assert "Could not reach" not in str(exc.value)
+
+
+@respx.mock
+def test_a_2xx_that_is_not_an_event_stream_says_so() -> None:
+    """The server kept its status contract and broke its content one."""
+    respx.post(QUERY_URL).mock(return_value=Response(200, json={"data": "not a stream"}))
+
+    with _client() as client, pytest.raises(XMagicError) as exc:
+        list(client.chats.stream("agent-1", "chat-1", "hello"))
+
+    assert not isinstance(exc.value, APIConnectionError)
+    assert "non-SSE body" in str(exc.value)
+
+
+async def test_async_stream_reports_error_statuses_the_same_way() -> None:
+    """The two transports must not disagree about what a failed stream is."""
+    with respx.mock:
+        respx.post(QUERY_URL).mock(return_value=Response(401, json={"message": "bad key"}))
+        async with AsyncXMagicClient(
+            api_key="test-key", base_url=DEFAULT_BASE_URL, max_retries=0
+        ) as client:
+            with pytest.raises(AuthenticationError) as exc:
+                [event async for event in client.chats.stream("agent-1", "chat-1", "hello")]
+
+    assert exc.value.status_code == 401
+    assert "bad key" in str(exc.value)
 
 
 @pytest.fixture
