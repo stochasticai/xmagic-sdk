@@ -104,6 +104,19 @@ and one streaming behaviour changed.
 
 ### Added
 
+- **Workspace and agent management** — `xmagic workspaces` lists and switches
+  workspaces; `xmagic agents` lists agents, edits temporary configuration as
+  YAML, and saves/deploys named versions with optional phone and subagent
+  association. The sync and async clients expose matching workspace, agent, and
+  phone resources.
+- **Safer agent deployment** — deployment validates agent ownership without
+  switching workspaces, supports `--phone` and `--no-phone` for deterministic
+  automation, and reports unavailable phone services instead of hiding the
+  optional step.
+- **Agent configuration helpers** — JSON/YAML validation, typed response-shape
+  and editor errors, shared response unwrapping, and a reusable chat runner for
+  Composer-driven configuration updates.
+
 - **`AsyncXMagicClient`** — a full 1:1 async mirror of the sync client, replacing
   the placeholder that raised `NotImplementedError`. Same resources, arguments,
   and return types; `stream` is an async iterator. Backoff uses `asyncio.sleep`,

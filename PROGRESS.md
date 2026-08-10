@@ -5,6 +5,26 @@ the plan and [TODO.md](TODO.md) for what's next.
 
 ---
 
+## 2026-08-12 — Agent deployment review hardening
+
+- **Deployment no longer changes workspace state while validating an agent.**
+  `xmagic agents deploy` now requires a known current workspace, fetches the
+  agent directly, and compares its `organization_id` with the current workspace
+  instead of switching through every accessible workspace.
+- **Optional phone association is safer and scriptable.** `--phone <id>` and
+  `--no-phone` make the deployment path deterministic for CI and other
+  non-interactive callers. Phone discovery skips only known unavailable-service
+  errors and prints a warning; prompt EOF or invalid input skips the optional
+  association rather than aborting deployment.
+- **Client response handling is consistent.** Response-shape and editor failures
+  now use the `XMagicError` hierarchy, `unwrap_data` is shared by client
+  resources, and temporary config responses require the verified string `id`
+  field.
+- **Composer invocation uses a plain chat runner.** The `--composer/-C` path
+  calls the same concrete chat implementation as the CLI without passing
+  Typer option objects through the call boundary.
+- `PhonesAPI` / `AsyncPhonesAPI` are included in the async signature-parity test. 
+
 ## 2026-08-12 — Workspace switching and agent config/deploy CLI
 
 - **`xmagic workspaces`** — lists all accessible workspaces with current-workspace

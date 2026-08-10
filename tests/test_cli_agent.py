@@ -13,6 +13,7 @@ from xmagic.cli.main import app
 from xmagic.config import DEFAULT_BASE_URL
 
 AGENTS_URL = f"{DEFAULT_BASE_URL}/agents"
+AGENT_DETAIL_URL = f"{DEFAULT_BASE_URL}/agents/agent-1"
 WORKSPACES_URL = f"{DEFAULT_BASE_URL}/users/workspaces"
 SWITCH_WORKSPACE_URL = f"{DEFAULT_BASE_URL}/users/workspaces/switch"
 TEMP_URL = f"{DEFAULT_BASE_URL}/agents/agent-1/configs/temporary"
@@ -45,6 +46,9 @@ def env(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
             200,
             json={"data": [{"id": "agent-1", "name": "Sales Agent"}]},
         )
+    )
+    respx.get(AGENT_DETAIL_URL).mock(
+        return_value=Response(200, json={"data": {"id": "agent-1", "organization_id": "org-1"}})
     )
     respx.get(WORKSPACES_URL).mock(
         return_value=Response(
@@ -371,17 +375,43 @@ def test_deploy_rejects_agent_from_another_workspace() -> None:
             },
         )
     )
-    agents_route = respx.get(AGENTS_URL).mock(
-        side_effect=[
-            Response(200, json={"data": []}),
-            Response(200, json={"data": [{"id": "agent-1", "name": "Sales Agent"}]}),
-        ]
+    respx.get(AGENT_DETAIL_URL).mock(
+        return_value=Response(200, json={"data": {"id": "agent-1", "organization_id": "org-2"}})
     )
 
     result = runner.invoke(app, ["agents", "deploy", "--agent", "agent-1", "--version", "v1"])
 
     assert result.exit_code == 1
-    assert "Agent Org" in result.output
-    assert "org-2" in result.output
-    assert "xmagic workspaces org-2" in result.output
-    assert agents_route.call_count == 2
+    assert "current workspace" in result.output
+    assert not respx.calls.call_count == 0
+    assert not respx.calls.last.request.url.path.endswith("/switch")
+
+
+@respx.mock
+def test_deploy_rejects_when_current_workspace_is_unknown() -> None:
+    respx.get(WORKSPACES_URL).mock(
+        return_value=Response(
+            200, json={"data": {"workspaces": [{"id": "org-1", "name": "Current Org"}]}}
+        )
+    )
+
+    result = runner.invoke(app, ["agents", "deploy", "--agent", "agent-1", "--version", "v1"])
+
+    assert result.exit_code == 1
+    assert "could not be determined" in result.output
+    assert not respx.calls.last.request.url.path.endswith("/switch")
+
+
+@respx.mock
+def test_deploy_no_phone_is_non_interactive() -> None:
+    respx.get(TEMP_URL).mock(
+        return_value=Response(200, json={"data": {"id": "cfg-1", "organization_id": "org-1"}})
+    )
+    respx.post(SAVE_URL).mock(return_value=Response(200, json=_saved_config_payload()))
+    respx.post(DEPLOY_URL).mock(return_value=Response(200, json={"success": True}))
+
+    result = runner.invoke(
+        app, ["agents", "deploy", "--agent", "agent-1", "--version", "v1", "--no-phone"]
+    )
+
+    assert result.exit_code == 0, result.output

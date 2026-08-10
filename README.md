@@ -144,11 +144,16 @@ then OS default), and on save pushes the update.
 ```bash
 xmagic agents deploy --agent <agent_id>
 xmagic agents deploy --agent <agent_id> --version "Q3 rollout"
+xmagic agents deploy --agent <agent_id> --phone <phone_id>
+xmagic agents deploy --agent <agent_id> --no-phone       # CI/non-interactive use
 ```
 
 `xmagic agents deploy` saves the current temporary config as a named version
 and deploys it. If `--version` is omitted, the CLI uses the current
-date/time as the version name.
+date/time as the version name. Without `--phone` or `--no-phone`, the command
+offers optional phone and subagent association interactively. Use `--no-phone`
+when running unattended. If `VISUAL` or `EDITOR` points to a GUI editor such as
+VS Code, include its wait flag (for example, `code --wait`) when editing YAML.
 
 ### 6. Talk to your agent
 
