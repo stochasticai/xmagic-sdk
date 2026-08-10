@@ -23,6 +23,7 @@ from xmagic.client.agents import AgentsAPI, AsyncAgentsAPI
 from xmagic.client.chats import AsyncChatsAPI, ChatsAPI
 from xmagic.client.drive import AsyncDriveAPI, DriveAPI
 from xmagic.client.files import AsyncFilesAPI, FilesAPI
+from xmagic.client.phones import AsyncPhonesAPI, PhonesAPI
 from xmagic.client.workspaces import AsyncWorkspacesAPI, WorkspacesAPI
 from xmagic.client.models import ChatType
 from xmagic.config import DEFAULT_BASE_URL
@@ -224,6 +225,7 @@ async def test_context_manager_closes_transport() -> None:
         (DriveAPI, AsyncDriveAPI),
         (WorkspacesAPI, AsyncWorkspacesAPI),
         (AgentsAPI, AsyncAgentsAPI),
+        (PhonesAPI, AsyncPhonesAPI),
     ],
 )
 def test_async_mirrors_sync_signatures(sync_cls: type, async_cls: type) -> None:
