@@ -8,8 +8,11 @@ runtime notices, because the annotations are still there in the source we run.
 
 from __future__ import annotations
 
+import subprocess
 import tomllib
 from pathlib import Path
+
+import pytest
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 PACKAGE_ROOT = REPOSITORY_ROOT / "src" / "xmagic"
@@ -35,11 +38,27 @@ def test_py_typed_is_not_excluded_from_version_control() -> None:
 
     An ignore rule broad enough to cover the marker would drop it from the wheel
     while leaving every local test green.
-    """
-    ignore_rules = (REPOSITORY_ROOT / ".gitignore").read_text(encoding="utf-8").split()
 
-    assert "py.typed" not in ignore_rules
-    assert "*.typed" not in ignore_rules
+    Asks git rather than reading `.gitignore`, because the property that matters
+    is "no ignore rule matches this path", not "these two literal patterns are
+    absent". `**/py.typed`, `src/xmagic/py.typed` and `src/xmagic/*` all ignore
+    the marker without matching either literal.
+
+    `--no-index` is load-bearing: without it `git check-ignore` reports nothing
+    for a path that is already tracked, so a newly added ignore rule would look
+    clean here right up until the marker left the index.
+    """
+    marker = PACKAGE_ROOT / "py.typed"
+    ignored = subprocess.run(
+        ["git", "check-ignore", "--quiet", "--no-index", str(marker)],
+        cwd=REPOSITORY_ROOT,
+        check=False,
+    )
+
+    # 0 = ignored, 1 = not ignored, 128 = git could not answer (not a checkout).
+    if ignored.returncode == 128:
+        pytest.skip("not a git checkout, so there are no ignore rules to violate")
+    assert ignored.returncode == 1, f"{marker} is git-ignored, so it will not reach the wheel"
 
 
 def test_sdist_still_ships_the_sources() -> None:

@@ -88,6 +88,32 @@ def test_mid_stream_timeout_is_typed_and_names_stream_timeout() -> None:
 
 
 @pytest.mark.parametrize(
+    ("failure", "knob"),
+    [
+        (httpx.ReadTimeout("no data"), "stream_timeout"),
+        (httpx.ConnectTimeout("no route"), "timeout"),
+        (httpx.PoolTimeout("no free connection"), "timeout"),
+    ],
+    ids=lambda value: value if isinstance(value, str) else type(value).__name__,
+)
+@respx.mock
+def test_a_stream_timeout_names_the_knob_that_governs_it(
+    failure: httpx.TimeoutException, knob: str
+) -> None:
+    """Only `read` uses `stream_timeout`; connect/write/pool stay on `timeout`.
+
+    Naming `stream_timeout` for a connect timeout would send the caller to a
+    setting that cannot affect it, however long they make it.
+    """
+    respx.post(QUERY_URL).mock(side_effect=failure)
+
+    with _client() as client, pytest.raises(APITimeoutError) as exc:
+        list(client.chats.stream("agent-1", "chat-1", "hello"))
+
+    assert f"Raise {knob} " in str(exc.value)
+
+
+@pytest.mark.parametrize(
     ("status", "expected"),
     [
         (401, AuthenticationError),

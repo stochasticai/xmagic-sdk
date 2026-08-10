@@ -112,22 +112,40 @@ def _protocol_error(exc: SSEError, base_url: str) -> XMagicError:
 
 
 def _transport_error(
-    exc: httpx.TransportError, base_url: str, *, streaming: bool = False
+    exc: httpx.RequestError, base_url: str, *, streaming: bool = False
 ) -> APIConnectionError:
-    """Translate an httpx transport failure into the SDK's own error type.
+    """Translate an httpx request failure into the SDK's own error type.
 
     Callers should not have to know we use httpx, nor catch two exception trees
     to handle "the request did not get through". The original stays as
     ``__cause__``.
+
+    Typed from ``RequestError`` rather than ``TransportError`` because the two
+    are not the same set: ``DecodingError`` (a corrupt compressed body) and
+    ``TooManyRedirects`` are request errors but not transport errors, and
+    catching only the latter let them escape as raw httpx exceptions.
     """
     detail = str(exc) or type(exc).__name__
     if isinstance(exc, httpx.TimeoutException):
-        knob = "stream_timeout" if streaming else "timeout"
         return APITimeoutError(
             f"Timed out talking to {base_url} ({detail}). "
-            f"Raise {knob} if the agent legitimately needs longer."
+            f"Raise {_timeout_knob(exc, streaming=streaming)} if the agent "
+            f"legitimately needs longer."
         )
     return APIConnectionError(f"Could not reach {base_url} ({detail}).")
+
+
+def _timeout_knob(exc: httpx.TimeoutException, *, streaming: bool) -> str:
+    """The setting that actually governs this timeout.
+
+    Only the *read* deadline differs between streaming and unary requests
+    (see :func:`_stream_timeout`); connect, write and pool stay on ``timeout``
+    either way. Naming ``stream_timeout`` for a connect timeout would send the
+    caller to a knob that cannot affect it.
+    """
+    if streaming and isinstance(exc, httpx.ReadTimeout):
+        return "stream_timeout"
+    return "timeout"
 
 
 _DONE = object()
@@ -226,7 +244,7 @@ class HttpTransport:
         for attempt in range(self.settings.max_retries + 1):
             try:
                 response = self._client.request(method, path, **kwargs)
-            except httpx.TransportError as e:
+            except httpx.RequestError as e:
                 raise _transport_error(e, self.settings.base_url) from e
             if response.status_code in _RETRYABLE and attempt < self.settings.max_retries:
                 time.sleep(_retry_delay(response, attempt))
@@ -250,9 +268,9 @@ class HttpTransport:
                         yield {"event": "done", "data": ""}
                         return
                     yield {"event": sse.event or "message", "data": data}
-        except SSEError as e:  # a TransportError subclass, so it must come first
+        except SSEError as e:  # a RequestError subclass, so it must come first
             raise _protocol_error(e, self.settings.base_url) from e
-        except httpx.TransportError as e:
+        except httpx.RequestError as e:
             raise _transport_error(e, self.settings.base_url, streaming=True) from e
 
     def close(self) -> None:
@@ -284,7 +302,7 @@ class AsyncHttpTransport:
         for attempt in range(self.settings.max_retries + 1):
             try:
                 response = await self._client.request(method, path, **kwargs)
-            except httpx.TransportError as e:
+            except httpx.RequestError as e:
                 raise _transport_error(e, self.settings.base_url) from e
             if response.status_code in _RETRYABLE and attempt < self.settings.max_retries:
                 await asyncio.sleep(_retry_delay(response, attempt))
@@ -308,9 +326,9 @@ class AsyncHttpTransport:
                         yield {"event": "done", "data": ""}
                         return
                     yield {"event": sse.event or "message", "data": data}
-        except SSEError as e:  # a TransportError subclass, so it must come first
+        except SSEError as e:  # a RequestError subclass, so it must come first
             raise _protocol_error(e, self.settings.base_url) from e
-        except httpx.TransportError as e:
+        except httpx.RequestError as e:
             raise _transport_error(e, self.settings.base_url, streaming=True) from e
 
     async def aclose(self) -> None:

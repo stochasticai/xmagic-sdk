@@ -11,6 +11,19 @@ from xmagic.client.http import AsyncHttpTransport, HttpTransport
 from xmagic.config import Settings
 
 
+def _overrides(api_key: str | None, base_url: str | None, kw: dict[str, Any]) -> dict[str, Any]:
+    """Settings overrides, with the two named arguments omitted when unset.
+
+    ``Settings.load`` applies every override as passed, so ``None`` reaches the
+    field rather than being filtered out — that is what makes
+    ``stream_timeout=None`` ("wait forever") expressible. These two arguments
+    default to ``None`` to mean "not supplied", so they are dropped here rather
+    than clobbering a key that the config file or environment provides.
+    """
+    named = {"api_key": api_key, "base_url": base_url}
+    return {**{k: v for k, v in named.items() if v is not None}, **kw}
+
+
 class XMagicClient:
     """Synchronous client for the xMagic API.
 
@@ -21,7 +34,7 @@ class XMagicClient:
     """
 
     def __init__(self, api_key: str | None = None, base_url: str | None = None, **kw: Any):
-        self.settings = Settings.load(api_key=api_key, base_url=base_url, **kw)
+        self.settings = Settings.load(**_overrides(api_key, base_url, kw))
         self._transport = HttpTransport(self.settings)
         self.chats = ChatsAPI(self._transport)
         self.files = FilesAPI(self._transport)
@@ -54,7 +67,7 @@ class AsyncXMagicClient:
     """
 
     def __init__(self, api_key: str | None = None, base_url: str | None = None, **kw: Any):
-        self.settings = Settings.load(api_key=api_key, base_url=base_url, **kw)
+        self.settings = Settings.load(**_overrides(api_key, base_url, kw))
         self._transport = AsyncHttpTransport(self.settings)
         self.chats = AsyncChatsAPI(self._transport)
         self.files = AsyncFilesAPI(self._transport)

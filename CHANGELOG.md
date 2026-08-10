@@ -34,6 +34,20 @@ codebase.**
   — and catching it previously meant importing from `xmagic.errors`, a path that
   looks private.
 
+### Changed
+
+- **`Settings.load` now applies an explicit `None` instead of discarding it.** It
+  filtered every `None` override, which conflated "the caller did not pass this"
+  with "the caller passed `None` deliberately" — fine for `api_key`, where `None`
+  means unset, and wrong for `stream_timeout`, where it means "wait forever".
+  `XMagicClient` and `AsyncXMagicClient` omit `api_key` and `base_url` when they
+  are not supplied, so the config file and environment still win for those; every
+  other keyword now reaches the field as written. Affects anyone who passed
+  `default_agent_id=None` (or similar) expecting file/env fallback — omit the
+  argument instead.
+- **`max_retries` rejects negative values** at construction rather than failing
+  with `UnboundLocalError` on the first request. `0` still disables retries.
+
 ### Fixed
 
 - **Streaming inherited the 60s request timeout**, so an agent that paused longer
@@ -58,6 +72,17 @@ codebase.**
   `APITimeoutError`, with the original as `__cause__` and a message naming which
   timeout setting to raise. **Visible behaviour change** for anyone who caught
   the httpx types directly.
+
+  The wrapping covers `httpx.RequestError` rather than only
+  `httpx.TransportError`: `DecodingError` (a corrupt compressed body) and
+  `TooManyRedirects` belong to the former but not the latter, and would
+  otherwise have kept escaping while every connection-level failure looked
+  correctly handled.
+- **A timeout while opening a stream named the wrong setting.** Only the read
+  deadline comes from `stream_timeout`; connect, write and pool stay on
+  `timeout`. A `ConnectTimeout` on a streaming call nonetheless advised raising
+  `stream_timeout`, which cannot affect it. The message now names the setting
+  that actually governs the phase that timed out.
 - **Retry backoff was deterministic**, so clients that failed together retried in
   lockstep and re-synchronized the load spike that caused the failure. Backoff
   now carries equal jitter: each delay is drawn from `[ceiling/2, ceiling]`, so
