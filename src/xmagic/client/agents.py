@@ -57,7 +57,9 @@ class AgentsAPI:
         """Export temporary config JSON in the import-compatible shape."""
         temporary = self.get_temporary_config(agent_id)
         config_id = _as_config_id(temporary)
-        body = self._t.request("GET", f"/agents/{agent_id}/configs/{config_id}/config")
+        body = self._t.request(
+            "GET", f"/agents/{agent_id}/configs/{config_id}/config?include_ids=true"
+        )
         data = _unwrap_data(body)
         if not isinstance(data, dict):
             raise ValueError("Unexpected exported config response shape")
@@ -133,7 +135,9 @@ class AsyncAgentsAPI:
         """Export temporary config JSON in the import-compatible shape."""
         temporary = await self.get_temporary_config(agent_id)
         config_id = _as_config_id(temporary)
-        body = await self._t.request("GET", f"/agents/{agent_id}/configs/{config_id}/config")
+        body = await self._t.request(
+                    "GET", f"/agents/{agent_id}/configs/{config_id}/config?include_ids=true"
+                )
         data = _unwrap_data(body)
         if not isinstance(data, dict):
             raise ValueError("Unexpected exported config response shape")
