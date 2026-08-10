@@ -188,7 +188,8 @@ xmagic chat [--agent ID | --model provider:model] [--stream/--no-stream] [-f FIL
 xmagic workspaces [NAME | --id ID]    # list or switch accessible workspaces
 xmagic agents                         # list agents in current workspace
 xmagic agents config [--agent ID] [-C "prompt"]  # edit temp config as YAML, or via Composer
-xmagic agents deploy [--agent ID] [--version NAME]  # save + deploy; optional phone association
+xmagic agents deploy [--agent ID] [--version NAME] [--phone ID | --no-phone]
+                                                # save + deploy; optional phone association
 xmagic drive ls|upload|download ...
 xmagic skills new NAME                # scaffold SKILL.md + layout
 xmagic skills validate PATH           # frontmatter/zip lint
@@ -205,6 +206,14 @@ xmagic models list                    # models across configured providers
 Config precedence: CLI flags > env (`XMAGIC_API_KEY`, `XMAGIC_BASE_URL`,
 `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GOOGLE_API_KEY`, ...) >
 `~/.config/xmagic/config.toml` > defaults. Keys are never written to project dirs.
+
+Agent deployment validates ownership without switching workspaces: it requires
+the current workspace id and compares it with the agent's `organization_id`.
+Phone association is optional and can be selected interactively, supplied with
+`--phone`, or disabled with `--no-phone`; unavailable phone services are
+reported and skipped rather than treated as a successful association. GUI
+editors used by `agents config` should be launched with `--wait` so the CLI can
+observe the saved YAML file.
 
 ---
 
@@ -283,7 +292,8 @@ Chosen approach: **local proxy of the hosted xMagic web app**.
 
 - **HTTP**: httpx with retries + exponential backoff on 429/5xx honoring
   `Retry-After`; client-side rate-limit awareness per plan tier.
-- **Errors**: typed hierarchy mapping `{error_code, message}`; never swallow bodies.
+- **Errors**: typed hierarchy mapping `{error_code, message}`; response-shape and
+   editor failures also stay under `XMagicError`; never swallow bodies.
 - **Streaming**: one SSE parser (httpx-sse) shared by SDK and CLI; events typed as
   `Reasoning | Response | LiveUpdate | Done`.
 - **Security**: keys via env/keyring-style config only; redact `x-api-key` in logs;

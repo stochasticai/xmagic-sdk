@@ -24,6 +24,14 @@ class XMagicError(Exception):
     """Base class for all SDK errors."""
 
 
+class ResponseShapeError(XMagicError):
+    """The API returned a successful response with an unexpected shape."""
+
+
+class EditorError(XMagicError):
+    """The configured editor could not open or complete successfully."""
+
+
 class ConfigurationError(XMagicError):
     """Missing/invalid configuration (e.g. no API key)."""
 
@@ -112,6 +120,14 @@ class PermissionDeniedError(XMagicAPIError):
 
 class NotFoundError(XMagicAPIError):
     """404 — unknown agent/chat/message."""
+
+
+class PermissionDeniedError(XMagicAPIError):
+    """403 — authenticated but not permitted to access the resource."""
+
+
+class ServerError(XMagicAPIError):
+    """5xx — the service is unavailable or not configured for this account."""
 
 
 class RateLimitError(XMagicAPIError):

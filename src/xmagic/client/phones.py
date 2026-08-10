@@ -10,12 +10,9 @@ from __future__ import annotations
 
 from typing import Any
 
-from xmagic.client.http import AsyncHttpTransport, HttpTransport
+from xmagic.client.http import AsyncHttpTransport, HttpTransport, unwrap_data
 from xmagic.client.models import PhoneSummary
-
-
-def _unwrap_data(body: dict[str, Any]) -> Any:
-    return body.get("data", body)
+from xmagic.errors import ResponseShapeError
 
 
 class PhonesAPI:
@@ -31,9 +28,9 @@ class PhonesAPI:
         numbers returned by the endpoint.
         """
         body = self._t.request("GET", "/phones", params={"scope": "org"})
-        data = _unwrap_data(body)
+        data = unwrap_data(body)
         if not isinstance(data, dict):
-            raise ValueError("Unexpected /phones response shape")
+            raise ResponseShapeError("Unexpected /phones response shape")
         phones: list[dict[str, Any]] = data.get("org_phone_numbers", [])
         return [PhoneSummary.model_validate(p) for p in phones]
 
@@ -67,9 +64,9 @@ class AsyncPhonesAPI:
     async def list(self) -> list[PhoneSummary]:
         """List phone numbers belonging to the current organisation."""
         body = await self._t.request("GET", "/phones", params={"scope": "org"})
-        data = _unwrap_data(body)
+        data = unwrap_data(body)
         if not isinstance(data, dict):
-            raise ValueError("Unexpected /phones response shape")
+            raise ResponseShapeError("Unexpected /phones response shape")
         phones: list[dict[str, Any]] = data.get("org_phone_numbers", [])
         return [PhoneSummary.model_validate(p) for p in phones]
 

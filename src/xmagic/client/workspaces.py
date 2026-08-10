@@ -8,12 +8,15 @@ Endpoints (base: https://api.xmagic.ai/xmagic-backend/v1):
 
 from __future__ import annotations
 
-from xmagic.client.http import AsyncHttpTransport, HttpTransport
+from xmagic.client.http import AsyncHttpTransport, HttpTransport, unwrap_data
 from xmagic.client.models import WorkspaceState
+from xmagic.errors import ResponseShapeError
 
 
 def _state_from_body(body: dict) -> WorkspaceState:
-    data = body.get("data", body)
+    data = unwrap_data(body)
+    if not isinstance(data, dict):
+        raise ResponseShapeError("Unexpected workspace response shape")
     return WorkspaceState.model_validate(data)
 
 

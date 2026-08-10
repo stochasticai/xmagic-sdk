@@ -24,8 +24,8 @@ from xmagic.client.chats import AsyncChatsAPI, ChatsAPI
 from xmagic.client.drive import AsyncDriveAPI, DriveAPI
 from xmagic.client.files import AsyncFilesAPI, FilesAPI
 from xmagic.client.phones import AsyncPhonesAPI, PhonesAPI
-from xmagic.client.workspaces import AsyncWorkspacesAPI, WorkspacesAPI
 from xmagic.client.models import ChatType
+from xmagic.client.workspaces import AsyncWorkspacesAPI, WorkspacesAPI
 from xmagic.config import DEFAULT_BASE_URL
 from xmagic.errors import ConfigurationError, RateLimitError
 
