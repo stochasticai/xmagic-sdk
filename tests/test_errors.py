@@ -146,6 +146,33 @@ def test_timeouts_are_typed_and_name_the_setting_to_raise() -> None:
     assert "timeout" in str(exc.value)
 
 
+@pytest.mark.parametrize(
+    "failure",
+    [
+        httpx.ConnectError("refused"),
+        httpx.ReadTimeout("timed out"),
+        httpx.DecodingError("corrupt gzip body"),
+        httpx.TooManyRedirects("redirect loop"),
+    ],
+    ids=lambda e: type(e).__name__,
+)
+@respx.mock
+def test_no_httpx_exception_escapes_as_itself(failure: httpx.RequestError) -> None:
+    """`except XMagicError` has to be enough — httpx is an implementation detail.
+
+    `DecodingError` and `TooManyRedirects` are the ones worth naming: they are
+    `httpx.RequestError` but *not* `httpx.TransportError`, so catching only the
+    latter let a corrupt compressed body or a redirect loop escape while every
+    connection-level failure looked correctly wrapped.
+    """
+    respx.post(URL).mock(side_effect=failure)
+
+    with _client() as client, pytest.raises(APIConnectionError) as exc:
+        client.chats.create("agent-1")
+
+    assert exc.value.__cause__ is failure
+
+
 def test_every_public_error_is_exported_at_the_package_root() -> None:
     """`from xmagic import ...` must cover the errors callers have to catch.
 
