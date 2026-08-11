@@ -158,7 +158,42 @@ resp = client.chats.query("<agent_id>", chat.id, "One-sentence summary?")
 
 `XMagicClient` is a context manager, so `with XMagicClient() as client:` closes
 the underlying HTTP connection for you. It retries `429` and `5xx` with
-exponential backoff, honoring `Retry-After`.
+jittered exponential backoff, honoring `Retry-After`.
+
+Timeouts come in two flavours, because streams need a looser bound than unary
+calls — `timeout` (default 60s) bounds a whole request, while `stream_timeout`
+(default 300s, `None` waits forever) bounds the *gap between two stream events*,
+so an agent that thinks for a while is not mistaken for a dead connection:
+
+```python
+client = XMagicClient(timeout=30.0, stream_timeout=600.0, max_retries=5)
+```
+
+Everything that can go wrong raises a subclass of `XMagicError`, so one `except`
+contains the SDK — including connection failures, which are wrapped rather than
+leaked as `httpx` exceptions:
+
+```python
+from xmagic import APIConnectionError, RateLimitError, XMagicAPIError, XMagicError
+
+try:
+    resp = client.chats.query("<agent_id>", chat.id, "Hello!")
+except RateLimitError:
+    ...  # 429, after the retries were exhausted
+except APIConnectionError:
+    ...  # never got a response at all; APITimeoutError is a subclass
+except XMagicAPIError as e:
+    print(e.status_code, e.request_id)  # also .error_code, .response, .headers, .body
+except XMagicError:
+    ...  # everything else, e.g. ConfigurationError
+```
+
+The status-specific classes are `BadRequestError` (400), `AuthenticationError`
+(401), `PermissionDeniedError` (403), `NotFoundError` (404), `RateLimitError`
+(429), and `ServerError` (any 5xx).
+
+The package ships a `py.typed` marker, so mypy and pyright see its annotations
+rather than `Any`.
 
 `AsyncXMagicClient` mirrors it 1:1 — same resources, same arguments, same
 returns. Await each call, and iterate `stream` with `async for`:
