@@ -5,6 +5,59 @@ the plan and [TODO.md](TODO.md) for what's next.
 
 ---
 
+## 2026-08-07 — Client hygiene: typing, timeouts, and the error contract
+
+The five audit findings that were listed as "ready now, nothing blocks them" and
+had sat unclaimed for two days. Cheap individually; together they are most of
+what a consumer notices when something goes wrong.
+
+- **`py.typed`.** Every module here is annotated and none of it reached
+  consumers — PEP 561 treats an installed package without the marker as untyped,
+  so `xmagic` resolved to `Any` in every downstream mypy and pyright run.
+  Nothing local notices, since we test the source. It needed no
+  `pyproject.toml` change, contrary to how it was filed: hatchling picks the
+  marker up from the package directory. Verified by building both artifacts and
+  looking inside, not by reading the docs.
+- **Streams no longer inherit the 60s request timeout.** On a stream the read
+  timeout bounds the gap *between events*, not the whole exchange, so an agent
+  that thought for longer than `timeout` raised `ReadTimeout` mid-answer.
+  Separate `stream_timeout`, default 300s.
+- **Error hierarchy filled in**: 403, any 5xx, and wrapped transport failures, so
+  `except XMagicError` now actually contains the SDK — previously a DNS failure
+  or timeout meant also catching httpx. `XMagicAPIError` carries the response,
+  headers, body, and a best-effort request id.
+- **Jittered backoff.** The old `min(2**attempt, 30)` was deterministic, so
+  clients that failed together retried in lockstep and rebuilt the spike that
+  caused the failure. `Retry-After` is left verbatim — the server named a time.
+- **Root exports** for `ConfigurationError` and `ChatType`. The first is what
+  `XMagicClient()` raises on a missing API key, the likeliest first-run failure
+  of all, and catching it meant importing from a path that looks private.
+
+**A defect found by doing the work, not by the audit.** A 401 on `chats.stream`
+raised `SSEError("Expected response header Content-Type to contain
+'text/event-stream', got 'application/json'")` — the symptom, from httpx_sse's
+exception tree, for what was really an auth failure. `connect_sse` validates the
+content type and nothing validated the status. Wrapping transport errors made it
+briefly worse, since `SSEError` subclasses `httpx.TransportError`: the auth
+failure started reporting as "Could not reach <base_url>". Both transports now
+check the status before decoding frames and raise what the equivalent unary call
+would. Caught by probing a mocked 401 rather than by the test suite, which had no
+case for a stream that fails before it starts.
+
+Two things this surfaced and did **not** fix, now in TODO.md: streaming calls are
+never retried at all (`sse()` has no retry loop, so a 429 on `stream` fails
+immediately while the same status on `query` gets the full schedule), and a
+typechecker in CI is now the most valuable item on that list rather than the
+least — we are publishing annotations that nothing verifies.
+
+Tests: 105 → 142. Also reconciled TODO.md, which was underselling itself: token
+usage and all three addressed release-hygiene items were still listed as pending.
+
+**Note for anyone whose local suite is red on `main`:** a stale `uv.lock` pinning
+`mcp` 1.28.1 against the `>=2.0` requirement fails six tests in
+`test_tool_invocation.py` while CI stays green. `uv lock --upgrade` clears it.
+Third time this trap has cost someone time; it is documented in PLAN.md's notes.
+
 ## 2026-08-06/07 — MCP repair, OpenAI provider, release hygiene
 
 A long session. The through-line is that several things believed to be working

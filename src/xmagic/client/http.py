@@ -8,15 +8,23 @@ from __future__ import annotations
 
 import asyncio
 import json
+import random
 import time
 from collections.abc import AsyncIterator, Iterator
 from typing import Any
 
 import httpx
-from httpx_sse import aconnect_sse, connect_sse
+from httpx_sse import SSEError, aconnect_sse, connect_sse
 
 from xmagic.config import Settings
-from xmagic.errors import ConfigurationError, error_for_status
+from xmagic.errors import (
+    APIConnectionError,
+    APITimeoutError,
+    ConfigurationError,
+    XMagicAPIError,
+    XMagicError,
+    error_for_status,
+)
 
 _RETRYABLE = {429, 500, 502, 503, 504}
 
@@ -26,24 +34,118 @@ _MISSING_KEY = (
 )
 
 
+def _backoff(attempt: int) -> float:
+    """Exponential backoff with equal jitter, capped at 30s.
+
+    Returns a delay drawn uniformly from the upper half of the schedule —
+    ``[ceiling/2, ceiling]`` — so clients that failed together do not retry in
+    lockstep, while the delay still grows and still never exceeds the cap.
+    Equal jitter rather than full jitter (``uniform(0, ceiling)``) keeps the
+    first retry from landing almost immediately.
+    """
+    ceiling = float(min(2**attempt, 30))
+    half = ceiling / 2
+    return half + random.uniform(0, half)
+
+
 def _retry_delay(response: httpx.Response, attempt: int) -> float:
     """Seconds to wait before the next attempt.
 
-    Prefers the server's ``Retry-After``, falling back to exponential backoff
-    capped at 30s. RFC 9110 permits ``Retry-After`` to carry an HTTP-date as
-    well as a delay in seconds; we do not parse dates, so anything we cannot
-    read as a number degrades to the backoff schedule rather than raising
-    mid-retry. A non-positive value is treated the same way.
+    Prefers the server's ``Retry-After``, falling back to jittered exponential
+    backoff. ``Retry-After`` is honored verbatim and deliberately *not* jittered:
+    the server named a time, and second-guessing it is how you get told off
+    twice. RFC 9110 permits ``Retry-After`` to carry an HTTP-date as well as a
+    delay in seconds; we do not parse dates, so anything we cannot read as a
+    number degrades to the backoff schedule rather than raising mid-retry. A
+    non-positive value is treated the same way.
     """
-    backoff = float(min(2**attempt, 30))
     raw = response.headers.get("Retry-After")
-    if not raw:
-        return backoff
-    try:
-        seconds = float(raw)
-    except ValueError:
-        return backoff
-    return seconds if seconds > 0 else backoff
+    if raw:
+        try:
+            seconds = float(raw)
+        except ValueError:
+            return _backoff(attempt)
+        if seconds > 0:
+            return seconds
+    return _backoff(attempt)
+
+
+def _stream_api_error(response: httpx.Response) -> XMagicAPIError:
+    """The typed error for an error status on a streaming request.
+
+    ``connect_sse`` validates only the content type, so without this check a 401
+    on a stream surfaces as ``SSEError("Expected ... 'text/event-stream', got
+    'application/json'")`` — a description of the symptom, from the wrong
+    exception tree, for what is really an auth failure.
+    """
+    error_code, message = _parse_error(response)
+    return error_for_status(response.status_code, error_code, message, response=response)
+
+
+def _stream_error(response: httpx.Response) -> None:
+    """Raise if a streaming response carries an error status.
+
+    The body has to be read explicitly: a streaming response has buffered
+    nothing yet, so ``_parse_error`` would have no content to work with.
+    """
+    if not response.is_error:
+        return
+    response.read()
+    raise _stream_api_error(response)
+
+
+async def _astream_error(response: httpx.Response) -> None:
+    """Async mirror of :func:`_stream_error`; only the body read differs."""
+    if not response.is_error:
+        return
+    await response.aread()
+    raise _stream_api_error(response)
+
+
+def _protocol_error(exc: SSEError, base_url: str) -> XMagicError:
+    """A 2xx that is not an event stream — the server broke the contract.
+
+    Distinct from :class:`APIConnectionError`, which would claim we never got
+    through when in fact we got a perfectly good response of the wrong kind.
+    """
+    return XMagicError(f"{base_url} answered a stream request with a non-SSE body: {exc}")
+
+
+def _transport_error(
+    exc: httpx.RequestError, base_url: str, *, streaming: bool = False
+) -> APIConnectionError:
+    """Translate an httpx request failure into the SDK's own error type.
+
+    Callers should not have to know we use httpx, nor catch two exception trees
+    to handle "the request did not get through". The original stays as
+    ``__cause__``.
+
+    Typed from ``RequestError`` rather than ``TransportError`` because the two
+    are not the same set: ``DecodingError`` (a corrupt compressed body) and
+    ``TooManyRedirects`` are request errors but not transport errors, and
+    catching only the latter let them escape as raw httpx exceptions.
+    """
+    detail = str(exc) or type(exc).__name__
+    if isinstance(exc, httpx.TimeoutException):
+        return APITimeoutError(
+            f"Timed out talking to {base_url} ({detail}). "
+            f"Raise {_timeout_knob(exc, streaming=streaming)} if the agent "
+            f"legitimately needs longer."
+        )
+    return APIConnectionError(f"Could not reach {base_url} ({detail}).")
+
+
+def _timeout_knob(exc: httpx.TimeoutException, *, streaming: bool) -> str:
+    """The setting that actually governs this timeout.
+
+    Only the *read* deadline differs between streaming and unary requests
+    (see :func:`_stream_timeout`); connect, write and pool stay on ``timeout``
+    either way. Naming ``stream_timeout`` for a connect timeout would send the
+    caller to a knob that cannot affect it.
+    """
+    if streaming and isinstance(exc, httpx.ReadTimeout):
+        return "stream_timeout"
+    return "timeout"
 
 
 _DONE = object()
@@ -73,11 +175,23 @@ def _client_kwargs(settings: Settings) -> dict[str, Any]:
     }
 
 
+def _stream_timeout(settings: Settings) -> httpx.Timeout:
+    """Timeout for a streaming request.
+
+    Streams need a different read timeout from unary calls: ``settings.timeout``
+    bounds a whole request/response, but on a stream the read timeout applies to
+    the gap *between events*, so an agent that thinks for longer than it would
+    raise ``ReadTimeout`` mid-answer. Connect/write/pool keep the normal bound —
+    only reading is allowed to be slow. ``stream_timeout=None`` waits forever.
+    """
+    return httpx.Timeout(settings.timeout, read=settings.stream_timeout)
+
+
 def _result(response: httpx.Response) -> dict[str, Any]:
     """Raise a typed error for an error response, else return the parsed body."""
     if response.is_error:
         error_code, message = _parse_error(response)
-        raise error_for_status(response.status_code, error_code, message)
+        raise error_for_status(response.status_code, error_code, message, response=response)
     if not response.content:
         return {}
     return response.json()
@@ -92,7 +206,7 @@ def _raw(response: httpx.Response) -> bytes:
     """
     if response.is_error:
         error_code, message = _parse_error(response)
-        raise error_for_status(response.status_code, error_code, message)
+        raise error_for_status(response.status_code, error_code, message, response=response)
     return response.content
 
 
@@ -128,7 +242,10 @@ class HttpTransport:
     def _send(self, method: str, path: str, **kwargs: Any) -> httpx.Response:
         """The retry loop, shared by every response shape."""
         for attempt in range(self.settings.max_retries + 1):
-            response = self._client.request(method, path, **kwargs)
+            try:
+                response = self._client.request(method, path, **kwargs)
+            except httpx.RequestError as e:
+                raise _transport_error(e, self.settings.base_url) from e
             if response.status_code in _RETRYABLE and attempt < self.settings.max_retries:
                 time.sleep(_retry_delay(response, attempt))
                 continue
@@ -141,13 +258,20 @@ class HttpTransport:
         Yields ``{"event": <name>, "data": <parsed json or str>}`` and stops at
         the ``[DONE]`` terminator.
         """
-        with connect_sse(self._client, method, path, **kwargs) as source:
-            for sse in source.iter_sse():
-                data = _decode_sse(sse.data)
-                if data is _DONE:
-                    yield {"event": "done", "data": ""}
-                    return
-                yield {"event": sse.event or "message", "data": data}
+        kwargs.setdefault("timeout", _stream_timeout(self.settings))
+        try:
+            with connect_sse(self._client, method, path, **kwargs) as source:
+                _stream_error(source.response)
+                for sse in source.iter_sse():
+                    data = _decode_sse(sse.data)
+                    if data is _DONE:
+                        yield {"event": "done", "data": ""}
+                        return
+                    yield {"event": sse.event or "message", "data": data}
+        except SSEError as e:  # a RequestError subclass, so it must come first
+            raise _protocol_error(e, self.settings.base_url) from e
+        except httpx.RequestError as e:
+            raise _transport_error(e, self.settings.base_url, streaming=True) from e
 
     def close(self) -> None:
         self._client.close()
@@ -176,7 +300,10 @@ class AsyncHttpTransport:
     async def _send(self, method: str, path: str, **kwargs: Any) -> httpx.Response:
         """The retry loop, shared by every response shape."""
         for attempt in range(self.settings.max_retries + 1):
-            response = await self._client.request(method, path, **kwargs)
+            try:
+                response = await self._client.request(method, path, **kwargs)
+            except httpx.RequestError as e:
+                raise _transport_error(e, self.settings.base_url) from e
             if response.status_code in _RETRYABLE and attempt < self.settings.max_retries:
                 await asyncio.sleep(_retry_delay(response, attempt))
                 continue
@@ -189,13 +316,20 @@ class AsyncHttpTransport:
         Yields ``{"event": <name>, "data": <parsed json or str>}`` and stops at
         the ``[DONE]`` terminator.
         """
-        async with aconnect_sse(self._client, method, path, **kwargs) as source:
-            async for sse in source.aiter_sse():
-                data = _decode_sse(sse.data)
-                if data is _DONE:
-                    yield {"event": "done", "data": ""}
-                    return
-                yield {"event": sse.event or "message", "data": data}
+        kwargs.setdefault("timeout", _stream_timeout(self.settings))
+        try:
+            async with aconnect_sse(self._client, method, path, **kwargs) as source:
+                await _astream_error(source.response)
+                async for sse in source.aiter_sse():
+                    data = _decode_sse(sse.data)
+                    if data is _DONE:
+                        yield {"event": "done", "data": ""}
+                        return
+                    yield {"event": sse.event or "message", "data": data}
+        except SSEError as e:  # a RequestError subclass, so it must come first
+            raise _protocol_error(e, self.settings.base_url) from e
+        except httpx.RequestError as e:
+            raise _transport_error(e, self.settings.base_url, streaming=True) from e
 
     async def aclose(self) -> None:
         await self._client.aclose()

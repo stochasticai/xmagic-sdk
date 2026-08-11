@@ -177,7 +177,10 @@ async def test_retries_use_asyncio_sleep(monkeypatch: pytest.MonkeyPatch) -> Non
         chat = await client.chats.create("agent-1")
 
     assert chat.id == "chat-1"
-    assert delays == [5.0, 2.0]  # header value, then the attempt-1 backoff
+    # The header value verbatim, then the jittered attempt-1 backoff from [1, 2].
+    assert delays[0] == 5.0
+    assert 1.0 <= delays[1] <= 2.0
+    assert len(delays) == 2
 
 
 @respx.mock

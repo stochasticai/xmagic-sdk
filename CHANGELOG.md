@@ -10,6 +10,85 @@ codebase.**
 
 ## [Unreleased]
 
+### Added
+
+- **The package is typed for consumers (`py.typed`).** Every module here is
+  annotated, and none of it reached downstream type checkers: PEP 561 treats an
+  installed package without the marker as untyped, so `xmagic` resolved to `Any`
+  in every consumer's mypy and pyright run. The marker now ships in both the
+  wheel and the sdist.
+- **`stream_timeout`** (default 300s, `None` waits forever) — streams no longer
+  inherit the 60s request timeout. See Fixed.
+- **`PermissionDeniedError` (403) and `ServerError` (5xx)**, plus
+  **`APIConnectionError`** and **`APITimeoutError`** for failures that never
+  produced a response. Any unmapped 5xx raises `ServerError`, so a backend fault
+  is distinguishable from a client mistake without reading `status_code`.
+- **`XMagicAPIError` exposes the response**: `.response`, `.headers`, `.body`,
+  `.message`, and a best-effort `.request_id` (`x-request-id`, `request-id`, or
+  `x-correlation-id`), so a support thread can quote an id rather than a
+  screenshot. All are `None` for streamed error frames, which arrive inside an
+  HTTP 200 body and have no error response to attach.
+- **`ConfigurationError`, `ChatType`, `BadRequestError`, and the new error types
+  are exported from the package root.** `ConfigurationError` is what
+  `XMagicClient()` raises on the likeliest first-run failure — a missing API key
+  — and catching it previously meant importing from `xmagic.errors`, a path that
+  looks private.
+
+### Changed
+
+- **`Settings.load` now applies an explicit `None` instead of discarding it.** It
+  filtered every `None` override, which conflated "the caller did not pass this"
+  with "the caller passed `None` deliberately" — fine for `api_key`, where `None`
+  means unset, and wrong for `stream_timeout`, where it means "wait forever".
+  `XMagicClient` and `AsyncXMagicClient` omit `api_key` and `base_url` when they
+  are not supplied, so the config file and environment still win for those; every
+  other keyword now reaches the field as written. Affects anyone who passed
+  `default_agent_id=None` (or similar) expecting file/env fallback — omit the
+  argument instead.
+- **`max_retries` rejects negative values** at construction rather than failing
+  with `UnboundLocalError` on the first request. `0` still disables retries.
+
+### Fixed
+
+- **Streaming inherited the 60s request timeout**, so an agent that paused longer
+  than `timeout` between two events raised `ReadTimeout` mid-answer. On a stream
+  the read timeout bounds the *gap between events*, not the whole exchange, so
+  the two cannot share a number. Streams now use `stream_timeout` (default 300s)
+  for reads while connect/write/pool keep the normal bound. Thinking-heavy agents
+  were the ones hitting this.
+- **A failed streaming call reported the wrong thing entirely.** `connect_sse`
+  validates only the content type, so a 401 on `chats.stream` raised
+  `httpx_sse.SSEError("Expected response header Content-Type to contain
+  'text/event-stream', got 'application/json'")` — the symptom rather than the
+  cause, from a third-party exception tree, for what was really an auth failure.
+  Error statuses on a stream now raise the same typed error the equivalent unary
+  call would (`AuthenticationError`, `RateLimitError`, `ServerError`, …), body
+  and all. A 2xx response that genuinely isn't an event stream raises
+  `XMagicError` naming that, rather than being mistaken for a network fault.
+- **Transport failures leaked `httpx` exceptions.** A DNS failure, refused
+  connection, or timeout raised `httpx.ConnectError` / `httpx.ReadTimeout`
+  straight through, so catching everything this SDK can raise meant catching
+  `XMagicError` *and* importing httpx. They now raise `APIConnectionError` /
+  `APITimeoutError`, with the original as `__cause__` and a message naming which
+  timeout setting to raise. **Visible behaviour change** for anyone who caught
+  the httpx types directly.
+
+  The wrapping covers `httpx.RequestError` rather than only
+  `httpx.TransportError`: `DecodingError` (a corrupt compressed body) and
+  `TooManyRedirects` belong to the former but not the latter, and would
+  otherwise have kept escaping while every connection-level failure looked
+  correctly handled.
+- **A timeout while opening a stream named the wrong setting.** Only the read
+  deadline comes from `stream_timeout`; connect, write and pool stay on
+  `timeout`. A `ConnectTimeout` on a streaming call nonetheless advised raising
+  `stream_timeout`, which cannot affect it. The message now names the setting
+  that actually governs the phase that timed out.
+- **Retry backoff was deterministic**, so clients that failed together retried in
+  lockstep and re-synchronized the load spike that caused the failure. Backoff
+  now carries equal jitter: each delay is drawn from `[ceiling/2, ceiling]`, so
+  it still grows and still respects the 30s cap. `Retry-After` is deliberately
+  left un-jittered — the server named a time.
+
 ## [0.2.0] — 2026-08-07
 
 Phase 1 (core client) completed, the MCP toolkit gained a working dev loop, and

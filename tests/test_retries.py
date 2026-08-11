@@ -3,6 +3,11 @@
 The README promises "retries 429 and 5xx with exponential backoff, honoring
 Retry-After". These tests pin that contract. Sleeps are captured rather than
 performed, so the suite stays fast and asserts on the *delays chosen*.
+
+Backoff carries equal jitter, so the delays are ranges rather than exact values:
+each one lands in ``[ceiling/2, ceiling]`` for that attempt's ceiling. Asserting
+the ceilings alone would pass against un-jittered code, so
+``test_backoff_jitter_varies_between_calls`` pins the spread too.
 """
 
 from __future__ import annotations
@@ -13,10 +18,21 @@ import respx
 from httpx import Response
 
 from xmagic import XMagicClient
+from xmagic.client.http import _backoff
 from xmagic.config import DEFAULT_BASE_URL
-from xmagic.errors import BadRequestError, RateLimitError, XMagicAPIError
+from xmagic.errors import APIConnectionError, BadRequestError, RateLimitError, XMagicAPIError
 
 URL = f"{DEFAULT_BASE_URL}/agents/agent-1/chats"
+
+# min(2**attempt, 30): doubles to 16, then flattens at the 30s ceiling.
+CEILINGS = [1.0, 2.0, 4.0, 8.0, 16.0, 30.0, 30.0, 30.0]
+
+
+def _assert_jittered(sleeps: list[float], ceilings: list[float]) -> None:
+    """Assert one delay per ceiling, each in the upper half of its window."""
+    assert len(sleeps) == len(ceilings), f"{sleeps} does not match {ceilings}"
+    for delay, ceiling in zip(sleeps, ceilings, strict=True):
+        assert ceiling / 2 <= delay <= ceiling, f"{delay} outside [{ceiling / 2}, {ceiling}]"
 
 
 @pytest.fixture
@@ -45,7 +61,7 @@ def test_429_retries_and_then_succeeds(sleeps: list[float]) -> None:
 
     assert chat.id == "chat-1"
     assert route.call_count == 2
-    assert sleeps == [1.0]
+    _assert_jittered(sleeps, CEILINGS[:1])
 
 
 @respx.mock
@@ -72,8 +88,8 @@ def test_backoff_is_exponential_without_retry_after(sleeps: list[float]) -> None
         client.chats.create("agent-1")
 
     assert exc.value.status_code == 503
-    # max_retries=3 -> 4 attempts, 3 sleeps, doubling each time.
-    assert sleeps == [1.0, 2.0, 4.0]
+    # max_retries=3 -> 4 attempts, 3 sleeps, each window doubling.
+    _assert_jittered(sleeps, CEILINGS[:3])
 
 
 @respx.mock
@@ -94,7 +110,7 @@ def test_http_date_retry_after_falls_back_to_backoff(sleeps: list[float]) -> Non
         chat = client.chats.create("agent-1")
 
     assert chat.id == "chat-1"
-    assert sleeps == [1.0]
+    _assert_jittered(sleeps, CEILINGS[:1])
 
 
 @respx.mock
@@ -109,7 +125,7 @@ def test_retries_exhausted_raises_typed_error(sleeps: list[float]) -> None:
     assert exc.value.status_code == 429
     assert "rate limit exceeded" in str(exc.value)
     assert route.call_count == 3  # initial attempt + 2 retries
-    assert sleeps == [1.0, 2.0]
+    _assert_jittered(sleeps, CEILINGS[:2])
 
 
 @respx.mock
@@ -141,16 +157,33 @@ def test_backoff_delay_is_capped(sleeps: list[float]) -> None:
     with _client(max_retries=8) as client, pytest.raises(XMagicAPIError):
         client.chats.create("agent-1")
 
-    # min(2**attempt, 30): doubles to 16, then flattens at the 30s ceiling.
-    assert sleeps == [1.0, 2.0, 4.0, 8.0, 16.0, 30.0, 30.0, 30.0]
+    _assert_jittered(sleeps, CEILINGS)
+
+
+def test_backoff_jitter_varies_between_calls() -> None:
+    """The delay for a given attempt must not be a constant.
+
+    Without this, every other assertion here would still pass against the old
+    deterministic `min(2**attempt, 30)` — the point of jitter is the spread.
+    """
+    delays = {_backoff(3) for _ in range(50)}
+
+    assert len(delays) > 1, "backoff is deterministic; clients will retry in lockstep"
+    assert all(4.0 <= d <= 8.0 for d in delays)
 
 
 @respx.mock
-def test_connection_errors_are_not_swallowed(sleeps: list[float]) -> None:
-    """Transport-level failures propagate; only HTTP status codes drive retries."""
+def test_connection_errors_surface_as_a_typed_sdk_error(sleeps: list[float]) -> None:
+    """Transport failures are wrapped, not leaked, and never retried.
+
+    Callers should be able to catch `XMagicError` alone rather than also
+    importing httpx; only HTTP status codes drive retries.
+    """
     respx.post(URL).mock(side_effect=httpx.ConnectError("no route to host"))
 
-    with _client() as client, pytest.raises(httpx.ConnectError):
+    with _client() as client, pytest.raises(APIConnectionError) as exc:
         client.chats.create("agent-1")
 
+    assert "no route to host" in str(exc.value)
+    assert isinstance(exc.value.__cause__, httpx.ConnectError)
     assert sleeps == []
