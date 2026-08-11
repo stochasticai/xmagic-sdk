@@ -134,10 +134,10 @@ phase; listed so they stop being invisible.
 
 Ready now, roughly in order of value per unit of work:
 
-- [ ] **Token usage** on `Completion` / `CompletionChunk`. `token_usage` already
-      arrives as an SSE event and is discarded on the floor, and OpenAI returns
-      usage on every response. Cost visibility is usually the first thing a team
-      asks for after its first bill
+- [x] **Token usage** on `Completion` / `CompletionChunk` — landed in
+      [#20](https://github.com/stochasticai/xmagic-sdk/pull/20). The xMagic shape
+      is still unconfirmed, so parsing degrades to `None` rather than reporting
+      zeros it did not measure
 - [ ] **Tool calling as a typed surface.** `capabilities()` advertises
       `tools: True`, but `Provider.complete` has no `tools` parameter, and
       `ChatMessage` has no `tool_call_id` so it cannot represent a tool result
@@ -158,38 +158,40 @@ Ready now, roughly in order of value per unit of work:
 - [ ] **A test double for consumers** — export the recorded fixtures or a fake
       client, so downstream users can test against this SDK without network
 
-Correctness and packaging gaps found in an audit on 2026-08-05, each verified
-against the tree on 2026-08-07:
+Correctness and packaging gaps found in an audit on 2026-08-05. The first five
+landed together on 2026-08-07; the rest were re-verified against the tree that
+day and are still open.
 
-- [ ] **Ship a `py.typed` marker.** The package is thoroughly annotated and
-      **none of it reaches consumers**: PEP 561 treats an installed package
-      without the marker as untyped, so every downstream mypy/pyright sees
-      `Any`. One empty file plus one `pyproject.toml` line — the cheapest
-      high-impact fix in the repo
-- [ ] **SSE inherits the 60s read timeout.** `sse()` passes the shared client
-      into `connect_sse` (`client/http.py:123`, `:163`), so an agent that pauses
-      longer than `settings.timeout` between tokens raises `ReadTimeout`
-      mid-stream. Slow or thinking-heavy agents hit this; there is no separate
-      stream timeout
-- [ ] **Export `ConfigurationError` and `ChatType` at the package root.**
-      `ConfigurationError` is what `XMagicClient()` raises on the most likely
-      first-run failure, and users cannot `from xmagic import ConfigurationError`
-      to catch it. `ChatType` is a documented parameter of `chats.create`. Both
-      currently require importing from paths that look private
-- [ ] **Fill the error hierarchy.** `_STATUS_MAP` covers 400/401/404/429 only
-      (`errors.py:43-48`): no 403, and no `ServerError`, so a 503 after exhausted
-      retries surfaces as a bare `XMagicAPIError`. Raw `httpx.ConnectError` also
-      leaks to callers unwrapped — `tests/test_retries.py` currently enshrines
-      that. And `XMagicAPIError` exposes no `.response`, `.headers`, `.body`, or
-      request id
-- [ ] **Add jitter to retry backoff.** `min(2**attempt, 30)` (`http.py:38`) is
-      deterministic, so clients that fail together retry in lockstep
-- [ ] **Add a typechecker to CI.** No mypy or pyright anywhere, which compounds
-      the `py.typed` gap: nothing verifies the annotations we would be publishing
+- [x] **Ship a `py.typed` marker** — done 2026-08-07. Needed no
+      `pyproject.toml` change after all: hatchling picks the marker up from the
+      package directory, verified by building both artifacts
+- [x] **SSE inherits the 60s read timeout** — done 2026-08-07. Streams now read
+      with `stream_timeout` (default 300s, `None` waits forever) while
+      connect/write/pool keep the normal bound
+- [x] **Export `ConfigurationError` and `ChatType` at the package root** — done
+      2026-08-07, along with `BadRequestError` and the new error types
+- [x] **Fill the error hierarchy** — done 2026-08-07. `PermissionDeniedError`
+      (403), `ServerError` (any 5xx), `APIConnectionError` / `APITimeoutError`
+      wrapping httpx transport failures, and `.response` / `.headers` / `.body` /
+      `.message` / `.request_id` on `XMagicAPIError`
+- [x] **Add jitter to retry backoff** — done 2026-08-07. Equal jitter: each delay
+      drawn from `[ceiling/2, ceiling]`. `Retry-After` stays verbatim
+- [ ] **Add a typechecker to CI.** No mypy or pyright anywhere. This is now the
+      most valuable item in this list rather than the least: `py.typed` ships as
+      of 2026-08-07, so we are publishing annotations that nothing verifies, and a
+      wrong one is worse for a consumer than none at all
 - [ ] **`metadata` stream events are dropped**, and they carry `message_id` — so
       a streaming caller cannot learn the id of the message it just received.
-      Named in a comment in `providers/xmagic.py`; filed here so it is not only a
-      comment
+      Named in a comment in `providers/xmagic.py:157`; filed here so it is not
+      only a comment
+- [ ] **Streaming calls are never retried.** `sse()` has no retry loop, so a 429
+      or 503 on `chats.stream` fails on the first attempt while the same status on
+      `chats.query` gets the full backoff schedule. Found 2026-08-07 while fixing
+      the status handling below; retrying a stream needs a decision about whether
+      a partially-consumed stream can be safely restarted, so it is not a
+      one-liner
+- [ ] **No stream cancellation, and no deterministic close** — listed under
+      "Ready now" above; noting here that the two touch the same code
 
 Larger, and worth their own design pass:
 
@@ -213,16 +215,19 @@ Nothing here blocks a release; each one makes a burned version number less
 likely. 0.0.3 was spent on a one-line log change because PyPI won't accept a
 re-upload.
 
-- [ ] `release.yml` runs no tests or lint — it goes from checkout straight to
-      `uv build` + `twine check`, so a green tag can publish a red commit.
-      **Addressed in [#19](https://github.com/stochasticai/xmagic-sdk/pull/19)**
-- [ ] Two version sources with no guard: `pyproject.toml` and
-      `src/xmagic/__init__.py`. Derive `__version__` from
-      `importlib.metadata.version("xmagic-sdk")`, or assert they agree in a test.
-      **Addressed in [#18](https://github.com/stochasticai/xmagic-sdk/pull/18)**
-- [ ] Publish to TestPyPI from the *same* artifact that goes to PyPI, so the
+- [x] `release.yml` runs no tests or lint — it went from checkout straight to
+      `uv build` + `twine check`, so a green tag could publish a red commit.
+      Fixed in [#19](https://github.com/stochasticai/xmagic-sdk/pull/19) (merged);
+      the workflow now runs `ruff check`, `ruff format --check`, and `pytest`
+      before it publishes
+- [x] Two version sources with no guard: `pyproject.toml` and
+      `src/xmagic/__init__.py`. Fixed in
+      [#18](https://github.com/stochasticai/xmagic-sdk/pull/18) (merged) —
+      `__version__` now derives from `importlib.metadata`, with
+      `tests/test_version_consistency.py` guarding it
+- [x] Publish to TestPyPI from the *same* artifact that goes to PyPI, so the
       rehearsal is a real one (the 0.0.2 rehearsal shipped a different sdist).
-      **Addressed in [#19](https://github.com/stochasticai/xmagic-sdk/pull/19)**
+      Fixed in [#19](https://github.com/stochasticai/xmagic-sdk/pull/19) (merged)
 - [ ] Add a second owner to the `xmagic-sdk` PyPI project — `internal_apis` is
       currently the only role holder, so yank/delete/maintainer rights are
       single-homed
