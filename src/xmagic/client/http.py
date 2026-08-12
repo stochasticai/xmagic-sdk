@@ -47,6 +47,7 @@ def _backoff(attempt: int) -> float:
     half = ceiling / 2
     return half + random.uniform(0, half)
 
+
 def unwrap_data(body: dict[str, Any]) -> Any:
     """Return the API payload, whether it is wrapped in a ``data`` key or not."""
     return body.get("data", body)
