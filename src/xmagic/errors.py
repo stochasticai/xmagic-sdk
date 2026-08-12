@@ -122,14 +122,6 @@ class NotFoundError(XMagicAPIError):
     """404 — unknown agent/chat/message."""
 
 
-class PermissionDeniedError(XMagicAPIError):
-    """403 — authenticated but not permitted to access the resource."""
-
-
-class ServerError(XMagicAPIError):
-    """5xx — the service is unavailable or not configured for this account."""
-
-
 class RateLimitError(XMagicAPIError):
     """429 — plan rate limit exceeded (Free 20rpm / Pro 100 / Business 500)."""
 
