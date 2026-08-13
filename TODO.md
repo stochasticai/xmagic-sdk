@@ -102,6 +102,18 @@ points with no extra (DESIGN.md §4).
 - [ ] Wire skills upload / tool registration APIs if xMagic publishes them
       (open question §10.1)
 
+## Worklists
+
+- [x] Sync/async task and recurring-schedule client resources
+- [x] `xmagic worklists` list/get/create/edit/delete/cancel/trigger/rerun commands
+- [x] Sync/async review: complete a needs-review task or send agent guidance;
+      CLI review uses blank=complete and `/skip`=leave in needs_review, with no
+      approve/retrigger path
+- [x] Single-page `--skip`/`--limit` pagination and latest chat-result retrieval
+- [ ] Upload local files for `input_s3_file_paths` directly from Worklist YAML/CLI;
+      currently callers must provide pre-existing S3 paths or upload through the
+      existing file/Drive APIs first
+
 ## Phase 5 — Local web app (`xmagic serve`)
 
 - [ ] Implement the reverse proxy (Starlette): streaming bodies, Host/cookie
