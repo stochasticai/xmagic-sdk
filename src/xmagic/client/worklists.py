@@ -25,7 +25,7 @@ from __future__ import annotations
 from datetime import datetime
 from enum import Enum
 import secrets
-from typing import Any
+from typing import Any, cast
 
 from xmagic.client.chats import AsyncChatsAPI, ChatsAPI
 from xmagic.client.http import AsyncHttpTransport, HttpTransport
@@ -41,6 +41,16 @@ from xmagic.client.models import (
 
 def _unwrap_data(body: dict[str, Any]) -> Any:
     return body.get("data", body)
+
+
+def _unwrap_mapping(body: dict[str, Any]) -> dict[str, Any]:
+    """:func:`_unwrap_data` for the routes that answer with an object.
+
+    The unwrap is untyped by nature — ``data`` is a list on the collection
+    routes and an object on the rest — so this records which shape the caller
+    is promising rather than leaving ``Any`` to leak into a public return type.
+    """
+    return cast("dict[str, Any]", _unwrap_data(body))
 
 
 def _base_path(agent_id: str) -> str:
@@ -91,7 +101,7 @@ def _wire_value(value: Any) -> Any:
 
 
 def _wire_payload(payload: dict[str, Any]) -> dict[str, Any]:
-    return _wire_value(payload)
+    return cast("dict[str, Any]", _wire_value(payload))
 
 
 def _task(body: dict[str, Any]) -> WorklistTask:
@@ -181,7 +191,7 @@ class WorklistsAPI:
 
     def delete(self, agent_id: str, task_id: str) -> dict[str, Any]:
         """Delete a task and return the API's deletion marker."""
-        return _unwrap_data(self._t.request("DELETE", _task_path(agent_id, task_id)))
+        return _unwrap_mapping(self._t.request("DELETE", _task_path(agent_id, task_id)))
 
     def trigger(self, agent_id: str, task_id: str) -> WorklistTask:
         """Enqueue a pending task for execution."""
@@ -251,7 +261,7 @@ class WorklistsAPI:
 
     def delete_schedule(self, agent_id: str, schedule_id: str) -> dict[str, Any]:
         """Deactivate a recurring schedule."""
-        return _unwrap_data(self._t.request("DELETE", _schedule_path(agent_id, schedule_id)))
+        return _unwrap_mapping(self._t.request("DELETE", _schedule_path(agent_id, schedule_id)))
 
     def pause_schedule(self, agent_id: str, schedule_id: str) -> RecurrencySchedule:
         """Pause a recurring schedule."""
@@ -318,7 +328,7 @@ class AsyncWorklistsAPI:
 
     async def delete(self, agent_id: str, task_id: str) -> dict[str, Any]:
         """Delete a task and return the API's deletion marker."""
-        return _unwrap_data(await self._t.request("DELETE", _task_path(agent_id, task_id)))
+        return _unwrap_mapping(await self._t.request("DELETE", _task_path(agent_id, task_id)))
 
     async def trigger(self, agent_id: str, task_id: str) -> WorklistTask:
         """Enqueue a pending task for execution."""
@@ -384,7 +394,9 @@ class AsyncWorklistsAPI:
 
     async def delete_schedule(self, agent_id: str, schedule_id: str) -> dict[str, Any]:
         """Deactivate a recurring schedule."""
-        return _unwrap_data(await self._t.request("DELETE", _schedule_path(agent_id, schedule_id)))
+        return _unwrap_mapping(
+            await self._t.request("DELETE", _schedule_path(agent_id, schedule_id))
+        )
 
     async def pause_schedule(self, agent_id: str, schedule_id: str) -> RecurrencySchedule:
         """Pause a recurring schedule."""

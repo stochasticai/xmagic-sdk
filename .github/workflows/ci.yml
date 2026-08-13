@@ -35,6 +35,12 @@ jobs:
       - name: Format
         run: uv run ruff format --check .
 
+      # A step in this job rather than a job of its own, so the existing required
+      # status checks cover it without touching branch protection. Runs on every
+      # matrix entry because mypy checks against the interpreter it runs on.
+      - name: Typecheck
+        run: uv run mypy
+
       - name: Test
         run: uv run pytest
 
