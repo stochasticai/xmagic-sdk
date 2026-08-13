@@ -175,9 +175,19 @@ class ChatsAPI:
         )
         return self._t.request("POST", _async_query_path(agent_id, chat_id), json=payload)
 
-    def get_message(self, agent_id: str, chat_id: str, message_id: str) -> Message:
+    def get_message(
+        self,
+        agent_id: str,
+        chat_id: str,
+        message_id: str,
+        *,
+        downloadable_output: bool = False,
+    ) -> Message:
         """Retrieve full message data, including downloadable outputs."""
-        body = self._t.request("GET", _message_path(agent_id, chat_id, message_id))
+        kwargs: dict[str, Any] = {}
+        if downloadable_output:
+            kwargs["params"] = {"downloadable_output": True}
+        body = self._t.request("GET", _message_path(agent_id, chat_id, message_id), **kwargs)
         return Message.model_validate(body["data"])
 
     def delete_message(self, agent_id: str, chat_id: str, message_id: str) -> None:
@@ -248,9 +258,19 @@ class AsyncChatsAPI:
         )
         return await self._t.request("POST", _async_query_path(agent_id, chat_id), json=payload)
 
-    async def get_message(self, agent_id: str, chat_id: str, message_id: str) -> Message:
+    async def get_message(
+        self,
+        agent_id: str,
+        chat_id: str,
+        message_id: str,
+        *,
+        downloadable_output: bool = False,
+    ) -> Message:
         """Retrieve full message data, including downloadable outputs."""
-        body = await self._t.request("GET", _message_path(agent_id, chat_id, message_id))
+        kwargs: dict[str, Any] = {}
+        if downloadable_output:
+            kwargs["params"] = {"downloadable_output": True}
+        body = await self._t.request("GET", _message_path(agent_id, chat_id, message_id), **kwargs)
         return Message.model_validate(body["data"])
 
     async def delete_message(self, agent_id: str, chat_id: str, message_id: str) -> None:

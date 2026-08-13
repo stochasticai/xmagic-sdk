@@ -7,7 +7,7 @@ the ``xmagic.providers`` entry-point group (see pyproject.toml).
 from __future__ import annotations
 
 from importlib import import_module, metadata
-from typing import Any
+from typing import Any, cast
 
 from xmagic.config import Settings
 from xmagic.errors import ConfigurationError
@@ -29,12 +29,15 @@ _ENV_KEYS = {
 
 
 def _load_class(name: str) -> type[Provider]:
+    # Both lookups are dynamic, so neither can be verified statically: a built-in
+    # is resolved by name off a module, and a plugin is whatever its entry point
+    # loads. `cast` records the contract rather than pretending it is checked.
     if name in _BUILTINS:
         module_name, cls_name = _BUILTINS[name]
-        return getattr(import_module(module_name), cls_name)
+        return cast("type[Provider]", getattr(import_module(module_name), cls_name))
     for ep in metadata.entry_points(group="xmagic.providers"):
         if ep.name == name:
-            return ep.load()
+            return cast("type[Provider]", ep.load())
     raise ConfigurationError(
         f"Unknown provider '{name}'. Built-ins: {', '.join(sorted(_BUILTINS))}."
     )

@@ -10,6 +10,7 @@ from xmagic.client.drive import AsyncDriveAPI, DriveAPI
 from xmagic.client.files import AsyncFilesAPI, FilesAPI
 from xmagic.client.http import AsyncHttpTransport, HttpTransport
 from xmagic.client.phones import AsyncPhonesAPI, PhonesAPI
+from xmagic.client.worklists import AsyncWorklistsAPI, WorklistsAPI
 from xmagic.client.workspaces import AsyncWorkspacesAPI, WorkspacesAPI
 from xmagic.config import Settings
 
@@ -45,6 +46,7 @@ class XMagicClient:
         self.workspaces = WorkspacesAPI(self._transport)
         self.agents = AgentsAPI(self._transport)
         self.phones = PhonesAPI(self._transport)
+        self.worklists = WorklistsAPI(self._transport, self.chats)
 
     def close(self) -> None:
         self._transport.close()
@@ -81,6 +83,7 @@ class AsyncXMagicClient:
         self.workspaces = AsyncWorkspacesAPI(self._transport)
         self.agents = AsyncAgentsAPI(self._transport)
         self.phones = AsyncPhonesAPI(self._transport)
+        self.worklists = AsyncWorklistsAPI(self._transport, self.chats)
 
     async def aclose(self) -> None:
         await self._transport.aclose()

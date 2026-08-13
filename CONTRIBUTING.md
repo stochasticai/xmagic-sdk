@@ -28,11 +28,14 @@ once. See [Pre-commit hook](#pre-commit-hook) for what it does.
 uv run pytest             # test suite
 uv run ruff check .       # lint
 uv run ruff format .      # format
+uv run mypy               # types (strict, src/ only)
 ```
 
-All three must pass before a pull request can be merged; CI runs the same
+All four must pass before a pull request can be merged; CI runs the same
 commands across Python 3.11–3.14, checking formatting with `ruff format
---check .`. The repo is fully formatted, so run `ruff format .` before pushing
+--check .`. `mypy` is strict and covers `src/` only — the package ships
+`py.typed`, so those annotations are a promise to consumers' type checkers.
+`tests/` is not type-checked yet; see TODO.md. The repo is fully formatted, so run `ruff format .` before pushing
 rather than hand-matching style. Tests live in `tests/`
 and use
 [respx](https://lundberg.github.io/respx/) to mock HTTP — no network calls and
