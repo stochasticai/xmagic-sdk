@@ -101,7 +101,8 @@ class XMagicAPIError(XMagicError):
         if self.response is None:
             return None
         for header in _REQUEST_ID_HEADERS:
-            if value := self.response.headers.get(header):
+            value: str | None = self.response.headers.get(header)
+            if value:
                 return value
         return None
 

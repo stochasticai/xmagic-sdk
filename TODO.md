@@ -102,6 +102,18 @@ points with no extra (DESIGN.md §4).
 - [ ] Wire skills upload / tool registration APIs if xMagic publishes them
       (open question §10.1)
 
+## Worklists
+
+- [x] Sync/async task and recurring-schedule client resources
+- [x] `xmagic worklists` list/get/create/edit/delete/cancel/trigger/rerun commands
+- [x] Sync/async review: complete a needs-review task or send agent guidance;
+      CLI review uses blank=complete and `/skip`=leave in needs_review, with no
+      approve/retrigger path
+- [x] Single-page `--skip`/`--limit` pagination and latest chat-result retrieval
+- [ ] Upload local files for `input_s3_file_paths` directly from Worklist YAML/CLI;
+      currently callers must provide pre-existing S3 paths or upload through the
+      existing file/Drive APIs first
+
 ## Phase 5 — Local web app (`xmagic serve`)
 
 - [ ] Implement the reverse proxy (Starlette): streaming bodies, Host/cookie
@@ -176,10 +188,23 @@ day and are still open.
       `.message` / `.request_id` on `XMagicAPIError`
 - [x] **Add jitter to retry backoff** — done 2026-08-07. Equal jitter: each delay
       drawn from `[ceiling/2, ceiling]`. `Retry-After` stays verbatim
-- [ ] **Add a typechecker to CI.** No mypy or pyright anywhere. This is now the
-      most valuable item in this list rather than the least: `py.typed` ships as
-      of 2026-08-07, so we are publishing annotations that nothing verifies, and a
-      wrong one is worse for a consumer than none at all
+- [x] **Add a typechecker to CI** — done 2026-08-12. `mypy` in `strict` mode over
+      `src/`, as a step in the existing matrix job so the required status checks
+      already cover it. Found 13 errors, all fixed; one of them was a real defect
+      (see below). `mypy>=2.3,<2.4`, bounded for the same reason ruff is
+- [ ] **Type-check `tests/` too.** `files = ["src"]` today. Turning it on adds
+      ~54 errors: 29 are missing `-> None` on older test functions, the rest are
+      real — `StreamEvent(type=...)` built with a `str` that is not in its
+      `Literal`, `ChatType | None` dereferenced without a guard, `ModuleSpec | None`
+      passed straight to `module_from_spec`, and `.text` read off the MCP content
+      union without narrowing. None affect shipped code, which is why they did not
+      block the gate landing
+- [ ] **`mcp` pulls in a second HTTP library.** It depends on `httpx2` (a separate
+      distribution, 2.x) while this package uses `httpx` 0.28, so anything handing
+      a client across that boundary is passing the wrong type. Fixed at the one
+      call site we own (`mcp/client.py`), but the two coexisting in the same
+      environment is worth a decision rather than a patch — and `xmagic tools`
+      against a real URL with an API key still has no test at all
 - [ ] **`metadata` stream events are dropped**, and they carry `message_id` — so
       a streaming caller cannot learn the id of the message it just received.
       Named in a comment in `providers/xmagic.py:157`; filed here so it is not

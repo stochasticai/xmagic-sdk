@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+from typing import Any
 
 import typer
 from rich.console import Console
@@ -26,9 +27,9 @@ console = Console()
 app = typer.Typer(no_args_is_help=True)
 
 
-def _parse_args(pairs: list[str] | None, json_args: str | None) -> dict:
+def _parse_args(pairs: list[str] | None, json_args: str | None) -> dict[str, Any]:
     """Build tool arguments from repeated ``--arg k=v`` and/or a JSON blob."""
-    arguments: dict = {}
+    arguments: dict[str, Any] = {}
     if json_args:
         try:
             loaded = json.loads(json_args)
