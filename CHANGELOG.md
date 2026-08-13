@@ -33,6 +33,22 @@ codebase.**
   `XMagicClient()` raises on the likeliest first-run failure — a missing API key
   — and catching it previously meant importing from `xmagic.errors`, a path that
   looks private.
+- **A type check in CI.** `mypy --strict` over `src/`, on every entry of the
+  3.11–3.14 matrix. `py.typed` shipped without anything verifying the
+  annotations behind it, which is the one situation where a wrong annotation is
+  worse for a consumer than no annotation at all. Clean as of this release;
+  `tests/` is not covered yet.
+
+### Fixed
+
+- **`xmagic tools --url` with an API key passed the wrong kind of HTTP client.**
+  `mcp` depends on `httpx2` — a separate distribution, version 2.x — while this
+  package uses `httpx` 0.28, and the authenticated code path built an `httpx`
+  client and handed it to a transport that calls `.sse()` on it. httpx 0.28 has
+  no such method. Listing and calling tools happen to work, because neither
+  reaches that call, but any flow that uses the standalone SSE stream would fail
+  with `AttributeError`. Now builds the client `mcp` actually expects. Found by
+  the new type check, and confirmed against a live server rather than assumed.
 
 ### Changed
 

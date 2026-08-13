@@ -15,7 +15,7 @@ context is whatever the caller passes in ``messages``.
 from __future__ import annotations
 
 from collections.abc import Iterator
-from typing import Any
+from typing import Any, cast
 
 from xmagic.errors import ConfigurationError, XMagicError, error_for_status
 from xmagic.providers.base import ChatMessage, Completion, CompletionChunk, Provider
@@ -69,8 +69,11 @@ class OpenAIProvider(Provider):
 
     def complete(self, messages: list[ChatMessage], *, model: str, **params: Any) -> Completion:
         try:
-            resp = self._client.chat.completions.create(
-                model=model, messages=_payload(messages), **params
+            # `Any`: `create` is a large overload set keyed on `stream`, and
+            # `**params` makes it unresolvable statically. The wire contract is
+            # covered by tests/test_openai_provider.py instead.
+            resp: Any = self._client.chat.completions.create(
+                model=model, messages=cast("Any", _payload(messages)), **params
             )
         except Exception as e:
             raise self._translate(e) from e
@@ -81,8 +84,8 @@ class OpenAIProvider(Provider):
         self, messages: list[ChatMessage], *, model: str, **params: Any
     ) -> Iterator[CompletionChunk]:
         try:
-            chunks = self._client.chat.completions.create(
-                model=model, messages=_payload(messages), stream=True, **params
+            chunks: Any = self._client.chat.completions.create(
+                model=model, messages=cast("Any", _payload(messages)), stream=True, **params
             )
         except Exception as e:
             raise self._translate(e) from e
