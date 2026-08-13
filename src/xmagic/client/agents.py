@@ -13,11 +13,13 @@ Current backend contracts used here:
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, TypeAlias
 
 from xmagic.client.http import AsyncHttpTransport, HttpTransport, unwrap_data
 from xmagic.client.models import AgentSummary, SavedConfig, SubagentSummary
 from xmagic.errors import ResponseShapeError
+
+SubagentSummaries: TypeAlias = list[SubagentSummary]
 
 
 def config_id_from_temporary(payload: dict[str, Any]) -> str:
@@ -102,7 +104,7 @@ class AgentsAPI:
         """
         self._t.request("POST", f"/agents/{agent_id}/configs/{config_id}/deploy")
 
-    def list_subagents(self, agent_id: str, config_id: str) -> list[SubagentSummary]:
+    def list_subagents(self, agent_id: str, config_id: str) -> SubagentSummaries:
         """List subagents belonging to the given config.
 
         Calls ``GET /agents/{agent_id}/configs/{config_id}/jobs``.
@@ -190,7 +192,7 @@ class AsyncAgentsAPI:
         """
         await self._t.request("POST", f"/agents/{agent_id}/configs/{config_id}/deploy")
 
-    async def list_subagents(self, agent_id: str, config_id: str) -> list[SubagentSummary]:
+    async def list_subagents(self, agent_id: str, config_id: str) -> SubagentSummaries:
         """List subagents belonging to the given config.
 
         Calls ``GET /agents/{agent_id}/configs/{config_id}/jobs``.

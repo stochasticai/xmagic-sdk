@@ -15,6 +15,7 @@ from rich.table import Table
 
 from xmagic import XMagicClient
 from xmagic.client.agents import config_id_from_temporary
+from xmagic.client.models import ChatType, PhoneSummary, SubagentSummary
 from xmagic.config import Settings
 from xmagic.config_codec import json_to_yaml, yaml_to_json
 from xmagic.errors import (
@@ -127,7 +128,7 @@ def config(
     if compose is not None:
         from xmagic.cli.chat import run_chat
 
-        run_chat(compose, None, target_agent_id, [], "configuration", True)
+        run_chat(compose, None, target_agent_id, [], ChatType.CONFIGURATION, True)
         return
 
     temp_path: Path | None = None
@@ -194,7 +195,7 @@ def deploy(
             temp_config_id = config_id_from_temporary(temp)
             selected_phone_id: str | None = None
             selected_subagent_id: str | None = None
-            phones = []
+            phones: list[PhoneSummary] = []
             if not no_phone:
                 try:
                     phones = client.phones.list()
@@ -223,15 +224,16 @@ def deploy(
                     choice = 0
                 if 1 <= choice <= len(phones):
                     selected_phone_id = phones[choice - 1].id
+                    subagents: list[SubagentSummary] = []
                     try:
                         subagents = client.agents.list_subagents(target_agent_id, temp_config_id)
                     except XMagicError:
-                        subagents = []
+                        pass
                     if subagents:
                         sub_table = Table("", "subagent")
                         sub_table.add_row("0", "All subagents")
-                        for i, subagent in enumerate(subagents, start=1):
-                            sub_table.add_row(str(i), subagent.name or subagent.id)
+                        for i, listed_subagent in enumerate(subagents, start=1):
+                            sub_table.add_row(str(i), listed_subagent.name or listed_subagent.id)
                         console.print(sub_table)
                         try:
                             sub_choice = int(
@@ -243,9 +245,9 @@ def deploy(
                         except (ValueError, typer.Abort, EOFError):
                             sub_choice = 0
                         if 1 <= sub_choice <= len(subagents):
-                            subagent = subagents[sub_choice - 1]
+                            selected_subagent = subagents[sub_choice - 1]
                             selected_subagent_id = (
-                                subagent.id_shared_between_versions or subagent.id
+                                selected_subagent.id_shared_between_versions or selected_subagent.id
                             )
 
             if selected_phone_id:
