@@ -38,6 +38,18 @@ codebase.**
   annotations behind it, which is the one situation where a wrong annotation is
   worse for a consumer than no annotation at all. Clean as of this release;
   `tests/` is not covered yet.
+- **Workspace and agent management** — `xmagic workspaces` lists and switches
+  workspaces; `xmagic agents` lists agents, edits temporary configuration as
+  YAML, and saves/deploys named versions with optional phone and subagent
+  association. The sync and async clients expose matching workspace, agent, and
+  phone resources.
+- **Safer agent deployment** — deployment validates agent ownership without
+  switching workspaces, supports `--phone` and `--no-phone` for deterministic
+  automation, and reports unavailable phone services instead of hiding the
+  optional step.
+- **Agent configuration helpers** — JSON/YAML validation, typed response-shape
+  and editor errors, shared response unwrapping, and a reusable chat runner for
+  Composer-driven configuration updates.
 
 ### Fixed
 

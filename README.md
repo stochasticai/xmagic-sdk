@@ -116,7 +116,46 @@ Provider keys are also read from the usual `OPENAI_API_KEY`,
 `ANTHROPIC_API_KEY`, and `GOOGLE_API_KEY` variables. **Keys are only ever
 written to your user config directory, never into a project folder.**
 
-### 3. Talk to your agent
+### 3. Select your workspace and list agents
+
+```bash
+xmagic workspaces                         # list accessible workspaces
+xmagic workspaces "Workspace Name"        # switch by exact name
+xmagic workspaces --id <workspace_id>     # switch by id
+
+xmagic agents                             # list agents in current workspace context
+```
+
+`xmagic workspaces` prints each workspace's name, id, and access level. 
+
+### 4. Edit temporary agent config in YAML
+
+```bash
+xmagic agents config --agent <agent_id>
+```
+
+If `--agent` is omitted, the CLI falls back to `default_agent_id` from
+`xmagic configure --agent ...`. The command fetches temporary config from
+the backend, opens your editor (`VISUAL`, then `EDITOR`,
+then OS default), and on save pushes the update.
+
+### 5. Deploy the agent config
+
+```bash
+xmagic agents deploy --agent <agent_id>
+xmagic agents deploy --agent <agent_id> --version "Q3 rollout"
+xmagic agents deploy --agent <agent_id> --phone <phone_id>
+xmagic agents deploy --agent <agent_id> --no-phone       # CI/non-interactive use
+```
+
+`xmagic agents deploy` saves the current temporary config as a named version
+and deploys it. If `--version` is omitted, the CLI uses the current
+date/time as the version name. Without `--phone` or `--no-phone`, the command
+offers optional phone and subagent association interactively. Use `--no-phone`
+when running unattended. If `VISUAL` or `EDITOR` points to a GUI editor such as
+VS Code, include its wait flag (for example, `code --wait`) when editing YAML.
+
+### 6. Talk to your agent
 
 ```bash
 xmagic chat --agent <agent_id> "Summarize our Q3 goals"   # one-shot
@@ -139,7 +178,7 @@ xmagic chat --agent <agent_id> --chat-type playground "Try something"
 An interactive session reuses a single chat, so the agent keeps its context
 across turns.
 
-### 4. Manage Worklists
+### 7. Manage Worklists
 
 List one page of background tasks, inspect a task and its latest result, or
 control its execution:
@@ -173,7 +212,7 @@ Recurring schedules can also be inspected and controlled with
 of local files from the Worklist CLI is deferred future work; use the existing
 file/Drive upload APIs first.
 
-### 5. Use it from Python
+### 8. Use it from Python
 
 ```python
 from xmagic import XMagicClient
@@ -250,7 +289,7 @@ async with AsyncXMagicClient() as client:
       print(review.action, review.task.id)
 ```
 
-### 6. Build a custom tool (MCP server)
+### 9. Build a custom tool (MCP server)
 
 ```bash
 xmagic mcp init my-tool          # scaffold: Dockerfile, compose, MCP server
@@ -284,7 +323,7 @@ Then register the resulting public `https://.../mcp` URL in the dashboard under
 prints the full checklist. Set `TOOL_API_KEY` in your `.env` to require a
 shared secret — the generated server rejects unauthenticated calls with `401`.
 
-### 7. Package a skill
+### 10. Package a skill
 
 ```bash
 xmagic skills new my-skill       # scaffold SKILL.md
@@ -294,7 +333,7 @@ xmagic skills pack my-skill      # -> my-skill.zip, ready to upload
 
 Upload the zip in the dashboard under **Skills**.
 
-### 8. Use a non-xMagic model
+### 11. Use a non-xMagic model
 
 `chat` takes a `provider:model` ref backed by your own key. OpenAI is
 implemented:
