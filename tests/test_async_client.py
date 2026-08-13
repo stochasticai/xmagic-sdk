@@ -19,11 +19,14 @@ import respx
 from httpx import Response
 
 from xmagic import AsyncXMagicClient
+from xmagic.client.agents import AgentsAPI, AsyncAgentsAPI
 from xmagic.client.chats import AsyncChatsAPI, ChatsAPI
 from xmagic.client.drive import AsyncDriveAPI, DriveAPI
 from xmagic.client.files import AsyncFilesAPI, FilesAPI
+from xmagic.client.phones import AsyncPhonesAPI, PhonesAPI
 from xmagic.client.models import ChatType
 from xmagic.client.worklists import AsyncWorklistsAPI, WorklistsAPI
+from xmagic.client.workspaces import AsyncWorkspacesAPI, WorkspacesAPI
 from xmagic.config import DEFAULT_BASE_URL
 from xmagic.errors import ConfigurationError, RateLimitError
 
@@ -221,6 +224,9 @@ async def test_context_manager_closes_transport() -> None:
         (ChatsAPI, AsyncChatsAPI),
         (FilesAPI, AsyncFilesAPI),
         (DriveAPI, AsyncDriveAPI),
+        (WorkspacesAPI, AsyncWorkspacesAPI),
+        (AgentsAPI, AsyncAgentsAPI),
+        (PhonesAPI, AsyncPhonesAPI),
         (WorklistsAPI, AsyncWorklistsAPI),
     ],
 )

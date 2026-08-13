@@ -48,6 +48,11 @@ def _backoff(attempt: int) -> float:
     return half + random.uniform(0, half)
 
 
+def unwrap_data(body: dict[str, Any]) -> Any:
+    """Return the API payload, whether it is wrapped in a ``data`` key or not."""
+    return body.get("data", body)
+
+
 def _retry_delay(response: httpx.Response, attempt: int) -> float:
     """Seconds to wait before the next attempt.
 

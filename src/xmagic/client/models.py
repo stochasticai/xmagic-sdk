@@ -242,3 +242,63 @@ class DriveFile(BaseModel):
     id: str
     title: str | None = None
     knowledge_base_id: str | None = None
+
+
+class Workspace(BaseModel):
+    """A workspace (organization) accessible to the current user."""
+
+    model_config = ConfigDict(extra="allow")
+
+    id: str
+    name: str
+    role: str | None = None
+    status: str | None = None
+    plan: str | None = None
+
+
+class WorkspaceState(BaseModel):
+    """Workspace listing payload including current selection."""
+
+    model_config = ConfigDict(extra="allow")
+
+    current_workspace_id: str | None = None
+    workspaces: list[Workspace] = Field(default_factory=list)
+
+
+class AgentSummary(BaseModel):
+    """Minimal agent shape for list operations."""
+
+    model_config = ConfigDict(extra="allow")
+
+    id: str
+    name: str | None = None
+    role: str | None = None
+
+
+class SavedConfig(BaseModel):
+    """Result of ``POST /agents/{agent_id}/configs`` — the saved non-temporary config."""
+
+    model_config = ConfigDict(extra="allow")
+
+    id: str
+
+
+class PhoneSummary(BaseModel):
+    """A phone number available in the current organisation."""
+
+    model_config = ConfigDict(extra="allow")
+
+    id: str
+    phone_number: str
+    persona_id_associated_to: str | None = None
+    subagent_id_associated_to: str | None = None
+
+
+class SubagentSummary(BaseModel):
+    """Minimal subagent shape returned by ``GET /agents/{id}/configs/{cfg}/jobs``."""
+
+    model_config = ConfigDict(extra="allow")
+
+    id: str
+    name: str | None = None
+    id_shared_between_versions: str | None = None

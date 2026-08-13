@@ -24,6 +24,14 @@ class XMagicError(Exception):
     """Base class for all SDK errors."""
 
 
+class ResponseShapeError(XMagicError):
+    """The API returned a successful response with an unexpected shape."""
+
+
+class EditorError(XMagicError):
+    """The configured editor could not open or complete successfully."""
+
+
 class ConfigurationError(XMagicError):
     """Missing/invalid configuration (e.g. no API key)."""
 

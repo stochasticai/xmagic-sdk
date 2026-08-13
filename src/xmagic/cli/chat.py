@@ -29,31 +29,25 @@ def _upload(paths: list[Path], settings: Settings) -> list[str]:
     return ids
 
 
-def chat(
-    prompt: str = typer.Argument(None, help="One-shot prompt. Omit for interactive mode."),
-    model: str = typer.Option(
-        None,
-        "--model",
-        "-m",
-        help="provider:model ref, e.g. xmagic:<agent_id>, openai:gpt-4o, "
-        "anthropic:claude-sonnet-5, google:gemini-2.5-pro.",
-    ),
-    agent: str = typer.Option(None, "--agent", "-a", help="xMagic agent id (shorthand)."),
-    file: list[Path] = typer.Option(
-        None,
-        "--file",
-        "-f",
-        exists=True,
-        dir_okay=False,
-        readable=True,
-        help="Attach a file to the prompt. Repeatable. xMagic agents only.",
-    ),
-    chat_type: ChatType = typer.Option(
-        ChatType.STANDARD.value,
-        "--chat-type",
-        help="UI context the chat belongs to. xMagic agents only.",
-    ),
-    stream: bool = typer.Option(True, "--stream/--no-stream"),
+def run_chat(
+    prompt: str | None,
+    model: str | None,
+    agent: str | None,
+    file: list[Path],
+    chat_type: ChatType,
+    stream: bool,
+) -> None:
+    """Run chat with concrete values, independent of Typer's option objects."""
+    return _chat_impl(prompt, model, agent, file, chat_type, stream)
+
+
+def _chat_impl(
+    prompt: str | None,
+    model: str | None,
+    agent: str | None,
+    file: list[Path],
+    chat_type: ChatType,
+    stream: bool,
 ) -> None:
     """Send a prompt (or start an interactive session) against any model."""
     settings = Settings.load()
@@ -127,3 +121,24 @@ def chat(
     except (XMagicError, NotImplementedError) as e:
         console.print(f"[red]{escape(str(e))}[/red]")
         raise typer.Exit(1) from None
+
+
+def chat(
+    prompt: str = typer.Argument(None, help="One-shot prompt. Omit for interactive mode."),
+    model: str = typer.Option(None, "--model", "-m", help="provider:model reference."),
+    agent: str = typer.Option(None, "--agent", "-a", help="xMagic agent id (shorthand)."),
+    file: list[Path] = typer.Option(
+        None,
+        "--file",
+        "-f",
+        exists=True,
+        dir_okay=False,
+        readable=True,
+        help="Attach a file to the prompt. Repeatable. xMagic agents only.",
+    ),
+    chat_type: ChatType = typer.Option(
+        ChatType.STANDARD.value, "--chat-type", help="UI context the chat belongs to."
+    ),
+    stream: bool = typer.Option(True, "--stream/--no-stream"),
+) -> None:
+    return run_chat(prompt, model, agent, list(file or []), chat_type, stream)

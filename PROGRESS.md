@@ -5,6 +5,71 @@ the plan and [TODO.md](TODO.md) for what's next.
 
 ---
 
+## 2026-08-13 — Agent deployment review hardening
+
+- **Deployment no longer changes workspace state while validating an agent.**
+  `xmagic agents deploy` now requires a known current workspace, fetches the
+  agent directly, and compares its `organization_id` with the current workspace
+  instead of switching through every accessible workspace.
+- **Optional phone association is safer and scriptable.** `--phone <id>` and
+  `--no-phone` make the deployment path deterministic for CI and other
+  non-interactive callers. Phone discovery skips only known unavailable-service
+  errors and prints a warning; prompt EOF or invalid input skips the optional
+  association rather than aborting deployment.
+- **Client response handling is consistent.** Response-shape and editor failures
+  now use the `XMagicError` hierarchy, `unwrap_data` is shared by client
+  resources, and temporary config responses require the verified string `id`
+  field.
+- **Composer invocation uses a plain chat runner.** The `--composer/-C` path
+  calls the same concrete chat implementation as the CLI without passing
+  Typer option objects through the call boundary.
+- `PhonesAPI` / `AsyncPhonesAPI` are included in the async signature-parity test. 
+
+## 2026-08-13 — Workspace switching and agent config/deploy CLI
+
+- **`xmagic workspaces`** — lists all accessible workspaces with current-workspace
+  marker, switches by exact name (`xmagic workspaces "Name"`) or by id
+  (`xmagic workspaces --id <id>`). Backed by `WorkspacesAPI`/`AsyncWorkspacesAPI`
+  wrapping `GET /users/workspaces` and `POST /users/workspaces/switch`.
+- **`xmagic agents`** — default invocation lists agents in the current workspace
+  context (`GET /agents`). Two subcommands:
+  - **`xmagic agents config [--agent <id>]`** — fetches the agent's temporary
+    config (`GET /agents/{id}/configs/temporary` then `…/{cfg_id}/config`),
+    serialises it to YAML, opens `$VISUAL`/`$EDITOR`/`nano` for editing, and
+    pushes the diff back with `PATCH /agents/{id}/configs/temporary`.
+    No-op if the file is saved without changes. `--composer/-C "<prompt>"` is
+    an alias that delegates to `xmagic chat --chat-type configuration` instead
+    of opening an editor.
+  - **`xmagic agents deploy [--agent <id>] [--version "…"]`** — saves the
+    current temporary config as a named version (`POST /agents/{id}/configs`),
+    optionally attaches a phone number (with optional subagent scope) via
+    interactive selection, then deploys (`POST /agents/{id}/configs/{cfg}/deploy`).
+    Default version name mirrors the frontend's dayjs format
+    (`"August 6, 2:30:45 PM"`). Phone step is silently skipped if `/phones`
+    returns an error (voice not enabled on the account).
+- **`config_codec.py`** — `json_to_yaml` / `yaml_to_json` / `validate_config_json`
+  helpers (backed by `PyYAML>=6.0`, added to `pyproject.toml`). Normalises the
+  wire-shape quirk where the backend may return `jobs` instead of `subagents`.
+  Required top-level keys (`config_values`, `subagents`, `agent_level_tools`,
+  `agent_level_quick_actions`) are validated before any PATCH.
+- **New client modules**: `client/agents.py` (`AgentsAPI`/`AsyncAgentsAPI` —
+  list, get/export temporary config, update, save, deploy, list subagents),
+  `client/phones.py` (`PhonesAPI`/`AsyncPhonesAPI` — list, associate),
+  `client/workspaces.py` (`WorkspacesAPI`/`AsyncWorkspacesAPI` — list, switch).
+  All three are wired into both `XMagicClient` and `AsyncXMagicClient` in
+  `client/__init__.py`.
+- **New Pydantic models** in `client/models.py`: `Workspace`, `WorkspaceState`,
+  `AgentSummary`, `SavedConfig`, `PhoneSummary`, `SubagentSummary`.
+- **README quickstart** renumbered and expanded: workspace listing/switching and
+  agent config/deploy steps (formerly steps 3 and 4) are now steps 3–6, with
+  the original "Talk to your agent" step bumped to 6.
+- **Tests**: `test_cli_agent.py` (12 tests covering agent list, config no-op,
+  config edit-and-patch, default agent from config, deploy with/without phones,
+  subagent selection, phone skip on 501), `test_cli_workspace.py` (4 tests),
+  `test_config_codec.py` (round-trip + missing-key validation). `AgentsAPI` /
+  `AsyncAgentsAPI` and `WorkspacesAPI` / `AsyncWorkspacesAPI` added to the
+  async-parity parametrize in `test_async_client.py`.
+
 ## 2026-08-12 — Worklist SDK and CLI
 
 - Added sync/async Worklist task and recurring-schedule resources covering list,
@@ -22,6 +87,7 @@ the plan and [TODO.md](TODO.md) for what's next.
   `completed` without another agent action, or send guidance in the existing
   run chat. The CLI shows tasks one at a time: blank completes, `/skip` leaves
   the task in `needs_review`, and any other input sends guidance.
+
 
 ## 2026-08-07 — Client hygiene: typing, timeouts, and the error contract
 
