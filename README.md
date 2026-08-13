@@ -324,10 +324,15 @@ uv sync --all-extras
 uv run pytest
 uv run ruff check .
 uv run ruff format --check .
+uv run mypy
 ```
 
-CI runs all four across Python 3.11–3.14, and gates on formatting as well as
-linting — run `uv run ruff format .` before pushing.
+CI runs all five across Python 3.11–3.14, and gates on formatting and types as
+well as linting — run `uv run ruff format .` before pushing.
+
+`mypy` runs in `strict` mode over `src/`. The package ships a `py.typed` marker,
+so its annotations are what downstream type checkers believe about it; a wrong
+one is worse for a consumer than none at all. `tests/` is not checked yet.
 
 Commit messages follow [Conventional Commits](https://www.conventionalcommits.org)
 (`feat:`, `fix:`, `docs:`, `test:`, `chore:`, ...; optional scope, e.g. `feat(mcp): ...`).
