@@ -65,13 +65,19 @@ def _target(url_or_server: Any, api_key: str | None) -> Any:
     if not api_key:
         return url_or_server
 
-    import httpx
+    # `httpx2`, not the `httpx` the rest of this package uses: mcp depends on
+    # httpx2 (a separate distribution, 2.x) and calls `.sse()` on whatever client
+    # it is handed, which httpx 0.28 has no equivalent for. Passing our own
+    # client happens to work for request/response tools -- that path never
+    # reaches `.sse` -- but breaks the moment a server uses the standalone SSE
+    # stream. Both arrive with the [mcp] extra, so importing it here is safe.
+    import httpx2
     from mcp.client.streamable_http import streamable_http_client
 
     # Both header styles, because which one xMagic sends is unconfirmed and the
     # generated template accepts either (TODO.md, Phase 2).
     headers = {"x-api-key": api_key, "Authorization": f"Bearer {api_key}"}
-    return streamable_http_client(url_or_server, http_client=httpx.AsyncClient(headers=headers))
+    return streamable_http_client(url_or_server, http_client=httpx2.AsyncClient(headers=headers))
 
 
 async def list_tools(url_or_server: Any, api_key: str | None = None) -> list[ToolInfo]:
