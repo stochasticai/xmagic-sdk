@@ -20,7 +20,7 @@ Working today:
 1. **MCP servers** — scaffold containerized (Dockerfile included) MCP servers you can
    register as xMagic custom tools.
 2. **xMagic API** — chat (sync + streaming), file uploads, Drive (knowledge base),
-   skills packaging, with a matching async client. Request/response shapes are
+   Worklists, skills packaging, with a matching async client. Request/response shapes are
    verified against the live API and locked with recorded-fixture tests.
 3. **Bring your own model** — `provider:model` refs backed by your own key.
    `xmagic:<agent_id>` and `openai:<model>` work today, over one `Provider`
@@ -139,7 +139,41 @@ xmagic chat --agent <agent_id> --chat-type playground "Try something"
 An interactive session reuses a single chat, so the agent keeps its context
 across turns.
 
-### 4. Use it from Python
+### 4. Manage Worklists
+
+List one page of background tasks, inspect a task and its latest result, or
+control its execution:
+
+```bash
+xmagic worklists --agent <agent_id>
+xmagic worklists get <task_id> --agent <agent_id>
+xmagic worklists cancel <task_id> --agent <agent_id>
+xmagic worklists delete <task_id> --agent <agent_id> --yes
+xmagic worklists trigger <task_id> --agent <agent_id>
+xmagic worklists rerun <task_id> --agent <agent_id>
+xmagic worklists review [task_id] --agent <agent_id>
+```
+
+`xmagic worklists create` opens a pre-filled YAML template, while `edit` and
+`schedules edit` open the current editable fields in the configured editor
+(`VISUAL`, then `EDITOR`, then the platform default). Save the file to submit
+the changes. List pagination is deliberately single-page: use `--skip` and
+`--limit` (1–200) when fetching another page; the CLI reports the page size and
+total count instead of silently making additional requests.
+
+`worklists review` displays the latest result for each task in `needs_review`,
+one at a time. Enter a message to send guidance to the agent in the task's
+existing chat thread. Press Enter without a message to complete the task
+without another agent action, or type `/skip` to leave it in `needs_review` for
+later. Pass a task ID to review one task.
+
+Recurring schedules can also be inspected and controlled with
+`xmagic worklists schedules get|edit|pause|resume|delete`. Worklist
+`input_s3_file_paths` values must currently be existing S3 paths. Direct upload
+of local files from the Worklist CLI is deferred future work; use the existing
+file/Drive upload APIs first.
+
+### 5. Use it from Python
 
 ```python
 from xmagic import XMagicClient
@@ -154,6 +188,11 @@ for event in client.chats.stream("<agent_id>", chat.id, "Explain xMagic skills")
 
 # Blocking
 resp = client.chats.query("<agent_id>", chat.id, "One-sentence summary?")
+
+# Non-interactive worklist review. No message completes the task without
+# another agent action; a message continues the existing worklist run chat.
+review = client.worklists.review("<agent_id>", "<task_id>", message="Approved")
+print(review.action, review.task.id)
 ```
 
 `XMagicClient` is a context manager, so `with XMagicClient() as client:` closes
@@ -206,9 +245,12 @@ async with AsyncXMagicClient() as client:
     async for event in client.chats.stream("<agent_id>", chat.id, "Explain xMagic skills"):
         if event.type == "response":
             print(event.text, end="")
+
+      review = await client.worklists.review("<agent_id>", "<task_id>")
+      print(review.action, review.task.id)
 ```
 
-### 5. Build a custom tool (MCP server)
+### 6. Build a custom tool (MCP server)
 
 ```bash
 xmagic mcp init my-tool          # scaffold: Dockerfile, compose, MCP server
@@ -242,7 +284,7 @@ Then register the resulting public `https://.../mcp` URL in the dashboard under
 prints the full checklist. Set `TOOL_API_KEY` in your `.env` to require a
 shared secret — the generated server rejects unauthenticated calls with `401`.
 
-### 6. Package a skill
+### 7. Package a skill
 
 ```bash
 xmagic skills new my-skill       # scaffold SKILL.md
@@ -252,7 +294,7 @@ xmagic skills pack my-skill      # -> my-skill.zip, ready to upload
 
 Upload the zip in the dashboard under **Skills**.
 
-### 7. Use a non-xMagic model
+### 8. Use a non-xMagic model
 
 `chat` takes a `provider:model` ref backed by your own key. OpenAI is
 implemented:

@@ -216,7 +216,13 @@ def _parse_error(response: httpx.Response) -> tuple[str | None, str]:
     try:
         body = response.json()
         err = body.get("error", body)
-        return err.get("error_code"), err.get("message", response.text)
+        if not isinstance(err, dict):
+            return None, response.text
+        detail = err.get("detail")
+        message = err.get("message") or detail or response.text
+        if isinstance(detail, list):
+            message = "; ".join(str(item) for item in detail)
+        return err.get("error_code"), str(message)
     except (ValueError, AttributeError):
         # Body was not JSON (ValueError) or was JSON of an unexpected shape,
         # e.g. a list or bare string, so ``.get`` is absent (AttributeError).

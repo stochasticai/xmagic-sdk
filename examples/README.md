@@ -14,13 +14,14 @@ uv run python examples/01_basic_chat.py
 | [`03_files_and_drive.py`](03_files_and_drive.py) | Upload a file and reference it in a query, then index one into a Drive knowledge-base folder. | yes |
 | [`04_mcp_server.py`](04_mcp_server.py) | Scaffold a containerized MCP server (a custom tool) and walk through registering it. | **no** |
 | [`05_skills.py`](05_skills.py) | Scaffold, validate, and pack a skill into an upload-ready zip. | **no** |
+| [`06_worklist_outputs_to_drive.py`](06_worklist_outputs_to_drive.py) | Find completed worklist outputs, download their signed S3 URLs, and upload the files into an existing Drive folder. | yes |
 
 Start with `04_mcp_server.py` or `05_skills.py` if you don't have credentials
 yet — they only write files locally.
 
 ## Setup
 
-The three API examples need a key and an agent id:
+The API examples need a key and an agent id:
 
 ```bash
 export XMAGIC_API_KEY="xm-..."
@@ -36,15 +37,20 @@ xmagic configure --agent <agent_id>
 Get a key from [xmagic.ai](https://xmagic.ai) under **profile → API keys**. The
 agent id is in the agent's URL in Studio.
 
-Each script resolves the agent as `XMAGIC_AGENT_ID` first, then the
-`default_agent_id` in `~/.config/xmagic/config.toml`, and exits with a hint if
-it finds neither.
+The first three scripts resolve the agent as `XMAGIC_AGENT_ID` first, then the
+`default_agent_id` in `~/.config/xmagic/config.toml`. The worklist transfer
+example takes the agent id and destination folder id as positional arguments.
 
 ## Notes
 
 - `03_files_and_drive.py` creates a Drive folder named `xmagic-sdk-example` and
   **deletes it on the way out**. Pass `--keep` to inspect it in the dashboard
   instead.
+- `06_worklist_outputs_to_drive.py` takes an existing agent id and Drive folder
+  id as positional arguments. It follows every page of completed tasks, asks
+  each result message for presigned download URLs, and streams each binary file
+  (including PDF and DOCX files) through `client.drive.upload_file`. It does not
+  delete or modify the worklist tasks or the destination folder.
 - Examples call the live API, which counts against your plan's rate limit
   (Free 20 rpm / Pro 100 / Business 500). The client retries `429` with backoff
   automatically.
