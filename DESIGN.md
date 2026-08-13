@@ -102,7 +102,9 @@ src/xmagic/
 │   ├── models.py          # Pydantic v2 models (Chat, Message, StreamEvent, ...)
 │   ├── chats.py           # create chat, query (sync/stream/async), messages
 │   ├── files.py           # uploaded-files
-│   └── drive.py           # knowledge-base folders/files
+│   ├── drive.py           # knowledge-base folders/files
+│   └── worklists.py       # background tasks and recurring schedules
+├── worklist_codec.py      # YAML templates and validation for Worklists
 ├── providers/
 │   ├── base.py            # Provider ABC: complete(), stream(); ModelRef parsing
 │   ├── registry.py        # "provider:model" resolution, entry-point plugins
@@ -120,7 +122,8 @@ src/xmagic/
 │   └── proxy.py           # reverse proxy + fallback UI (extra: [serve])
 └── cli/
     ├── main.py            # Typer app, sub-app mounting
-    └── ...                # chat.py, mcp.py, skills.py, tools.py, drive.py, serve.py, configure.py
+    └── ...                # chat.py, mcp.py, skills.py, tools.py, drive.py, serve.py, 
+                           # configure.py, worklists.py
 ```
 
 ---
@@ -181,6 +184,12 @@ Design rules:
 xmagic configure                      # interactive setup; writes config.toml
 xmagic chat [--agent ID | --model provider:model] [--stream/--no-stream] [-f FILE]
 xmagic agents list                    # as API coverage allows
+xmagic worklists                       # list one page of background tasks
+xmagic worklists get TASK_ID            # task metadata plus latest result
+xmagic worklists create|edit TASK_ID   # edit task YAML (create has a template)
+xmagic worklists cancel|delete TASK_ID # stop or delete a task
+xmagic worklists review [TASK_ID]      # review tasks marked needs_review
+xmagic worklists schedules ...         # inspect/edit/pause/resume/delete schedules
 xmagic drive ls|upload|download ...
 xmagic skills new NAME                # scaffold SKILL.md + layout
 xmagic skills validate PATH           # frontmatter/zip lint
