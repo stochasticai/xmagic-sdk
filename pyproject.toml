@@ -99,6 +99,7 @@ dev = [
     # minors, and with no committed lock an unbounded range lets CI drift ahead
     # of contributors' environments.
     "ruff>=0.16,<0.17",
+    "types-pyyaml",
 ]
 
 [tool.ruff]
