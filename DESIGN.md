@@ -106,7 +106,9 @@ src/xmagic/
 │   ├── drive.py           # knowledge-base folders/files
 │   ├── agents.py          # agent list, temporary config CRUD, save/deploy, subagents
 │   ├── phones.py          # phone number listing and association
+│   ├── worklists.py       # background tasks and recurring schedules
 │   └── workspaces.py      # workspace listing and switching
+├── worklist_codec.py      # YAML templates and validation for Worklists
 ├── providers/
 │   ├── base.py            # Provider ABC: complete(), stream(); ModelRef parsing
 │   ├── registry.py        # "provider:model" resolution, entry-point plugins
@@ -124,8 +126,8 @@ src/xmagic/
 │   └── proxy.py           # reverse proxy + fallback UI (extra: [serve])
 └── cli/
     ├── main.py            # Typer app, sub-app mounting
-   └── ...                # agents.py, chat.py, configure.py, drive.py, mcp.py,
-                     # serve.py, skills.py, tools.py, workspaces.py
+    └── ...                # agents.py, chat.py, mcp.py, skills.py, tools.py, drive.py, 
+                           # serve.py, configure.py, worklists.py, workspaces.py
 ```
 
 ---
@@ -190,6 +192,13 @@ xmagic agents                         # list agents in current workspace
 xmagic agents config [--agent ID] [-C "prompt"]  # edit temp config as YAML, or via Composer
 xmagic agents deploy [--agent ID] [--version NAME] [--phone ID | --no-phone]
                                                 # save + deploy; optional phone association
+xmagic agents list                    # as API coverage allows
+xmagic worklists                       # list one page of background tasks
+xmagic worklists get TASK_ID            # task metadata plus latest result
+xmagic worklists create|edit TASK_ID   # edit task YAML (create has a template)
+xmagic worklists cancel|delete TASK_ID # stop or delete a task
+xmagic worklists review [TASK_ID]      # review tasks marked needs_review
+xmagic worklists schedules ...         # inspect/edit/pause/resume/delete schedules
 xmagic drive ls|upload|download ...
 xmagic skills new NAME                # scaffold SKILL.md + layout
 xmagic skills validate PATH           # frontmatter/zip lint

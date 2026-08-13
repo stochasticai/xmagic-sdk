@@ -5,7 +5,7 @@ the plan and [TODO.md](TODO.md) for what's next.
 
 ---
 
-## 2026-08-12 — Agent deployment review hardening
+## 2026-08-13 — Agent deployment review hardening
 
 - **Deployment no longer changes workspace state while validating an agent.**
   `xmagic agents deploy` now requires a known current workspace, fetches the
@@ -25,7 +25,7 @@ the plan and [TODO.md](TODO.md) for what's next.
   Typer option objects through the call boundary.
 - `PhonesAPI` / `AsyncPhonesAPI` are included in the async signature-parity test. 
 
-## 2026-08-12 — Workspace switching and agent config/deploy CLI
+## 2026-08-13 — Workspace switching and agent config/deploy CLI
 
 - **`xmagic workspaces`** — lists all accessible workspaces with current-workspace
   marker, switches by exact name (`xmagic workspaces "Name"`) or by id
@@ -69,6 +69,25 @@ the plan and [TODO.md](TODO.md) for what's next.
   `test_config_codec.py` (round-trip + missing-key validation). `AgentsAPI` /
   `AsyncAgentsAPI` and `WorkspacesAPI` / `AsyncWorkspacesAPI` added to the
   async-parity parametrize in `test_async_client.py`.
+
+## 2026-08-12 — Worklist SDK and CLI
+
+- Added sync/async Worklist task and recurring-schedule resources covering list,
+  get, create, update, delete, trigger, rerun, stop, and schedule pause/resume
+  operations. List requests expose explicit single-page `skip`/`limit` controls.
+- Added `xmagic worklists` commands for task lifecycle management and YAML-based
+  create/edit flows, plus `schedules get|edit|pause|resume|delete`. Task lookup
+  fetches the latest related chat message with downloadable output URLs when a
+  run is available.
+- Added Pydantic models, YAML validation/diff codecs, shared editor handling,
+  API/CLI tests, async parity coverage, and documentation. Direct local-file
+  upload for `input_s3_file_paths` remains deferred; current inputs must be
+  pre-existing S3 paths.
+- Worklist review now has two API outcomes: mark a `needs_review` task
+  `completed` without another agent action, or send guidance in the existing
+  run chat. The CLI shows tasks one at a time: blank completes, `/skip` leaves
+  the task in `needs_review`, and any other input sends guidance.
+
 
 ## 2026-08-07 — Client hygiene: typing, timeouts, and the error contract
 

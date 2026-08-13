@@ -10,6 +10,7 @@ Command groups:
 - xmagic drive          knowledge-base folders and files
 - xmagic workspaces     list/switch workspaces
 - xmagic agents         list agents and edit temporary config
+- xmagic worklists       list, edit, and run background tasks
 - xmagic serve          local web app
 """
 
@@ -19,7 +20,18 @@ import typer
 from rich.console import Console
 
 from xmagic import __version__
-from xmagic.cli import agents, chat, configure, drive, mcp, serve, skills, tools, workspaces
+from xmagic.cli import (
+    agents,
+    chat,
+    configure,
+    drive,
+    mcp,
+    serve,
+    skills,
+    tools,
+    worklists,
+    workspaces,
+)
 
 console = Console()
 
@@ -38,6 +50,7 @@ app.add_typer(skills.app, name="skills", help="Create, validate, and pack Skills
 app.add_typer(tools.app, name="tools", help="Custom-tool registration helpers.")
 app.add_typer(drive.app, name="drive", help="Knowledge-base (Drive) operations.")
 app.add_typer(agents.app, name="agents", help="Agent listing and configuration editing.")
+app.add_typer(worklists.app, name="worklists", help="Background worklist task operations.")
 
 
 @app.command()
