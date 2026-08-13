@@ -11,7 +11,7 @@ import json
 import random
 import time
 from collections.abc import AsyncIterator, Iterator
-from typing import Any
+from typing import Any, cast
 
 import httpx
 from httpx_sse import SSEError, aconnect_sse, connect_sse
@@ -194,7 +194,9 @@ def _result(response: httpx.Response) -> dict[str, Any]:
         raise error_for_status(response.status_code, error_code, message, response=response)
     if not response.content:
         return {}
-    return response.json()
+    # `.json()` is Any by construction; the shape is pinned by the contract tests
+    # against recorded fixtures rather than by the type system.
+    return cast("dict[str, Any]", response.json())
 
 
 def _raw(response: httpx.Response) -> bytes:
