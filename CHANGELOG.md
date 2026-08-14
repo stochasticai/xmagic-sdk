@@ -10,6 +10,22 @@ codebase.**
 
 ## [Unreleased]
 
+## [0.3.0] — 2026-08-14
+
+Two platform surfaces landed — Worklists and workspace/agent management — and the
+client's failure behaviour became honest: errors are typed all the way down,
+streams get their own timeout, and nothing leaks an `httpx` exception any more.
+
+The package is also verifiably typed for the first time. `py.typed` shipped in
+0.2.0 with nothing checking the annotations behind it; `mypy --strict` now gates
+`src/` on every Python in the matrix. It caught a real defect on its first run —
+see the `xmagic tools --url` entry under Fixed.
+
+Read **Changed** before upgrading. Nothing here removes a public name, but four
+behaviours differ: `Settings.load` now honours an explicit `None`, transport
+failures raise this SDK's own errors instead of `httpx`'s, `max_retries` rejects
+negatives at construction, and `pyyaml` is a new runtime dependency.
+
 ### Added
 
 - **The package is typed for consumers (`py.typed`).** Every module here is
