@@ -50,17 +50,23 @@ codebase.**
 - **Agent configuration helpers** — JSON/YAML validation, typed response-shape
   and editor errors, shared response unwrapping, and a reusable chat runner for
   Composer-driven configuration updates.
+- **Worklists — background tasks and recurring schedules.** `xmagic worklists`
+  lists, inspects, creates, edits, cancels, deletes, triggers and reruns tasks,
+  and `xmagic worklists schedules` gets, edits, pauses, resumes and deletes the
+  recurring ones. `create`/`edit` open a pre-filled YAML template in `VISUAL`,
+  then `EDITOR`, then the platform default. `worklists review` walks the tasks in
+  `needs_review` one at a time: a message continues the task's existing chat
+  thread, an empty one completes it without another agent action, `/skip` leaves
+  it for later. `client.worklists` mirrors all of it on both the sync and async
+  clients, with `WorklistTask`, `WorklistTaskPage`, `WorklistTaskStatus`,
+  `WorklistReviewAction`, `WorklistReviewResult`, and `RecurrencySchedule`.
 
-### Fixed
+  Listing is deliberately single-page — `--skip` and `--limit` (1–200) fetch
+  another, and the CLI reports page size and total count rather than quietly
+  issuing more requests. `input_s3_file_paths` must name paths that already
+  exist; uploading local files from this command is deferred.
 
-- **`xmagic tools --url` with an API key passed the wrong kind of HTTP client.**
-  `mcp` depends on `httpx2` — a separate distribution, version 2.x — while this
-  package uses `httpx` 0.28, and the authenticated code path built an `httpx`
-  client and handed it to a transport that calls `.sse()` on it. httpx 0.28 has
-  no such method. Listing and calling tools happen to work, because neither
-  reaches that call, but any flow that uses the standalone SSE stream would fail
-  with `AttributeError`. Now builds the client `mcp` actually expects. Found by
-  the new type check, and confirmed against a live server rather than assumed.
+  Adds `pyyaml` as a runtime dependency.
 
 ### Changed
 
@@ -78,6 +84,14 @@ codebase.**
 
 ### Fixed
 
+- **`xmagic tools --url` with an API key passed the wrong kind of HTTP client.**
+  `mcp` depends on `httpx2` — a separate distribution, version 2.x — while this
+  package uses `httpx` 0.28, and the authenticated code path built an `httpx`
+  client and handed it to a transport that calls `.sse()` on it. httpx 0.28 has
+  no such method. Listing and calling tools happen to work, because neither
+  reaches that call, but any flow that uses the standalone SSE stream would fail
+  with `AttributeError`. Now builds the client `mcp` actually expects. Found by
+  the new type check, and confirmed against a live server rather than assumed.
 - **Streaming inherited the 60s request timeout**, so an agent that paused longer
   than `timeout` between two events raised `ReadTimeout` mid-answer. On a stream
   the read timeout bounds the *gap between events*, not the whole exchange, so
