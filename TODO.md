@@ -192,19 +192,27 @@ day and are still open.
       `src/`, as a step in the existing matrix job so the required status checks
       already cover it. Found 13 errors, all fixed; one of them was a real defect
       (see below). `mypy>=2.3,<2.4`, bounded for the same reason ruff is
-- [ ] **Type-check `tests/` too.** `files = ["src"]` today. Turning it on adds
-      ~54 errors: 29 are missing `-> None` on older test functions, the rest are
-      real — `StreamEvent(type=...)` built with a `str` that is not in its
-      `Literal`, `ChatType | None` dereferenced without a guard, `ModuleSpec | None`
+- [x] **Type-check `tests/` too** — done 2026-08-22
+      ([#33](https://github.com/stochasticai/xmagic-sdk/issues/33)).
+      `files = ["src", "tests"]`, with all 58 errors fixed. Four were real: a
+      `StreamEvent` built with a `str` outside its own `Literal` (fixed by naming
+      that `Literal` `StreamEventType` and annotating against it), `ChatType | None`
+      dereferenced without a guard in two contract tests, `ModuleSpec | None`
       passed straight to `module_from_spec`, and `.text` read off the MCP content
-      union without narrowing. None affect shipped code, which is why they did not
-      block the gate landing
+      union without narrowing. The rest were missing annotations
 - [ ] **`mcp` pulls in a second HTTP library.** It depends on `httpx2` (a separate
       distribution, 2.x) while this package uses `httpx` 0.28, so anything handing
       a client across that boundary is passing the wrong type. Fixed at the one
       call site we own (`mcp/client.py`), but the two coexisting in the same
-      environment is worth a decision rather than a patch — and `xmagic tools`
-      against a real URL with an API key still has no test at all
+      environment is worth a decision rather than a patch
+      ([#34](https://github.com/stochasticai/xmagic-sdk/issues/34))
+- [x] **Cover the authenticated `xmagic tools --url` path** — done 2026-08-22
+      ([#32](https://github.com/stochasticai/xmagic-sdk/issues/32)). The scaffolded
+      server now runs under uvicorn on a loopback port in the suite, driven with a
+      key through both the client helpers and the CLI, plus a unit test pinning
+      that `_target` hands the transport an `httpx2` client. That last one is the
+      only check that fails if the #28 defect returns: a wrong-library client
+      still works for request/response tools, which is why it survived
 - [ ] **`metadata` stream events are dropped**, and they carry `message_id` — so
       a streaming caller cannot learn the id of the message it just received.
       Named in a comment in `providers/xmagic.py:157`; filed here so it is not

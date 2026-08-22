@@ -7,12 +7,18 @@ client tests are mocked -- no network, no key, no vendor test double.
 from __future__ import annotations
 
 import json
+from typing import Any
 
 import httpx
 import pytest
 import respx
 
-from xmagic.errors import AuthenticationError, ConfigurationError, RateLimitError
+from xmagic.errors import (
+    AuthenticationError,
+    ConfigurationError,
+    RateLimitError,
+    XMagicAPIError,
+)
 from xmagic.providers.base import ChatMessage
 from xmagic.providers.openai import OpenAIProvider
 
@@ -28,7 +34,7 @@ def provider() -> OpenAIProvider:
     return OpenAIProvider(api_key="sk-test")
 
 
-def _completion(text: str) -> dict:
+def _completion(text: str) -> dict[str, Any]:
     return {
         "id": "chatcmpl-1",
         "object": "chat.completion",
@@ -44,12 +50,12 @@ def _completion(text: str) -> dict:
     }
 
 
-def _sse(*frames: dict) -> str:
+def _sse(*frames: dict[str, Any]) -> str:
     body = "".join(f"data: {json.dumps(f)}\n\n" for f in frames)
     return body + "data: [DONE]\n\n"
 
 
-def _delta(**delta: object) -> dict:
+def _delta(**delta: object) -> dict[str, Any]:
     return {
         "id": "chatcmpl-1",
         "object": "chat.completion.chunk",
@@ -165,7 +171,7 @@ def test_usage_only_frames_are_skipped(provider: OpenAIProvider) -> None:
     [(401, AuthenticationError), (429, RateLimitError)],
 )
 def test_vendor_errors_map_onto_this_sdk_hierarchy(
-    provider: OpenAIProvider, status: int, expected: type
+    provider: OpenAIProvider, status: int, expected: type[XMagicAPIError]
 ) -> None:
     # A caller catching XMagicError should not have to know which vendor failed.
     respx.post(CHAT_URL).mock(
