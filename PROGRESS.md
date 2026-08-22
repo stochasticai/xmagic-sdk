@@ -5,6 +5,34 @@ the plan and [TODO.md](TODO.md) for what's next.
 
 ---
 
+## 2026-08-22 — Test coverage for the authenticated tools path, and typed tests
+
+Closes the two mechanical gaps left open at 0.3.0.
+
+- **`xmagic tools --url` with a key is exercised over a real socket** (#32). The
+  suite scaffolds a project, imports the server `mcp init` generates — middleware
+  included — and serves it with uvicorn on an ephemeral loopback port, then drives
+  it through `list_tools`/`call_tool` and through the CLI. Wrong key and no key
+  both assert the error reads as an auth problem rather than an SSE content-type
+  complaint. A separate unit test pins that `_target` hands the transport an
+  `httpx2` client: verified by reintroducing the #28 defect, and it is the *only*
+  check that catches it — the seven socket tests stay green with an `httpx`
+  client, because that path never opens a standalone SSE stream.
+- **`mypy --strict` covers `tests/`** (#33), `files = ["src", "tests"]`, 58 errors
+  fixed. The four substantive ones: `StreamEvent(type=...)` built with a `str`
+  outside its `Literal` — fixed by naming the `Literal` `StreamEventType` in
+  `client/models.py` and annotating the test helper against it, so the list is
+  stated once; `ChatType | None` dereferenced with `.value` in the sync and async
+  contract tests, now `is ChatType.STANDARD` (the wire spelling was already
+  pinned by the request assertion next to it); `ModuleSpec | None` passed to
+  `module_from_spec`; and `.text` read off the five-member MCP content union
+  without an `isinstance` narrow.
+- **`tests/_helpers.py`** — the scaffold-import dance existed in two places and
+  the new file would have made three, so it is one typed helper now.
+
+Verification: 214 passed, ruff clean, `mypy --strict` clean over 67 files, on
+both ends of the matrix (3.11 and 3.14).
+
 ## 2026-08-13 — Agent deployment review hardening
 
 - **Deployment no longer changes workspace state while validating an agent.**

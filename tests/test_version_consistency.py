@@ -29,7 +29,8 @@ CITATION = ROOT / "CITATION.cff"
 
 
 def _pyproject_version() -> str:
-    return tomllib.loads(PYPROJECT.read_text())["project"]["version"]
+    version: str = tomllib.loads(PYPROJECT.read_text())["project"]["version"]
+    return version
 
 
 def _citation_version() -> str:
