@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 import pytest
 
 from xmagic.config_codec import json_to_yaml, yaml_to_json
 
 
-def _payload() -> dict:
+def _payload() -> dict[str, Any]:
     return {
         "config_values": {"a": 1},
         "subagents": [],

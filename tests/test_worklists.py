@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Any
 
 import pytest
 import respx
@@ -34,7 +35,7 @@ def _task_payload(
     *,
     status: str = "pending",
     run_message_ids: list[str] | None = None,
-) -> dict:
+) -> dict[str, Any]:
     return {
         "id": task_id,
         "persona_id": AGENT_ID,
@@ -51,7 +52,7 @@ def _task_payload(
     }
 
 
-def _schedule_payload() -> dict:
+def _schedule_payload() -> dict[str, Any]:
     return {
         "id": SCHEDULE_ID,
         "persona_id": AGENT_ID,

@@ -7,9 +7,13 @@ a silent drop -- nothing asserted on the provider's behaviour directly.
 
 from __future__ import annotations
 
+from collections.abc import Callable, Iterator
+from pathlib import Path
+from typing import Any
+
 import pytest
 
-from xmagic.client.models import StreamEvent
+from xmagic.client.models import StreamEvent, StreamEventType
 from xmagic.errors import XMagicAPIError
 from xmagic.providers.base import ChatMessage
 from xmagic.providers.xmagic import XMagicProvider, _usage_from
@@ -24,16 +28,16 @@ class _FakeChats:
         self._events = events
         self.created = 0
 
-    def create(self, *_args, **_kwargs):
+    def create(self, *_args: Any, **_kwargs: Any) -> Any:
         self.created += 1
         return type("Chat", (), {"id": "chat-1"})()
 
-    def stream(self, *_args, **_kwargs):
+    def stream(self, *_args: Any, **_kwargs: Any) -> Iterator[StreamEvent]:
         yield from self._events
 
 
 @pytest.fixture
-def provider(monkeypatch: pytest.MonkeyPatch):
+def provider(monkeypatch: pytest.MonkeyPatch) -> Callable[[list[StreamEvent]], XMagicProvider]:
     """A provider whose transport is replaced, so no client is constructed."""
 
     def build(events: list[StreamEvent]) -> XMagicProvider:
@@ -46,11 +50,13 @@ def provider(monkeypatch: pytest.MonkeyPatch):
     return build
 
 
-def _event(kind: str, text: str = "", **raw) -> StreamEvent:
+def _event(kind: StreamEventType, text: str = "", **raw: Any) -> StreamEvent:
     return StreamEvent(type=kind, text=text, raw=raw)
 
 
-def test_text_and_reasoning_still_flow(provider) -> None:
+def test_text_and_reasoning_still_flow(
+    provider: Callable[[list[StreamEvent]], XMagicProvider],
+) -> None:
     p = provider(
         [
             _event("reasoning", "thinking"),
@@ -67,7 +73,9 @@ def test_text_and_reasoning_still_flow(provider) -> None:
     assert chunks[-1].done
 
 
-def test_token_usage_reaches_the_terminal_chunk(provider) -> None:
+def test_token_usage_reaches_the_terminal_chunk(
+    provider: Callable[[list[StreamEvent]], XMagicProvider],
+) -> None:
     p = provider(
         [
             _event("response", "hi"),
@@ -88,7 +96,9 @@ def test_token_usage_reaches_the_terminal_chunk(provider) -> None:
     assert "".join(c.text for c in chunks) == "hi"
 
 
-def test_streamed_error_raises_instead_of_truncating(provider) -> None:
+def test_streamed_error_raises_instead_of_truncating(
+    provider: Callable[[list[StreamEvent]], XMagicProvider],
+) -> None:
     """The bug this file exists for.
 
     Before, an `error` frame fell through the if/elif and vanished: the caller
@@ -113,14 +123,18 @@ def test_streamed_error_raises_instead_of_truncating(provider) -> None:
     assert "E_AGENT" in str(excinfo.value)
 
 
-def test_error_without_a_message_still_says_something_useful(provider) -> None:
+def test_error_without_a_message_still_says_something_useful(
+    provider: Callable[[list[StreamEvent]], XMagicProvider],
+) -> None:
     p = provider([_event("error")])
 
     with pytest.raises(XMagicAPIError, match="reported an error mid-stream"):
         list(p.stream(MESSAGES, model="agent-1"))
 
 
-def test_unknown_events_are_ignored_not_rendered(provider) -> None:
+def test_unknown_events_are_ignored_not_rendered(
+    provider: Callable[[list[StreamEvent]], XMagicProvider],
+) -> None:
     """`metadata`/`ping`/`live_update` carry text we must not print as an answer."""
     p = provider(
         [
@@ -171,7 +185,7 @@ class TestErrorReachesTheCli:
 
     @staticmethod
     def test_chat_exits_non_zero_on_a_streamed_error(
-        monkeypatch: pytest.MonkeyPatch, tmp_path
+        monkeypatch: pytest.MonkeyPatch, tmp_path: Path
     ) -> None:
         import json
 

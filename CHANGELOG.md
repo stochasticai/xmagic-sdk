@@ -10,6 +10,30 @@ codebase.**
 
 ## [Unreleased]
 
+### Added
+
+- **`StreamEventType`** in `xmagic.client.models` — the `Literal` of every token
+  type a stream can carry, previously spelled inline on `StreamEvent.type`.
+  Naming it lets callers that construct events annotate against it instead of
+  restating eleven strings; nothing about `StreamEvent` itself changed.
+- **The authenticated `xmagic tools --url` path is tested.** The scaffolded
+  server now runs under uvicorn on a loopback port in the suite, exercised with
+  a key through both the client helpers and the CLI, along with the wrong-key
+  and no-key rejections. That branch had no coverage at all, which is how it
+  shipped an `httpx` client to a transport that needs `httpx2` — a unit test now
+  pins the library too, since a wrong-library client still works for
+  request/response tools and would otherwise pass everything else.
+
+### Changed
+
+- **`mypy --strict` now covers `tests/` as well as `src/`.** All 58 errors are
+  fixed. Four were real rather than mechanical: a `StreamEvent` built with a
+  type outside its own `Literal`, `ChatType | None` dereferenced without a
+  guard in two contract tests, `ModuleSpec | None` passed straight to
+  `module_from_spec`, and `.text` read off the MCP content union without
+  narrowing. No shipped code was affected; several tests were passing for a
+  narrower reason than they appeared to.
+
 ## [0.3.0] — 2026-08-14
 
 Two platform surfaces landed — Worklists and workspace/agent management — and the

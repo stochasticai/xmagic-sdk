@@ -12,7 +12,9 @@ from __future__ import annotations
 
 import inspect
 import json
+from collections.abc import AsyncIterator
 from pathlib import Path
+from typing import Any
 
 import pytest
 import respx
@@ -33,8 +35,9 @@ from xmagic.errors import ConfigurationError, RateLimitError
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
 
 
-def _load_json_fixture(name: str) -> dict:
-    return json.loads((FIXTURES_DIR / name).read_text())
+def _load_json_fixture(name: str) -> dict[str, Any]:
+    loaded: dict[str, Any] = json.loads((FIXTURES_DIR / name).read_text())
+    return loaded
 
 
 def _sse_frames_from_fixture(name: str) -> str:
@@ -44,7 +47,7 @@ def _sse_frames_from_fixture(name: str) -> str:
 
 
 @pytest.fixture
-async def client() -> AsyncXMagicClient:
+async def client() -> AsyncIterator[AsyncXMagicClient]:
     c = AsyncXMagicClient(api_key="test-key", base_url=DEFAULT_BASE_URL)
     try:
         yield c
@@ -62,7 +65,9 @@ async def test_create_chat_request_and_response_shape(client: AsyncXMagicClient)
     chat = await client.chats.create("agent-1", title="Demo", chat_type=ChatType.STANDARD)
 
     assert chat.id == "REDACTED_CHAT_ID"
-    assert chat.chat_type.value == "standard"
+    # Identity, not `.value`: `chat_type` is optional on the model, and the
+    # wire spelling is pinned by the request assertion below.
+    assert chat.chat_type is ChatType.STANDARD
     sent = route.calls.last.request.read().decode()
     assert '"title":"Demo"' in sent
     assert '"chat_type":"standard"' in sent
