@@ -23,15 +23,15 @@ Working today:
    Worklists, skills packaging, with a matching async client. Request/response shapes are
    verified against the live API and locked with recorded-fixture tests.
 3. **Bring your own model** — `provider:model` refs backed by your own key.
-   `xmagic:<agent_id>` and `openai:<model>` work today, over one `Provider`
-   interface.
+   `xmagic:<agent_id>`, `openai:<model>`, and `litellm:<vendor>/<model>` all work
+   today, over one `Provider` interface. `litellm:` reaches the ~150 vendors
+   LiteLLM supports, Anthropic and Google among them; their native adapters
+   (`anthropic:`, `google:`) are reserved but unimplemented, because LiteLLM
+   already gets you there.
 
 Planned:
 
-4. **More providers** *(Phase 3)* — `litellm:` for the ~150 vendors LiteLLM
-   reaches, including Anthropic and Google. Their native adapters
-   (`anthropic:`, `google:`) are reserved but unimplemented.
-5. **Local web app** *(Phase 5)* — `xmagic serve` runs the xMagic web app locally
+4. **Local web app** *(Phase 5)* — `xmagic serve` runs the xMagic web app locally
    via proxy.
 
 ## Install
@@ -362,8 +362,12 @@ Errors arrive as this SDK's own types, so you catch `XMagicError` regardless of
 which vendor failed — a 429 from OpenAI raises the same `RateLimitError` a 429
 from xMagic would.
 
-`anthropic:` and `google:` are not implemented; use `litellm:` for those once
-that adapter lands (Phase 3).
+`anthropic:` and `google:` are not implemented — use `litellm:anthropic/<model>`
+or `litellm:gemini/<model>` instead. Two things differ on the LiteLLM path:
+credentials come from whatever environment variable the vendor uses
+(`ANTHROPIC_API_KEY`, `GROQ_API_KEY`, and so on) rather than from xMagic config,
+and parameters are validated against the model before the request is sent, so an
+unsupported one fails locally instead of at the vendor.
 
 ### Next steps
 

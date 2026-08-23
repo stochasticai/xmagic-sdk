@@ -5,6 +5,34 @@ the plan and [TODO.md](TODO.md) for what's next.
 
 ---
 
+## 2026-08-23 — LiteLLMProvider
+
+The last stubbed adapter is implemented, which closes the largest unblocked gap
+in the SDK surface: one adapter, roughly 150 vendors, over the `Provider`
+interface that already carried `xmagic:` and `openai:`.
+
+- **`complete` and `stream`**, with reasoning deltas (LiteLLM normalizes every
+  vendor's thinking channel onto `reasoning_content`), token usage, and vendor
+  errors translated into this SDK's hierarchy. `done` is emitted at the end of
+  the stream rather than on `finish_reason`, unlike the OpenAI adapter: the
+  usage frame arrives *after* the finish reason, so closing early would drop the
+  counts every time.
+- **`capabilities()` reads LiteLLM's model metadata** instead of a hand-kept
+  table (`supports_function_calling` / `supports_vision`), off the model the ref
+  names.
+- **Three behaviours found by testing rather than assumed**, each pinned:
+  LiteLLM attaches a zero-filled `Usage` to a response that carried none (now
+  treated as absent, not as three measured zeros); it validates parameters
+  against the model before sending, so `temperature=0.2` on gpt-5 fails locally;
+  and it classifies a dead socket on the OpenAI path as `InternalServerError`,
+  so that surfaces as `ServerError` rather than `APIConnectionError`. The last
+  one is documented rather than re-classified — undoing it would mean
+  string-matching LiteLLM's messages.
+- **22 tests**, driving real LiteLLM through respx — no vendor double — plus the
+  registry and CLI paths (`xmagic chat -m litellm:openai/gpt-5`), which is what
+  proves credential resolution from the vendor's own environment variable works
+  end to end.
+
 ## 2026-08-22 — Test coverage for the authenticated tools path, and typed tests
 
 Closes the two mechanical gaps left open at 0.3.0.

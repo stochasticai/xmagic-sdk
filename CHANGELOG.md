@@ -12,6 +12,31 @@ codebase.**
 
 ### Added
 
+- **`LiteLLMProvider` is implemented** — `litellm:groq/llama-3.3-70b-versatile`,
+  `litellm:anthropic/claude-sonnet-5`, `litellm:ollama/llama3`, and everything
+  else in LiteLLM's namespace, through the same `Provider` interface as
+  `xmagic:` and `openai:`. Optional extra: `xmagic-sdk[litellm]`. This is why
+  `AnthropicProvider` and `GoogleProvider` stay reserved — both are reachable
+  here. Two behaviours differ from `OpenAIProvider`, deliberately:
+  - **A missing API key is not an error.** LiteLLM resolves credentials per
+    vendor from the environment (`ANTHROPIC_API_KEY`, `GROQ_API_KEY`, …) and a
+    local runtime needs none, so raising on construction would break the common
+    case. An explicit key is forwarded when given.
+  - **Parameters are validated before the request is sent.** LiteLLM checks them
+    against its model metadata, so an unsupported parameter fails locally as a
+    `BadRequestError` rather than at the vendor. Moving a call from `openai:` to
+    `litellm:` can therefore surface an error the same arguments did not before.
+- **Capability flags are read, not maintained.** `LiteLLMProvider.capabilities()`
+  consults `litellm.supports_function_calling` and `supports_vision` for the
+  model the ref names. A model LiteLLM has no metadata for reports `False` for
+  both — "cannot confirm", which is the honest answer.
+- **Token usage on the LiteLLM path.** Non-streaming counts come from the
+  provider's response. Streaming counts ride out on the terminal chunk — but
+  note that when the upstream sends no usage frame, LiteLLM fills the gap with
+  its own tokenizer, and nothing distinguishes the estimate from a measurement
+  by the time it reaches us. `Usage.raw` keeps the payload. An all-zero `Usage`
+  is treated as absent rather than reported as three measured zeros.
+
 - **`StreamEventType`** in `xmagic.client.models` — the `Literal` of every token
   type a stream can carry, previously spelled inline on `StreamEvent.type`.
   Naming it lets callers that construct events annotate against it instead of
