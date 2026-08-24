@@ -362,6 +362,18 @@ Errors arrive as this SDK's own types, so you catch `XMagicError` regardless of
 which vendor failed — a 429 from OpenAI raises the same `RateLimitError` a 429
 from xMagic would.
 
+Which refs exist is discoverable rather than guesswork:
+
+```bash
+xmagic models providers                     # 85 providers LiteLLM can reach
+xmagic models list -p groq                  # their models, with tools/vision and prices
+xmagic models list -s llama-3.3-70b --json  # scriptable
+```
+
+That catalogue is LiteLLM's. xMagic publishes no model list — a `xmagic:` ref
+names an agent, not a model — so `xmagic models` covers every provider except
+that one, and says so in its output.
+
 `anthropic:` and `google:` are not implemented — use `litellm:anthropic/<model>`
 or `litellm:gemini/<model>` instead. Two things differ on the LiteLLM path:
 credentials come from whatever environment variable the vendor uses
