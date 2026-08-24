@@ -38,17 +38,16 @@ re-checked rather than carried forward.
 
 ## Phase 3 — Examples & docs (the only phase left)
 
-9. ✅ **`examples/`** — five runnable scripts, and the sixth is no longer blocked:
+9. ✅ **`examples/`** — six runnable scripts, and the directory is complete:
    - ✅ basic chat (`01_basic_chat.py`)
    - ✅ streaming (`02_streaming.py`)
    - ✅ file / Drive upload (`03_files_and_drive.py`)
    - ✅ MCP server scaffold walkthrough (`04_mcp_server.py`) — needs no API key,
      so it doubles as the zero-credential entry point
    - ✅ skills packaging walkthrough (`05_skills.py`) — also needs no API key
-   - ⬜ **non-xMagic model** (`06_provider_model.py`). Previously blocked on the
-     provider adapters being stubs. `OpenAIProvider` is implemented (PR #9), so
-     this is writable as soon as that lands — `openai:gpt-5` over the same
-     `Provider` interface as `xmagic:<agent_id>`
+   - ✅ **non-xMagic model** (`06_provider_model.py`) — written 2026-08-23, once
+     `LiteLLMProvider` landed. Takes any `provider:model` ref over the same
+     `Provider` interface as `xmagic:<agent_id>`, and needs no xMagic key
 
    The API examples exit cleanly with a pointed message when the key or agent id
    is missing, rather than surfacing a traceback.
