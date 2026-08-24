@@ -5,6 +5,39 @@ the plan and [TODO.md](TODO.md) for what's next.
 
 ---
 
+## 2026-08-24 — Tool calling as a typed surface (stages A and C)
+
+The provider layer could not express the one capability that makes an agent an
+agent: `capabilities()` advertised `tools: True` while `complete` had no `tools`
+parameter, and `ChatMessage` could not represent a tool result at all.
+
+- **Stage A** — `ToolDef` / `ToolCall`, `ChatMessage.tool_calls` and
+  `tool_call_id`, `content` widened to `str | list[ContentPart] | None`, and
+  `Completion.tool_calls`. One mapping in `providers/_openai_wire.py` serves both
+  the `openai:` and `litellm:` adapters, which is the bet in §13.2 paying off:
+  LiteLLM normalizes every vendor onto the OpenAI shape, so this is one mapping
+  rather than one vendor's.
+- **Stage C** — `ToolDef.from_callable` builds the schema from a typed signature
+  and the description from the docstring.
+- **D4 implemented as designed**: `XMagicProvider` reports `tools: False` and
+  *rejects* `tools=` instead of ignoring it. So does `stream()` on every adapter,
+  because stage B is not built and silently dropping the calls a model made is
+  the exact failure this surface exists to prevent.
+- **Two things the design did not settle, found while building:**
+  - `strict` cannot be claimed for a schema with defaults or nested models —
+    strict mode requires every property required and additional ones forbidden at
+    every level, so `from_callable` turns it off rather than sending something
+    the vendor rejects outright.
+  - `get_type_hints` raises a bare `NameError` when a tool refers to a class
+    defined inside a function under postponed annotations. It now raises a
+    `ValueError` that says what to do about it.
+- **`_flatten` was quietly wrong the moment `content` widened** — it would have
+  interpolated the string "None" into an xMagic query. mypy caught it on the
+  first run, which is the second time in a week the type gate has found a real
+  defect rather than a style one.
+- 27 new tests. Stages B and D remain, and §13.8 Q1 (is the execution loop ours
+  to ship?) and Q3 (`capabilities()` has no vocabulary) are still open.
+
 ## 2026-08-23 — `xmagic models`, and the last missing example
 
 Phase 3 is closed and `examples/` is complete.

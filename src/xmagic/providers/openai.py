@@ -18,12 +18,19 @@ from collections.abc import Iterator
 from typing import Any, cast
 
 from xmagic.errors import ConfigurationError, XMagicError, error_for_status
-from xmagic.providers.base import ChatMessage, Completion, CompletionChunk, Provider
-
-
-def _payload(messages: list[ChatMessage]) -> list[dict[str, str]]:
-    """OpenAI takes the message list verbatim — no flattening, unlike xMagic."""
-    return [{"role": m.role, "content": m.content} for m in messages]
+from xmagic.providers._openai_wire import (
+    STREAMING_TOOLS_UNSUPPORTED,
+    messages_to_wire,
+    tool_calls_from_wire,
+    tools_to_wire,
+)
+from xmagic.providers.base import (
+    ChatMessage,
+    Completion,
+    CompletionChunk,
+    Provider,
+    ToolDef,
+)
 
 
 class OpenAIProvider(Provider):
@@ -67,25 +74,51 @@ class OpenAIProvider(Provider):
             return XMagicError(f"OpenAI request failed: {e}")
         return e
 
-    def complete(self, messages: list[ChatMessage], *, model: str, **params: Any) -> Completion:
+    def complete(
+        self,
+        messages: list[ChatMessage],
+        *,
+        model: str,
+        tools: list[ToolDef] | None = None,
+        **params: Any,
+    ) -> Completion:
+        if tools:
+            params["tools"] = tools_to_wire(tools)
         try:
             # `Any`: `create` is a large overload set keyed on `stream`, and
             # `**params` makes it unresolvable statically. The wire contract is
             # covered by tests/test_openai_provider.py instead.
             resp: Any = self._client.chat.completions.create(
-                model=model, messages=cast("Any", _payload(messages)), **params
+                model=model, messages=cast("Any", messages_to_wire(messages)), **params
             )
         except Exception as e:
             raise self._translate(e) from e
-        text = resp.choices[0].message.content or "" if resp.choices else ""
-        return Completion(text=text, model=f"openai:{model}", raw=resp.model_dump())
+        if not resp.choices:
+            return Completion(text="", model=f"openai:{model}", raw=resp.model_dump())
+        message = resp.choices[0].message
+        return Completion(
+            text=message.content or "",
+            model=f"openai:{model}",
+            raw=resp.model_dump(),
+            tool_calls=tool_calls_from_wire(message),
+        )
 
     def stream(
-        self, messages: list[ChatMessage], *, model: str, **params: Any
+        self,
+        messages: list[ChatMessage],
+        *,
+        model: str,
+        tools: list[ToolDef] | None = None,
+        **params: Any,
     ) -> Iterator[CompletionChunk]:
+        if tools:
+            raise XMagicError(STREAMING_TOOLS_UNSUPPORTED)
         try:
             chunks: Any = self._client.chat.completions.create(
-                model=model, messages=cast("Any", _payload(messages)), stream=True, **params
+                model=model,
+                messages=cast("Any", messages_to_wire(messages)),
+                stream=True,
+                **params,
             )
         except Exception as e:
             raise self._translate(e) from e
