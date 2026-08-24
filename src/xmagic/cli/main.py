@@ -4,6 +4,7 @@ Command groups:
 
 - xmagic configure      interactive setup
 - xmagic chat           talk to an agent or any provider:model
+- xmagic models         list the models LiteLLM can reach
 - xmagic mcp            scaffold/run MCP servers for custom tools
 - xmagic skills         new / validate / pack skill archives
 - xmagic tools          custom-tool registration helpers
@@ -26,6 +27,7 @@ from xmagic.cli import (
     configure,
     drive,
     mcp,
+    models,
     serve,
     skills,
     tools,
@@ -50,6 +52,7 @@ app.add_typer(skills.app, name="skills", help="Create, validate, and pack Skills
 app.add_typer(tools.app, name="tools", help="Custom-tool registration helpers.")
 app.add_typer(drive.app, name="drive", help="Knowledge-base (Drive) operations.")
 app.add_typer(agents.app, name="agents", help="Agent listing and configuration editing.")
+app.add_typer(models.app, name="models", help="Models reachable through LiteLLM.")
 app.add_typer(worklists.app, name="worklists", help="Background worklist task operations.")
 
 
