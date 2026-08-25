@@ -12,6 +12,43 @@ codebase.**
 
 ### Added
 
+- **Tool calling as a typed surface** (DESIGN.md §13, stages A and C). Before
+  this, `capabilities()` advertised `tools: True` while `Provider.complete` had
+  no `tools` parameter and `ChatMessage` had no `tool_call_id`, so a tool result
+  could not be represented at all; tools "worked" only by `**params` passthrough
+  with the caller digging results out of `raw`.
+  - **`ToolDef` and `ToolCall`**, exported from `xmagic.providers`.
+    `ToolCall.arguments` is a **parsed dict**, not the JSON string OpenAI puts on
+    the wire — a string with no guarantee it parses is the abstraction failing at
+    its one job.
+  - **`ToolDef.from_callable(fn)`** derives the JSON Schema from a typed Python
+    function and the description from its docstring, so a tool is written once
+    rather than twice. `strict` is set only for a flat, fully-required schema:
+    a default or a nested model turns it off rather than sending something the
+    vendor rejects.
+  - **`ChatMessage` gained `tool_calls` and `tool_call_id`, and `content` now
+    accepts `None` or a list of parts.** All three are optional and every
+    existing construction is unchanged. `content` had to widen: an assistant
+    turn that only calls tools has no text at all.
+  - **`Completion.tool_calls`** carries what the model asked for.
+  - Supported on `openai:` and `litellm:` refs, through one mapping — LiteLLM
+    normalizes every vendor onto the OpenAI shape.
+
+### Changed
+
+- **`XMagicProvider.capabilities()["tools"]` is now `False`.** The flag means
+  *per-call tool definitions*, which xMagic does not take: its tools are
+  registered in the dashboard and attached to an agent, which is a real
+  capability and a different one. Passing `tools=` to an `xmagic:` ref now
+  raises rather than being silently ignored, and so does passing it to any
+  adapter's `stream()` — streaming accumulation is stage B, and dropping the
+  calls a model made is the failure this surface exists to prevent.
+- **Raw vendor tool dicts are no longer passed through.** Before `tools=` was a
+  typed parameter, `**params` with a list of OpenAI-shaped dicts was the only
+  way to pass tools. Those now bind to `tools=` and raise a `TypeError` naming
+  the replacement, rather than failing as an `AttributeError` three frames down.
+  Build a `ToolDef`, or derive one with `ToolDef.from_callable`.
+
 - **`LiteLLMProvider` is implemented** — `litellm:groq/llama-3.3-70b-versatile`,
   `litellm:anthropic/claude-sonnet-5`, `litellm:ollama/llama3`, and everything
   else in LiteLLM's namespace, through the same `Provider` interface as

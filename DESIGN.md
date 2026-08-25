@@ -332,7 +332,7 @@ Chosen approach: **local proxy of the hosted xMagic web app**.
 | **6 — Polish** | docs, examples, CI, PyPI release |
 | **7 — Document redactor** *(proposed)* | `mcp init --template redactor`; see §12 |
 | **8 — Coding-agent bridge** *(proposed)* | `mcp init --template coding-agent`; see §11 |
-| **9 — Tool calling** *(proposed)* | Typed `tools=` on the provider interface; see §13 |
+| **9 — Tool calling** *(A + C done)* | Typed `tools=` on the provider interface. Stages A and C shipped 2026-08-24; streaming (B) and the execution loop (D) remain, see §13 |
 
 ## 10. Open questions
 
@@ -740,12 +740,16 @@ tractable; designing one up front is not.
 
 ---
 
-## 13. Tool calling as a typed surface (proposed)
+## 13. Tool calling as a typed surface
 
-> **Status: proposed, not accepted.** Nothing here is implemented. Review thread:
-> [#16](https://github.com/stochasticai/xmagic-sdk/issues/16).
+> **Status: stages A and C implemented 2026-08-24.** D1-D5 were accepted as
+> written; B (streaming) and D (execution loop) are not built, and open question
+> 1 -- whether the execution loop is ours to ship at all -- is still open.
+> Review thread: [#16](https://github.com/stochasticai/xmagic-sdk/issues/16).
 
-The provider layer cannot express the one capability that makes an agent an agent.
+The provider layer could not express the one capability that makes an agent an
+agent. What follows is the design as proposed; what shipped matched it, with the
+two implementation notes recorded in §13.6.
 
 ### 13.1 The gap
 
@@ -835,15 +839,27 @@ for call in completion.tool_calls:
 
 ### 13.6 Staging
 
-| Stage | Scope | Why here |
+| Stage | Scope | Status |
 |---|---|---|
-| **A — types + blocking** | `ToolDef`/`ToolCall`, `ChatMessage` and `Completion` changes, OpenAI mapping both ways | Load-bearing; nothing else exists without it |
-| **B — streaming** | Accumulate `arguments` fragments by `index`, emit a complete `ToolCall` | Fiddly and independently testable |
-| **C — schemas from callables** | Typed Python function → JSON Schema, via pydantic | Turns the feature from a schema-writing exercise into something pleasant |
-| **D — execution loop** | call → execute → feed back → repeat | See the open question below; may not be ours to ship |
+| **A — types + blocking** | `ToolDef`/`ToolCall`, `ChatMessage` and `Completion` changes, OpenAI mapping both ways | ✅ 2026-08-24, in `providers/_openai_wire.py` and both adapters |
+| **B — streaming** | Accumulate `arguments` fragments by `index`, emit a complete `ToolCall` | ⬜ `tools=` on `stream()` raises rather than dropping the calls |
+| **C — schemas from callables** | Typed Python function → JSON Schema, via pydantic | ✅ 2026-08-24, `ToolDef.from_callable` |
+| **D — execution loop** | call → execute → feed back → repeat | ⬜ open question 1 below is unanswered |
 
 **A and C are the milestone that matters.** B and D should follow contact with a real
 use, not precede it.
+
+Two things the implementation settled that the design did not:
+
+- **`strict` is claimed conservatively.** Strict mode requires every property to
+  be required *and* additional properties forbidden, at every level of the
+  schema. `from_callable` therefore sets `strict` only for a flat, fully-required
+  schema: a parameter with a default, or a nested pydantic model (`$defs`), turns
+  it off rather than sending a schema the vendor rejects outright.
+- **Unresolvable annotations get their own error.** `get_type_hints` raises a
+  bare `NameError` naming a type and nothing else when a tool refers to a class
+  defined inside a function under `from __future__ import annotations`. That is
+  common enough to explain rather than propagate.
 
 ### 13.7 What lands where
 
