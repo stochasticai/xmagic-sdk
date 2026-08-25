@@ -228,6 +228,19 @@ class TestWireMapping:
         # its default value is a needless thing to fail on.
         assert "strict" not in loose["function"]
 
+    def test_raw_vendor_dicts_are_refused_with_a_usable_message(self) -> None:
+        """The old `**params` passthrough now binds to a typed parameter.
+
+        Before `tools=` existed, raw OpenAI dicts through `**params` were the
+        only way to pass tools. They now reach `tools_to_wire` and would fail as
+        `AttributeError: 'dict' object has no attribute 'name'` three frames
+        down, which tells the caller nothing about the fix.
+        """
+        raw = [{"type": "function", "function": {"name": "get_weather"}}]
+
+        with pytest.raises(TypeError, match=r"ToolDef\.from_callable"):
+            tools_to_wire(raw)  # type: ignore[arg-type]
+
     def test_arguments_arrive_parsed(self) -> None:
         message = _FakeMessage([_FakeCall("call_1", "get_weather", '{"city": "Osaka"}')])
 
