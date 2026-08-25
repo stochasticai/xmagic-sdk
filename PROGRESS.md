@@ -5,6 +5,33 @@ the plan and [TODO.md](TODO.md) for what's next.
 
 ---
 
+## 2026-08-25 — Recovering two tests from a closed PR, and branch cleanup
+
+Deleted 22 merged branches. One would not go: `fix/client-robustness`, the
+branch behind **#25 — closed, not merged**. Issue #35 recorded that a review of
+its replacement (#26) "invalidated the reasoning behind closing #25", and nobody
+had gone back to check what that meant.
+
+Diffed it against `main`. The verdict on the source is clean: every change was
+superseded by #26, and by better versions — `stream_timeout` is configurable
+where the closed branch hardcoded `read=None`, and the error hierarchy gained
+`APITimeoutError` on top of what the branch had. Main's tests are broader too on
+four of six areas, including pinning the jitter *spread* rather than only its
+band.
+
+Two assertions went down with it, though, and both are now recovered:
+
+- **The async transport's connection-error wrapping had no test at all.**
+  `AsyncHttpTransport._send` duplicates the sync `except httpx.HTTPError` rather
+  than sharing it, and nothing executed that branch. Verified by deleting the
+  wrapping: all four parametrized cases fail, so the test guards what it claims.
+  Both transports now run off one shared failure list.
+- **Nothing asserted that unary requests keep their ordinary read deadline.**
+  Only the streaming half of the invariant was pinned. Verified the same way, by
+  making `_stream_timeout` leak onto the unary path.
+
+The closed branch can go once this lands. Its tip was `904bc4c`.
+
 ## 2026-08-24 — Tool calling as a typed surface (stages A and C)
 
 The provider layer could not express the one capability that makes an agent an

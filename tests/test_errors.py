@@ -146,16 +146,17 @@ def test_timeouts_are_typed_and_name_the_setting_to_raise() -> None:
     assert "timeout" in str(exc.value)
 
 
-@pytest.mark.parametrize(
-    "failure",
-    [
-        httpx.ConnectError("refused"),
-        httpx.ReadTimeout("timed out"),
-        httpx.DecodingError("corrupt gzip body"),
-        httpx.TooManyRedirects("redirect loop"),
-    ],
-    ids=lambda e: type(e).__name__,
-)
+# Shared by the sync and async cases below, so the two transports are held to
+# the same list rather than drifting apart as it grows.
+TRANSPORT_FAILURES = [
+    httpx.ConnectError("refused"),
+    httpx.ReadTimeout("timed out"),
+    httpx.DecodingError("corrupt gzip body"),
+    httpx.TooManyRedirects("redirect loop"),
+]
+
+
+@pytest.mark.parametrize("failure", TRANSPORT_FAILURES, ids=lambda e: type(e).__name__)
 @respx.mock
 def test_no_httpx_exception_escapes_as_itself(failure: httpx.RequestError) -> None:
     """`except XMagicError` has to be enough — httpx is an implementation detail.
@@ -170,6 +171,28 @@ def test_no_httpx_exception_escapes_as_itself(failure: httpx.RequestError) -> No
     with _client() as client, pytest.raises(APIConnectionError) as exc:
         client.chats.create("agent-1")
 
+    assert exc.value.__cause__ is failure
+
+
+@pytest.mark.parametrize("failure", TRANSPORT_FAILURES, ids=lambda e: type(e).__name__)
+@respx.mock
+async def test_the_async_transport_wraps_them_too(failure: httpx.RequestError) -> None:
+    """`AsyncHttpTransport._send` has its own `except`, so it needs its own test.
+
+    The two transports duplicate this logic rather than share it, and until now
+    only the sync half was covered — an async caller writing `except XMagicError`
+    was relying on a branch no test executed. Recovered from the closed #25,
+    whose fix was superseded by #26 but whose reasoning here was not.
+    """
+    respx.post(URL).mock(side_effect=failure)
+
+    async with xmagic.AsyncXMagicClient(
+        api_key="test-key", base_url=DEFAULT_BASE_URL, max_retries=0
+    ) as client:
+        with pytest.raises(APIConnectionError) as exc:
+            await client.chats.create("agent-1")
+
+    assert isinstance(exc.value, XMagicError)  # catchable as one of ours
     assert exc.value.__cause__ is failure
 
 
