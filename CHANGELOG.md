@@ -10,18 +10,26 @@ codebase.**
 
 ## [Unreleased]
 
-### Added
+## [0.4.0] — 2026-08-25
 
-- **The async transport's failure handling is tested.** `AsyncHttpTransport`
-  duplicates the sync transport's `except httpx.HTTPError` wrapping rather than
-  sharing it, and no test executed that branch — an async caller writing
-  `except XMagicError` was relying on code nothing exercised. Both transports
-  are now driven from one shared list of transport failures, so they cannot
-  drift as it grows. No behaviour changed; the branch was correct, just
-  unguarded.
-- **A unary request keeping its ordinary read deadline is now pinned.** Only the
-  streaming half of that invariant was asserted, so `_stream_timeout` leaking
-  onto the non-streaming path would have failed no test.
+Five PRs since 0.3.0, and they add up to one thing: the provider layer is
+finally worth using. `LiteLLMProvider` reaches the roughly 150 vendors LiteLLM
+supports, `xmagic models` makes their models discoverable rather than
+guesswork, and tool calling is a typed surface instead of a `**params` hole
+that happened to line up.
+
+Read **Changed** before upgrading. Two behaviours differ, both in the tool
+surface: `XMagicProvider.capabilities()["tools"]` is now `False`, and raw
+vendor tool dicts passed through `**params` raise instead of being forwarded.
+Neither affects code that does not use tools.
+
+The suite went from 204 tests to 289, and `mypy --strict` now gates `tests/`
+alongside `src/`. That gate earned itself twice this cycle, catching two real
+defects rather than style ones — a `StreamEvent` built outside its own
+`Literal`, and a message flattener that would have interpolated the string
+"None" into a query.
+
+### Added
 
 - **Tool calling as a typed surface** (DESIGN.md §13, stages A and C). Before
   this, `capabilities()` advertised `tools: True` while `Provider.complete` had
@@ -45,21 +53,6 @@ codebase.**
   - Supported on `openai:` and `litellm:` refs, through one mapping — LiteLLM
     normalizes every vendor onto the OpenAI shape.
 
-### Changed
-
-- **`XMagicProvider.capabilities()["tools"]` is now `False`.** The flag means
-  *per-call tool definitions*, which xMagic does not take: its tools are
-  registered in the dashboard and attached to an agent, which is a real
-  capability and a different one. Passing `tools=` to an `xmagic:` ref now
-  raises rather than being silently ignored, and so does passing it to any
-  adapter's `stream()` — streaming accumulation is stage B, and dropping the
-  calls a model made is the failure this surface exists to prevent.
-- **Raw vendor tool dicts are no longer passed through.** Before `tools=` was a
-  typed parameter, `**params` with a list of OpenAI-shaped dicts was the only
-  way to pass tools. Those now bind to `tools=` and raise a `TypeError` naming
-  the replacement, rather than failing as an `AttributeError` three frames down.
-  Build a `ToolDef`, or derive one with `ToolDef.from_callable`.
-
 - **`LiteLLMProvider` is implemented** — `litellm:groq/llama-3.3-70b-versatile`,
   `litellm:anthropic/claude-sonnet-5`, `litellm:ollama/llama3`, and everything
   else in LiteLLM's namespace, through the same `Provider` interface as
@@ -74,6 +67,7 @@ codebase.**
     against its model metadata, so an unsupported parameter fails locally as a
     `BadRequestError` rather than at the vendor. Moving a call from `openai:` to
     `litellm:` can therefore surface an error the same arguments did not before.
+
 - **`xmagic models list` and `xmagic models providers`** — the models reachable
   through LiteLLM, with capability flags, context windows, and per-million
   prices, plus `--provider`, `--search`, `--mode`, `--limit`, and `--json`. The
@@ -87,10 +81,12 @@ codebase.**
   **This is LiteLLM's catalogue, not xMagic's.** xMagic publishes no model list
   (a `xmagic:` ref names an agent, not a model), and the command says so in its
   own output rather than implying a coverage it does not have.
+
 - **Capability flags are read, not maintained.** `LiteLLMProvider.capabilities()`
   consults `litellm.supports_function_calling` and `supports_vision` for the
   model the ref names. A model LiteLLM has no metadata for reports `False` for
   both — "cannot confirm", which is the honest answer.
+
 - **Token usage on the LiteLLM path.** Non-streaming counts come from the
   provider's response. Streaming counts ride out on the terminal chunk — but
   note that when the upstream sends no usage frame, LiteLLM fills the gap with
@@ -102,6 +98,7 @@ codebase.**
   type a stream can carry, previously spelled inline on `StreamEvent.type`.
   Naming it lets callers that construct events annotate against it instead of
   restating eleven strings; nothing about `StreamEvent` itself changed.
+
 - **The authenticated `xmagic tools --url` path is tested.** The scaffolded
   server now runs under uvicorn on a loopback port in the suite, exercised with
   a key through both the client helpers and the CLI, along with the wrong-key
@@ -110,7 +107,33 @@ codebase.**
   pins the library too, since a wrong-library client still works for
   request/response tools and would otherwise pass everything else.
 
+- **The async transport's failure handling is tested.** `AsyncHttpTransport`
+  duplicates the sync transport's `except httpx.HTTPError` wrapping rather than
+  sharing it, and no test executed that branch — an async caller writing
+  `except XMagicError` was relying on code nothing exercised. Both transports
+  are now driven from one shared list of transport failures, so they cannot
+  drift as it grows. No behaviour changed; the branch was correct, just
+  unguarded.
+
+- **A unary request keeping its ordinary read deadline is now pinned.** Only the
+  streaming half of that invariant was asserted, so `_stream_timeout` leaking
+  onto the non-streaming path would have failed no test.
+
 ### Changed
+
+- **`XMagicProvider.capabilities()["tools"]` is now `False`.** The flag means
+  *per-call tool definitions*, which xMagic does not take: its tools are
+  registered in the dashboard and attached to an agent, which is a real
+  capability and a different one. Passing `tools=` to an `xmagic:` ref now
+  raises rather than being silently ignored, and so does passing it to any
+  adapter's `stream()` — streaming accumulation is stage B, and dropping the
+  calls a model made is the failure this surface exists to prevent.
+
+- **Raw vendor tool dicts are no longer passed through.** Before `tools=` was a
+  typed parameter, `**params` with a list of OpenAI-shaped dicts was the only
+  way to pass tools. Those now bind to `tools=` and raise a `TypeError` naming
+  the replacement, rather than failing as an `AttributeError` three frames down.
+  Build a `ToolDef`, or derive one with `ToolDef.from_callable`.
 
 - **`mypy --strict` now covers `tests/` as well as `src/`.** All 58 errors are
   fixed. Four were real rather than mechanical: a `StreamEvent` built with a
@@ -444,6 +467,8 @@ it (see [DESIGN.md](DESIGN.md)).
   unverified against docs.xmagic.ai/api-drive (Phase 4).
 
 [#2]: https://github.com/stochasticai/xmagic-sdk/issues/2
-[Unreleased]: https://github.com/stochasticai/xmagic-sdk/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/stochasticai/xmagic-sdk/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/stochasticai/xmagic-sdk/releases/tag/v0.4.0
+[0.3.0]: https://github.com/stochasticai/xmagic-sdk/releases/tag/v0.3.0
 [0.2.0]: https://github.com/stochasticai/xmagic-sdk/releases/tag/v0.2.0
 [0.1.0]: https://github.com/stochasticai/xmagic-sdk/releases/tag/v0.1.0
