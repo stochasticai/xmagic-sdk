@@ -157,10 +157,10 @@ Provider layer (BYO model):
 ```python
 from xmagic.providers import get_provider
 
-llm = get_provider("openai:gpt-5")  # implemented; or "xmagic:<agent_id>"
+llm = get_provider("openai:gpt-5")  # or "xmagic:<agent_id>", "litellm:groq/..."
 result = llm.complete(messages=[...], model="gpt-5")
 for chunk in llm.stream(messages=[...], model="gpt-5"):
-    ...  # "litellm:<anything>" once that adapter lands; anthropic:/google: reserved
+    ...  # anthropic:/google: reserved -- reach both through litellm:
 ```
 
 Design rules:
@@ -326,7 +326,7 @@ Chosen approach: **local proxy of the hosted xMagic web app**.
 | **0 — Scaffold** (this session) | Repo layout, pyproject, config, CLI skeleton, MCP templates |
 | **1 — Core client** | chats/query/stream/files, errors, retries; `xmagic chat` end-to-end |
 | **2 — MCP toolkit** | `mcp init/dev`, template hardening, register walkthrough |
-| **3 — Providers** *(partly done)* | `OpenAIProvider` ✅ implemented. Remaining: `LiteLLMProvider` + `models list`. xMagic documents no model selection (`model` is an agent id), so bring-your-own-model lives entirely in the adapters; Anthropic/Google stay reserved, see §4 and §10.6 |
+| **3 — Providers** *(partly done)* | `OpenAIProvider` ✅ and `LiteLLMProvider` ✅ implemented. Remaining: `models list`. xMagic documents no model selection (`model` is an agent id), so bring-your-own-model lives entirely in the adapters; Anthropic/Google stay reserved, see §4 and §10.6 |
 | **4 — Skills & Drive** | skills new/validate/pack, drive CRUD |
 | **5 — Serve** | proxy + fallback UI, `--upstream` for self-hosted |
 | **6 — Polish** | docs, examples, CI, PyPI release |

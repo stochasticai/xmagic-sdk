@@ -124,12 +124,14 @@ select = ["E4", "E7", "E9", "F", "B", "BLE", "PYI", "RUF", "UP"]
 # Deliberately no `python_version` pin: mypy checks against whichever
 # interpreter runs it, and CI runs it across the whole 3.11-3.14 matrix, so a
 # construct that only type-checks on newer Pythons fails on the 3.11 entry.
-# `src` only. That is the shipped package, and since `py.typed` went out every
-# annotation in it is a promise to consumers' type checkers -- a wrong one is
-# worse for them than none at all. `tests/` is not checked yet: it needs ~50
-# fixes of its own, tracked in TODO.md, and gating on them now would have held
-# up the check that actually protects consumers.
-files = ["src"]
+# `src` is the shipped package, and since `py.typed` went out every annotation
+# in it is a promise to consumers' type checkers -- a wrong one is worse for
+# them than none at all. `tests` came second (issue #33): the 58 errors it had
+# were mostly missing `-> None`, but four were real, including a `StreamEvent`
+# built with a type outside its own Literal and three unguarded dereferences of
+# an optional. A test that passes for a narrower reason than it appears to is
+# the kind of thing only a type checker notices.
+files = ["src", "tests"]
 strict = true
 warn_unused_ignores = true
 warn_unreachable = true
