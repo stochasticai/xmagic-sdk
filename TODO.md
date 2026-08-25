@@ -174,13 +174,22 @@ Ready now, roughly in order of value per unit of work:
       [#20](https://github.com/stochasticai/xmagic-sdk/pull/20). The xMagic shape
       is still unconfirmed, so parsing degrades to `None` rather than reporting
       zeros it did not measure
-- [ ] **Tool calling as a typed surface.** `capabilities()` advertises
-      `tools: True`, but `Provider.complete` has no `tools` parameter, and
-      `ChatMessage` has no `tool_call_id` so it cannot represent a tool result
-      at all. Designed in DESIGN.md §13; review thread
-      [#16](https://github.com/stochasticai/xmagic-sdk/issues/16). Stage A
-      (types + blocking path) and C (schemas from typed callables) are the
-      milestone that matters
+- [x] **Tool calling as a typed surface** — stages A and C done 2026-08-24
+      ([#16](https://github.com/stochasticai/xmagic-sdk/issues/16), DESIGN.md
+      §13). `ToolDef`/`ToolCall`, `ChatMessage.tool_calls`/`tool_call_id`,
+      `Completion.tool_calls`, `ToolDef.from_callable`, and one OpenAI-shape
+      mapping shared by the `openai:` and `litellm:` adapters. D1-D5 accepted as
+      designed. Still open:
+- [ ] **Tool calling, stage B — streaming.** `tools=` on `stream()` raises today.
+      Arguments arrive as JSON fragments accumulated by `index` with no
+      completion event, which is fiddly enough to be its own change
+- [ ] **Tool calling, stage D — execution loop.** Blocked on a decision, not on
+      code: DESIGN.md §1 lists agent orchestration as a non-goal, and §13.8 Q1
+      asks whether a call/execute/feed-back loop crosses that line. Every peer
+      SDK ships one
+- [ ] **`capabilities()` is a `dict[str, bool]` with no defined vocabulary.**
+      D4 made the `tools` flag honest, but there is now no word for "has tools
+      registered platform-side", which is what xMagic actually offers. §13.8 Q3
 - [ ] **Structured output** — `response_format` passthrough plus a "parse into
       this pydantic model" helper. Table stakes across every peer SDK
 - [ ] **Logging, and a `User-Agent` header.** There is no logging anywhere in the

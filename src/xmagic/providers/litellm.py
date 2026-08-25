@@ -35,18 +35,20 @@ from xmagic.errors import (
     XMagicError,
     error_for_status,
 )
+from xmagic.providers._openai_wire import (
+    STREAMING_TOOLS_UNSUPPORTED,
+    messages_to_wire,
+    tool_calls_from_wire,
+    tools_to_wire,
+)
 from xmagic.providers.base import (
     ChatMessage,
     Completion,
     CompletionChunk,
     Provider,
+    ToolDef,
     Usage,
 )
-
-
-def _payload(messages: list[ChatMessage]) -> list[dict[str, str]]:
-    """LiteLLM takes the OpenAI message shape, whatever the vendor speaks."""
-    return [{"role": m.role, "content": m.content} for m in messages]
 
 
 def _usage_from(reported: Any) -> Usage | None:
@@ -143,30 +145,52 @@ class LiteLLMProvider(Provider):
             return XMagicError(f"LiteLLM request failed: {e}")
         return e
 
-    def complete(self, messages: list[ChatMessage], *, model: str, **params: Any) -> Completion:
+    def complete(
+        self,
+        messages: list[ChatMessage],
+        *,
+        model: str,
+        tools: list[ToolDef] | None = None,
+        **params: Any,
+    ) -> Completion:
+        if tools:
+            params["tools"] = tools_to_wire(tools)
         try:
             resp: Any = self._litellm.completion(
-                model=model, messages=_payload(messages), **self._call_kwargs(), **params
+                model=model, messages=messages_to_wire(messages), **self._call_kwargs(), **params
             )
         except Exception as e:
             raise self._translate(e) from e
-        text = resp.choices[0].message.content or "" if resp.choices else ""
+        usage = _usage_from(getattr(resp, "usage", None))
+        if not resp.choices:
+            return Completion(text="", model=f"litellm:{model}", raw=resp.model_dump(), usage=usage)
+        message = resp.choices[0].message
         return Completion(
-            text=text,
+            text=message.content or "",
             model=f"litellm:{model}",
             # `model_dump()` drops `usage`, so the counts would be unreachable
             # from `raw` alone -- they ride on `Usage` instead.
             raw=resp.model_dump(),
-            usage=_usage_from(getattr(resp, "usage", None)),
+            usage=usage,
+            # The same reader as the OpenAI adapter, because LiteLLM hands us
+            # the OpenAI shape whichever vendor answered.
+            tool_calls=tool_calls_from_wire(message),
         )
 
     def stream(
-        self, messages: list[ChatMessage], *, model: str, **params: Any
+        self,
+        messages: list[ChatMessage],
+        *,
+        model: str,
+        tools: list[ToolDef] | None = None,
+        **params: Any,
     ) -> Iterator[CompletionChunk]:
+        if tools:
+            raise XMagicError(STREAMING_TOOLS_UNSUPPORTED)
         try:
             chunks: Any = self._litellm.completion(
                 model=model,
-                messages=_payload(messages),
+                messages=messages_to_wire(messages),
                 stream=True,
                 **self._call_kwargs(),
                 **params,

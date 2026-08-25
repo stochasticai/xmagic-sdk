@@ -12,12 +12,14 @@ from typing import Any
 from xmagic.client import XMagicClient
 from xmagic.client.models import ChatType, StreamEvent
 from xmagic.config import Settings
-from xmagic.errors import XMagicAPIError
+from xmagic.errors import XMagicAPIError, XMagicError
 from xmagic.providers.base import (
     ChatMessage,
     Completion,
     CompletionChunk,
+    ContentPart,
     Provider,
+    ToolDef,
     Usage,
 )
 
@@ -76,13 +78,38 @@ def _stream_error(event: StreamEvent) -> XMagicAPIError:
     return XMagicAPIError(200, code if isinstance(code, str) else None, message)
 
 
+_NO_PER_CALL_TOOLS = (
+    "xMagic agents do not take per-call tool definitions: tools are registered in "
+    "the dashboard and attached to an agent (DESIGN.md §13.4, D4). Rejected rather "
+    "than ignored, so a caller finds out here instead of wondering why the model "
+    "never called anything. Use an `openai:` or `litellm:` ref for per-call tools."
+)
+
+
+def _as_text(content: str | list[ContentPart] | None) -> str:
+    """The text of a message body, whichever shape it arrived in.
+
+    `content` gained a structured form for tool calling (DESIGN.md §13.4, D2).
+    This endpoint takes one query string, so parts are joined and a bodyless
+    assistant turn -- one that only called tools -- contributes nothing.
+    """
+    if content is None:
+        return ""
+    if isinstance(content, str):
+        return content
+    return "\n".join(part.text for part in content)
+
+
 def _flatten(messages: list[ChatMessage]) -> str:
     """Collapse a message list into a single query string.
 
     The chats API takes one query per turn; prior context lives server-side in
     the chat. System messages are prefixed as instructions.
     """
-    parts = [f"[{m.role}] {m.content}" if m.role != "user" else m.content for m in messages]
+    parts = [
+        f"[{m.role}] {_as_text(m.content)}" if m.role != "user" else _as_text(m.content)
+        for m in messages
+    ]
     return "\n\n".join(parts)
 
 
@@ -127,14 +154,30 @@ class XMagicProvider(Provider):
             self._chat_id = chat.id
         return self._chat_id
 
-    def complete(self, messages: list[ChatMessage], *, model: str, **params: Any) -> Completion:
+    def complete(
+        self,
+        messages: list[ChatMessage],
+        *,
+        model: str,
+        tools: list[ToolDef] | None = None,
+        **params: Any,
+    ) -> Completion:
+        if tools:
+            raise XMagicError(_NO_PER_CALL_TOOLS)
         chat_id = self._ensure_chat(model)
         resp = self._client.chats.query(model, chat_id, _flatten(messages), **params)
         return Completion(text=resp.text, model=f"xmagic:{model}", raw=resp.model_dump())
 
     def stream(
-        self, messages: list[ChatMessage], *, model: str, **params: Any
+        self,
+        messages: list[ChatMessage],
+        *,
+        model: str,
+        tools: list[ToolDef] | None = None,
+        **params: Any,
     ) -> Iterator[CompletionChunk]:
+        if tools:
+            raise XMagicError(_NO_PER_CALL_TOOLS)
         chat_id = self._ensure_chat(model)
         usage: Usage | None = None
         for event in self._client.chats.stream(model, chat_id, _flatten(messages), **params):
@@ -158,4 +201,8 @@ class XMagicProvider(Provider):
             # caller still cannot learn the id of the message it just received.
 
     def capabilities(self) -> dict[str, bool]:
-        return {"streaming": True, "tools": True, "vision": False}
+        # `tools: False` is not a downgrade: the flag means per-call tool
+        # definitions (DESIGN.md §13.4, D4), and xMagic has none. Its tools are
+        # real, but registered in the dashboard and attached to an agent, which
+        # is a different capability -- and one this dict has no word for yet.
+        return {"streaming": True, "tools": False, "vision": False}

@@ -362,6 +362,38 @@ Errors arrive as this SDK's own types, so you catch `XMagicError` regardless of
 which vendor failed — a 429 from OpenAI raises the same `RateLimitError` a 429
 from xMagic would.
 
+Tools are a typed surface, not a `**params` passthrough:
+
+```python
+from xmagic.providers import ChatMessage, ToolDef, get_provider
+
+
+def get_weather(city: str) -> str:
+    """Look up the weather in a city."""
+    return "sunny, 24C"
+
+
+provider = get_provider("openai:gpt-5")
+messages = [ChatMessage(role="user", content="What's the weather in Osaka?")]
+tool = ToolDef.from_callable(get_weather)  # schema from the signature
+
+completion = provider.complete(messages, model="gpt-5", tools=[tool])
+for call in completion.tool_calls:
+    result = get_weather(**call.arguments)  # arguments arrive parsed, not as JSON text
+    messages += [
+        ChatMessage(role="assistant", content=None, tool_calls=completion.tool_calls),
+        ChatMessage(role="tool", tool_call_id=call.id, content=result),
+    ]
+print(provider.complete(messages, model="gpt-5", tools=[tool]).text)
+```
+
+Works the same through `litellm:` refs, since LiteLLM normalizes every vendor
+onto the shape this maps. Two limits worth knowing: `tools=` on `stream()`
+raises rather than silently dropping the calls (streaming accumulation is not
+built yet), and `xmagic:` refs reject `tools=` — an xMagic agent's tools are
+registered in the dashboard and attached to the agent, which is a different
+capability, so `capabilities()["tools"]` reports `False` there.
+
 Which refs exist is discoverable rather than guesswork:
 
 ```bash

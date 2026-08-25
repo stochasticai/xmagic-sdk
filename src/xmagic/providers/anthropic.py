@@ -12,7 +12,13 @@ from __future__ import annotations
 from collections.abc import Iterator
 from typing import Any
 
-from xmagic.providers.base import ChatMessage, Completion, CompletionChunk, Provider
+from xmagic.providers.base import (
+    ChatMessage,
+    Completion,
+    CompletionChunk,
+    Provider,
+    ToolDef,
+)
 
 # Said the same way whether or not the vendor SDK happens to be installed --
 # `anthropic` is absent by default, but a transitive dependency could pull it in
@@ -37,10 +43,22 @@ class AnthropicProvider(Provider):
                 f"{_UNIMPLEMENTED} If you are implementing this adapter, `pip install anthropic`."
             ) from e
 
-    def complete(self, messages: list[ChatMessage], *, model: str, **params: Any) -> Completion:
+    def complete(
+        self,
+        messages: list[ChatMessage],
+        *,
+        model: str,
+        tools: list[ToolDef] | None = None,
+        **params: Any,
+    ) -> Completion:
         raise NotImplementedError(_UNIMPLEMENTED)
 
     def stream(
-        self, messages: list[ChatMessage], *, model: str, **params: Any
+        self,
+        messages: list[ChatMessage],
+        *,
+        model: str,
+        tools: list[ToolDef] | None = None,
+        **params: Any,
     ) -> Iterator[CompletionChunk]:
         raise NotImplementedError(_UNIMPLEMENTED)
