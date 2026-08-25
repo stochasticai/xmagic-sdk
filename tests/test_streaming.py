@@ -77,6 +77,29 @@ def test_stream_sends_the_stream_timeout(sse_body: str) -> None:
 
 
 @respx.mock
+def test_a_unary_request_keeps_the_ordinary_read_deadline() -> None:
+    """The other half of the invariant, and the half nothing was pinning.
+
+    Relaxing the read bound is only correct for streams: one request/response
+    still has to finish inside `timeout`. Without this, `_stream_timeout`
+    leaking onto the unary path would fail no test — recovered from the closed
+    #25, whose fix was superseded by #26 but whose reasoning here was not.
+    """
+    captured: list[dict[str, float | None]] = []
+
+    def _record(request: httpx.Request) -> Response:
+        captured.append(request.extensions["timeout"])
+        return Response(200, json={"data": {"chat": {"id": "chat-1"}}})
+
+    respx.post(f"{DEFAULT_BASE_URL}/agents/agent-1/chats").mock(side_effect=_record)
+
+    with _client(timeout=7.0, stream_timeout=300.0) as client:
+        client.chats.create("agent-1")
+
+    assert captured == [{"connect": 7.0, "read": 7.0, "write": 7.0, "pool": 7.0}]
+
+
+@respx.mock
 def test_mid_stream_timeout_is_typed_and_names_stream_timeout() -> None:
     """The failure this whole setting exists for, reported in the caller's terms."""
     respx.post(QUERY_URL).mock(side_effect=httpx.ReadTimeout("no data"))
