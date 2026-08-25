@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 import pytest
 import respx
@@ -28,7 +29,7 @@ JOBS_URL = f"{DEFAULT_BASE_URL}/agents/agent-1/configs/cfg-1/jobs"
 runner = CliRunner()
 
 
-def _export_payload() -> dict:
+def _export_payload() -> dict[str, Any]:
     return {
         "config_values": {},
         "subagents": [],
@@ -154,11 +155,11 @@ def test_agent_config_uses_default_agent_from_config(
 # ── deploy tests ──────────────────────────────────────────────────────────────
 
 
-def _phones_payload(phones: list[dict]) -> dict:
+def _phones_payload(phones: list[dict[str, Any]]) -> dict[str, Any]:
     return {"data": {"org_phone_numbers": phones, "shared_phone_numbers": []}}
 
 
-def _saved_config_payload() -> dict:
+def _saved_config_payload() -> dict[str, Any]:
     return {"data": {"id": "saved-cfg-1", "version_name": "v1"}}
 
 

@@ -18,6 +18,7 @@ use `id`, because an observation beats an example.
 from __future__ import annotations
 
 import zipfile
+from collections.abc import Iterator
 from io import BytesIO
 
 import pytest
@@ -42,7 +43,7 @@ FOLDER_BODY = {
 
 
 @pytest.fixture
-def client() -> XMagicClient:
+def client() -> Iterator[XMagicClient]:
     c = XMagicClient(api_key="test-key", base_url=DEFAULT_BASE_URL)
     yield c
     c.close()

@@ -22,11 +22,13 @@ from __future__ import annotations
 
 import json
 import os
+from collections.abc import Iterator
 from pathlib import Path
+from typing import Any
 
 import pytest
 import respx
-from httpx import Response
+from httpx import Request, Response
 
 from xmagic import XMagicClient
 from xmagic.client.models import ChatType
@@ -35,8 +37,9 @@ from xmagic.config import DEFAULT_BASE_URL, Settings
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
 
 
-def _load_json_fixture(name: str) -> dict:
-    return json.loads((FIXTURES_DIR / name).read_text())
+def _load_json_fixture(name: str) -> dict[str, Any]:
+    loaded: dict[str, Any] = json.loads((FIXTURES_DIR / name).read_text())
+    return loaded
 
 
 def _load_text_fixture(name: str) -> str:
@@ -80,7 +83,7 @@ def _resolve_live_credentials(repo_root: Path) -> tuple[str | None, str | None]:
 
 
 @pytest.fixture
-def client() -> XMagicClient:
+def client() -> Iterator[XMagicClient]:
     c = XMagicClient(api_key="test-key", base_url=DEFAULT_BASE_URL)
     try:
         yield c
@@ -134,7 +137,9 @@ def test_create_chat_request_and_response_shape(client: XMagicClient) -> None:
 
     assert chat.id == "REDACTED_CHAT_ID"
     assert chat.title == "contract-capture"
-    assert chat.chat_type.value == "standard"
+    # Identity, not `.value`: `chat_type` is optional on the model, and the
+    # wire spelling is pinned by the request assertion below.
+    assert chat.chat_type is ChatType.STANDARD
     sent = route.calls.last.request.read().decode()
     assert '"title":"Demo"' in sent
     assert '"chat_type":"standard"' in sent
@@ -218,7 +223,7 @@ def test_drive_uses_knowledge_base_routes(client: XMagicClient, tmp_path: Path) 
     attach_response = _load_json_fixture("drive_attach_data_source_response.json")
     list_files_response = _load_json_fixture("drive_list_files_response.json")
 
-    def kb_list_response(request):
+    def kb_list_response(request: Request) -> Response:
         if request.url.params.get("parent_kb_id") == "REDACTED_KB_ID":
             return Response(200, json=list_files_response)
         return Response(200, json=empty_list)
