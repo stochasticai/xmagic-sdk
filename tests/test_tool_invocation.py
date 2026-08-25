@@ -9,8 +9,11 @@ integration test rather than a syntax check.
 from __future__ import annotations
 
 import json
+from pathlib import Path
+from typing import TYPE_CHECKING, Any
 
 import pytest
+from _helpers import import_scaffolded_server
 
 from xmagic.cli.tools import _parse_args
 from xmagic.errors import XMagicError
@@ -18,22 +21,25 @@ from xmagic.mcp.client import call_tool, list_tools
 
 pytest.importorskip("mcp")
 
+if TYPE_CHECKING:
+    from mcp.server.mcpserver import MCPServer
+
 
 @pytest.fixture
-def server():
+def server() -> MCPServer:
     from mcp.server.mcpserver import MCPServer
 
     srv = MCPServer("fixture")
 
     @srv.tool()
-    def greet(name: str, excited: bool = False) -> dict:
+    def greet(name: str, excited: bool = False) -> dict[str, Any]:
         """Say hello to someone."""
         return {"greeting": f"hello {name}", "excited": excited}
 
     return srv
 
 
-async def test_list_tools_reports_names_and_schema(server) -> None:
+async def test_list_tools_reports_names_and_schema(server: MCPServer) -> None:
     tools = await list_tools(server)
 
     assert [t.name for t in tools] == ["greet"]
@@ -41,7 +47,7 @@ async def test_list_tools_reports_names_and_schema(server) -> None:
     assert set(tools[0].input_schema["properties"]) == {"name", "excited"}
 
 
-async def test_call_tool_returns_the_tool_output(server) -> None:
+async def test_call_tool_returns_the_tool_output(server: MCPServer) -> None:
     result = await call_tool(server, "greet", {"name": "world", "excited": True})
 
     assert not result.is_error
@@ -59,17 +65,12 @@ async def test_unreachable_server_raises_a_readable_error() -> None:
     assert "failed" in message
 
 
-async def test_scaffolded_server_answers_its_own_ping(tmp_path) -> None:
+async def test_scaffolded_server_answers_its_own_ping(tmp_path: Path) -> None:
     """`xmagic mcp init` output, driven over MCP end to end."""
-    import importlib.util
-
     from xmagic.mcp import scaffold_mcp_server
 
     project = scaffold_mcp_server("invoke-check", tmp_path)
-    path = project / "src" / "invoke_check" / "server.py"
-    spec = importlib.util.spec_from_file_location("invoke_check_server", path)
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
+    module = import_scaffolded_server(project, "invoke_check")
 
     tools = await list_tools(module.server)
     assert {t.name for t in tools} == {"ping", "example_lookup"}

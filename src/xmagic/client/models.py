@@ -189,6 +189,23 @@ class UploadedFile(BaseModel):
     filename: str | None = None
 
 
+StreamEventType = Literal[
+    "reasoning",
+    "end_reasoning",
+    "fast_response_simulation",
+    "response",
+    "end_response",
+    "live_update",
+    "ping",
+    "error",
+    "token_usage",
+    "metadata",
+    "done",
+]
+"""Every token type a stream can carry. Named so tests and callers that build
+events can annotate against it instead of restating the list."""
+
+
 class StreamEvent(BaseModel):
     """A Server-Sent Event emitted during a streaming query.
 
@@ -208,19 +225,7 @@ class StreamEvent(BaseModel):
     (xmagic_shared/src/shared/models/model_response_schema.py).
     """
 
-    type: Literal[
-        "reasoning",
-        "end_reasoning",
-        "fast_response_simulation",
-        "response",
-        "end_response",
-        "live_update",
-        "ping",
-        "error",
-        "token_usage",
-        "metadata",
-        "done",
-    ]
+    type: StreamEventType
     text: str = ""
     raw: dict[str, Any] = Field(default_factory=dict)
 
