@@ -62,6 +62,17 @@ def tools_to_wire(tools: list[ToolDef]) -> list[dict[str, Any]]:
     """
     wire: list[dict[str, Any]] = []
     for tool in tools:
+        if not isinstance(tool, ToolDef):
+            # Before `tools=` was a typed parameter, the only way to pass tools
+            # was `**params` with raw vendor dicts. Those now bind to this
+            # parameter and would fail as `AttributeError: 'dict' object has no
+            # attribute 'name'` three frames down, which says nothing about what
+            # to do.
+            raise TypeError(
+                f"tools= takes ToolDef, not {type(tool).__name__}. Build one with "
+                "ToolDef(name=..., parameters=...) or ToolDef.from_callable(fn); "
+                "raw vendor dicts are no longer passed through."
+            )
         function: dict[str, Any] = {
             "name": tool.name,
             "description": tool.description,

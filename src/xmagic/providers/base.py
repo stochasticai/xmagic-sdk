@@ -69,9 +69,13 @@ class ToolDef:
         difference between this being pleasant and being a schema-writing
         exercise (DESIGN.md §13.6, stage C).
 
-        `strict` is set only when every parameter is required, since a schema
-        with optional properties cannot satisfy the vendors' strict mode.
-        Raises `ValueError` for signatures JSON Schema cannot express.
+        `strict` is set only for a flat, fully-required schema: strict mode
+        constrains every level of the schema, so a parameter with a default or a
+        nested model (which pydantic emits under `$defs`) turns it off rather
+        than sending something the vendor rejects outright.
+
+        Raises `ValueError` for signatures JSON Schema cannot express, and for
+        annotations that cannot be resolved.
         """
         from pydantic import create_model
 

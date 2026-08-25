@@ -43,6 +43,11 @@ codebase.**
   raises rather than being silently ignored, and so does passing it to any
   adapter's `stream()` — streaming accumulation is stage B, and dropping the
   calls a model made is the failure this surface exists to prevent.
+- **Raw vendor tool dicts are no longer passed through.** Before `tools=` was a
+  typed parameter, `**params` with a list of OpenAI-shaped dicts was the only
+  way to pass tools. Those now bind to `tools=` and raise a `TypeError` naming
+  the replacement, rather than failing as an `AttributeError` three frames down.
+  Build a `ToolDef`, or derive one with `ToolDef.from_callable`.
 
 - **`LiteLLMProvider` is implemented** — `litellm:groq/llama-3.3-70b-versatile`,
   `litellm:anthropic/claude-sonnet-5`, `litellm:ollama/llama3`, and everything
