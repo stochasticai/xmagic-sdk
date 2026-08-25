@@ -26,6 +26,19 @@ codebase.**
     against its model metadata, so an unsupported parameter fails locally as a
     `BadRequestError` rather than at the vendor. Moving a call from `openai:` to
     `litellm:` can therefore surface an error the same arguments did not before.
+- **`xmagic models list` and `xmagic models providers`** — the models reachable
+  through LiteLLM, with capability flags, context windows, and per-million
+  prices, plus `--provider`, `--search`, `--mode`, `--limit`, and `--json`. The
+  same catalogue is available programmatically as
+  `xmagic.providers.catalogue.list_models()`. Three things it is careful about:
+  it lists chat models only unless asked (`--mode any`), because chat is all the
+  `Provider` interface does; a model LiteLLM carries no capability flag for
+  renders `?` rather than `no`, since roughly 700 of them have none and
+  "unsupported" would be an invention; and truncation is always announced — on
+  stderr under `--json`, so a piped stdout stays valid.
+  **This is LiteLLM's catalogue, not xMagic's.** xMagic publishes no model list
+  (a `xmagic:` ref names an agent, not a model), and the command says so in its
+  own output rather than implying a coverage it does not have.
 - **Capability flags are read, not maintained.** `LiteLLMProvider.capabilities()`
   consults `litellm.supports_function_calling` and `supports_vision` for the
   model the ref names. A model LiteLLM has no metadata for reports `False` for
