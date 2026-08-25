@@ -5,6 +5,34 @@ the plan and [TODO.md](TODO.md) for what's next.
 
 ---
 
+## 2026-08-23 — `xmagic models`, and the last missing example
+
+Phase 3 is closed and `examples/` is complete.
+
+- **`xmagic models list` / `xmagic models providers`**, over a new
+  `providers/catalogue.py` that reads `litellm.model_cost` — chosen over
+  `model_list` because it also carries mode, capability flags, context window,
+  and prices. Chat models only by default (that is all `Provider` does); an
+  unflagged model shows `?` rather than `no`, since ~700 of the 2,390 carry no
+  flags and "unsupported" would be invented; truncation is announced, on stderr
+  under `--json` so a piped stdout stays valid JSON. The command says in its own
+  output that this is LiteLLM's catalogue and not xMagic's — xMagic publishes no
+  model list, and a command called `xmagic models` implying otherwise is exactly
+  the misreading worth heading off (DESIGN.md §10.6).
+- **`examples/06_provider_model.py`** — the last unwritten example. Any
+  `provider:model` ref, no xMagic key, and no key at all against
+  `litellm:ollama/<model>`.
+- **Verified live**, not only mocked: the example ran against OpenAI on both the
+  `openai:` and `litellm:` paths, streaming and reporting 258 tokens off the
+  terminal chunk. That is the gap the #37 review notes said only a live vendor
+  could close.
+- **Found in passing:** `examples/README.md` documented
+  `06_worklist_outputs_to_drive.py` — a table row and two Notes paragraphs, in
+  the shipped 0.3.0 — for a script that was never written. The false entries are
+  removed and the script is filed in TODO.md.
+- 20 new tests, driving a fake catalogue for everything that would otherwise
+  break on LiteLLM's release schedule, plus a short section on the real one.
+
 ## 2026-08-23 — LiteLLMProvider
 
 The last stubbed adapter is implemented, which closes the largest unblocked gap

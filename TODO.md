@@ -81,8 +81,15 @@ points with no extra (DESIGN.md §4).
       missing API key is not an error (LiteLLM resolves per-vendor credentials
       from the environment, and a local runtime needs none), and streamed token
       counts may be LiteLLM's own estimate when the upstream sends no usage frame
-- [ ] `xmagic models list` — near-trivial off `litellm.model_list` (~1,900 models
-      across 149 providers as of litellm 1.95)
+- [x] `xmagic models list` — done 2026-08-23, plus `xmagic models providers`.
+      Reads `litellm.model_cost` (2,390 chat models across 85 providers as of
+      litellm 1.95) rather than `model_list`, because that mapping also carries
+      the mode, capability flags, context window, and prices. Three decisions
+      worth knowing: chat models only by default, since that is all the
+      `Provider` interface does; a missing capability flag renders `?` rather
+      than `no`, because ~700 models carry none and "unsupported" would be
+      invented; and truncation is announced, on stderr under `--json` so stdout
+      stays valid
 - [x] Provider capability flags — done 2026-08-23. `LiteLLMProvider.capabilities()`
       reads `litellm.supports_function_calling` / `supports_vision` for the model
       the ref names, rather than hand-maintaining a table. Both report `False` for
@@ -117,6 +124,13 @@ points with no extra (DESIGN.md §4).
       CLI review uses blank=complete and `/skip`=leave in needs_review, with no
       approve/retrigger path
 - [x] Single-page `--skip`/`--limit` pagination and latest chat-result retrieval
+- [ ] **`examples/06_worklist_outputs_to_drive.py` was documented but never
+      written.** `examples/README.md` described it in the table and in two Notes
+      paragraphs as though it shipped — it went out that way in 0.3.0. The false
+      entries were removed 2026-08-23 and slot 06 went to the provider example;
+      the script itself (completed worklist outputs → presigned download → Drive
+      upload) is still worth writing, and the README text describing it is in
+      this file's git history
 - [ ] Upload local files for `input_s3_file_paths` directly from Worklist YAML/CLI;
       currently callers must provide pre-existing S3 paths or upload through the
       existing file/Drive APIs first
@@ -143,8 +157,10 @@ Largely delivered by the open-source readiness work (see [PLAN.md](PLAN.md)).
 - [x] Examples directory — `examples/` with basic chat, streaming, files+Drive,
       and the MCP scaffold walkthrough (the last needs no API key)
 - [x] Skills packaging example (`examples/05_skills.py`)
-- [ ] Multi-provider example (`provider:model`) — no longer blocked;
-      `LiteLLMProvider` landed 2026-08-23
+- [x] Multi-provider example — done 2026-08-23 as
+      `examples/06_provider_model.py`. Takes any `provider:model` ref, needs no
+      xMagic key, and runs with no key at all against `litellm:ollama/<model>`.
+      Verified live against OpenAI on both the `openai:` and `litellm:` paths
 
 ## SDK surface — surveyed, not yet scoped
 
