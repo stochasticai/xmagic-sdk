@@ -12,6 +12,17 @@ codebase.**
 
 ### Added
 
+- **The async transport's failure handling is tested.** `AsyncHttpTransport`
+  duplicates the sync transport's `except httpx.HTTPError` wrapping rather than
+  sharing it, and no test executed that branch — an async caller writing
+  `except XMagicError` was relying on code nothing exercised. Both transports
+  are now driven from one shared list of transport failures, so they cannot
+  drift as it grows. No behaviour changed; the branch was correct, just
+  unguarded.
+- **A unary request keeping its ordinary read deadline is now pinned.** Only the
+  streaming half of that invariant was asserted, so `_stream_timeout` leaking
+  onto the non-streaming path would have failed no test.
+
 - **Tool calling as a typed surface** (DESIGN.md §13, stages A and C). Before
   this, `capabilities()` advertised `tools: True` while `Provider.complete` had
   no `tools` parameter and `ChatMessage` had no `tool_call_id`, so a tool result
