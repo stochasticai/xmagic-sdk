@@ -5,8 +5,8 @@ abstract: "Python SDK and CLI for xMagic, Stochastic's AI agent platform."
 type: software
 authors:
   - name: "Stochastic"
-version: "0.3.0"
-date-released: "2026-08-14"
+version: "0.4.0"
+date-released: "2026-08-25"
 license: Apache-2.0
 repository-code: "https://github.com/stochasticai/xmagic-sdk"
 url: "https://xmagic.ai"

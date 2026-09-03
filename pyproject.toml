@@ -1,6 +1,6 @@
 [project]
 name = "xmagic-sdk"
-version = "0.3.0"
+version = "0.4.0"
 description = "Python SDK and CLI for xMagic, Stochastic's AI agent platform"
 readme = "README.md"
 # Upper bound is deliberate. An unbounded ">=3.11" forces resolvers to find a
