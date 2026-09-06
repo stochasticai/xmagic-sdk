@@ -22,6 +22,7 @@ from pydantic import BaseModel
 
 from xmagic.errors import XMagicError
 from xmagic.providers._openai_wire import (
+    ToolCallAccumulator,
     messages_to_wire,
     tool_calls_from_wire,
     tools_to_wire,
@@ -77,6 +78,46 @@ def _tool_call_response(arguments: str = '{"city": "Osaka"}') -> dict[str, Any]:
             }
         ],
     }
+
+
+def _sse(*frames: dict[str, Any]) -> str:
+    body = "".join(f"data: {json.dumps(f)}\n\n" for f in frames)
+    return body + "data: [DONE]\n\n"
+
+
+def _chunk(delta: dict[str, Any], finish_reason: str | None = None) -> dict[str, Any]:
+    return {
+        "id": "chatcmpl-1",
+        "object": "chat.completion.chunk",
+        "created": 0,
+        "model": "gpt-5",
+        "choices": [{"index": 0, "delta": delta, "finish_reason": finish_reason}],
+    }
+
+
+def _fragment(
+    index: int = 0,
+    *,
+    id_: str | None = None,
+    name: str | None = None,
+    arguments: str | None = None,
+) -> dict[str, Any]:
+    """One streamed tool-call fragment, shaped as OpenAI sends them.
+
+    The opening fragment carries `id` and `name`; the rest carry only a slice of
+    the argument string. Omitted keys are genuinely absent from the wire, not
+    null, which is what the accumulator has to tolerate.
+    """
+    function: dict[str, Any] = {}
+    if name is not None:
+        function["name"] = name
+    if arguments is not None:
+        function["arguments"] = arguments
+    fragment: dict[str, Any] = {"index": index, "function": function}
+    if id_ is not None:
+        fragment["id"] = id_
+        fragment["type"] = "function"
+    return fragment
 
 
 @pytest.fixture
@@ -351,18 +392,228 @@ class TestOpenAIAdapter:
         assert "tools" not in json.loads(route.calls.last.request.content)
         assert result.tool_calls == []
 
-    def test_streaming_with_tools_is_refused_rather_than_dropped(
+    @respx.mock
+    def test_no_tools_leaves_the_terminal_chunk_empty(self, provider: OpenAIProvider) -> None:
+        respx.post(CHAT_URL).mock(
+            return_value=httpx.Response(
+                200,
+                headers={"content-type": "text/event-stream"},
+                content=_sse(_chunk({"content": "hi"}), _chunk({}, finish_reason="stop")),
+            )
+        )
+
+        chunks = list(provider.stream([ChatMessage(role="user", content="hi")], model="gpt-5"))
+
+        assert [c.text for c in chunks] == ["hi", ""]
+        assert chunks[-1].tool_calls == []
+
+
+class TestStreamedToolCalls:
+    """Stage B: fragments in, whole calls out.
+
+    The failure this guards is not a crash. A model streaming a tool call sends
+    `arguments` as JSON slices that are individually invalid, so an adapter that
+    forwards deltas naively loses the call entirely and the stream still looks
+    successful.
+    """
+
+    @respx.mock
+    def test_argument_fragments_reassemble_into_one_call(self, provider: OpenAIProvider) -> None:
+        route = respx.post(CHAT_URL).mock(
+            return_value=httpx.Response(
+                200,
+                headers={"content-type": "text/event-stream"},
+                content=_sse(
+                    _chunk({"tool_calls": [_fragment(id_="call_1", name="get_weather")]}),
+                    _chunk({"tool_calls": [_fragment(arguments='{"ci')]}),
+                    _chunk({"tool_calls": [_fragment(arguments='ty": "Osa')]}),
+                    _chunk({"tool_calls": [_fragment(arguments='ka"}')]}),
+                    _chunk({}, finish_reason="tool_calls"),
+                ),
+            )
+        )
+
+        chunks = list(
+            provider.stream(
+                [ChatMessage(role="user", content="weather in Osaka?")],
+                model="gpt-5",
+                tools=[WEATHER],
+            )
+        )
+
+        assert (
+            json.loads(route.calls.last.request.content)["tools"][0]["function"]["name"]
+            == "get_weather"
+        )
+        # Four fragment deltas produced no visible chunk at all: a half-built
+        # call cannot be told apart from a finished one, so there is nothing
+        # honest to emit until the arguments close.
+        assert len(chunks) == 1
+        assert chunks[-1].done
+        assert chunks[-1].tool_calls == [
+            ToolCall(id="call_1", name="get_weather", arguments={"city": "Osaka"})
+        ]
+
+    @respx.mock
+    def test_text_and_a_call_in_one_turn_stay_separate(self, provider: OpenAIProvider) -> None:
+        respx.post(CHAT_URL).mock(
+            return_value=httpx.Response(
+                200,
+                headers={"content-type": "text/event-stream"},
+                content=_sse(
+                    _chunk({"content": "Let me check. "}),
+                    _chunk({"tool_calls": [_fragment(id_="call_1", name="get_weather")]}),
+                    _chunk({"tool_calls": [_fragment(arguments='{"city": "Osaka"}')]}),
+                    _chunk({}, finish_reason="tool_calls"),
+                ),
+            )
+        )
+
+        chunks = list(
+            provider.stream(
+                [ChatMessage(role="user", content="weather?")], model="gpt-5", tools=[WEATHER]
+            )
+        )
+
+        assert "".join(c.text for c in chunks) == "Let me check. "
+        # The text chunk is emitted while the call is still accumulating, and
+        # carries none of it -- only the terminal chunk does.
+        assert [bool(c.tool_calls) for c in chunks] == [False, True]
+        assert chunks[-1].tool_calls[0].arguments == {"city": "Osaka"}
+
+    @respx.mock
+    def test_parallel_calls_are_keyed_by_index_not_arrival_order(
         self, provider: OpenAIProvider
     ) -> None:
-        # Stage B is not built. Passing tools= to stream would send them, get
-        # calls back as argument fragments, and drop every one -- which is the
-        # failure this whole surface exists to prevent.
-        with pytest.raises(XMagicError, match="stage B"):
+        """Two calls whose fragments interleave — the case order alone gets wrong."""
+        respx.post(CHAT_URL).mock(
+            return_value=httpx.Response(
+                200,
+                headers={"content-type": "text/event-stream"},
+                content=_sse(
+                    _chunk({"tool_calls": [_fragment(0, id_="call_a", name="get_weather")]}),
+                    _chunk({"tool_calls": [_fragment(1, id_="call_b", name="get_weather")]}),
+                    # Interleaved, and the second call's slice arrives first.
+                    _chunk({"tool_calls": [_fragment(1, arguments='{"city": "Kyo')]}),
+                    _chunk({"tool_calls": [_fragment(0, arguments='{"city": "Osa')]}),
+                    _chunk({"tool_calls": [_fragment(1, arguments='to"}')]}),
+                    _chunk({"tool_calls": [_fragment(0, arguments='ka"}')]}),
+                    _chunk({}, finish_reason="tool_calls"),
+                ),
+            )
+        )
+
+        calls = list(
+            provider.stream(
+                [ChatMessage(role="user", content="both?")], model="gpt-5", tools=[WEATHER]
+            )
+        )[-1].tool_calls
+
+        assert [c.id for c in calls] == ["call_a", "call_b"]
+        assert [c.arguments["city"] for c in calls] == ["Osaka", "Kyoto"]
+
+    @respx.mock
+    def test_a_backend_that_omits_index_still_works(self, provider: OpenAIProvider) -> None:
+        # `index` is required of OpenAI but not of every OpenAI-compatible
+        # backend reachable through `base_url`; position stands in for it.
+        fragment = _fragment(id_="call_1", name="get_weather", arguments='{"city": "Osaka"}')
+        del fragment["index"]
+        respx.post(CHAT_URL).mock(
+            return_value=httpx.Response(
+                200,
+                headers={"content-type": "text/event-stream"},
+                content=_sse(
+                    _chunk({"tool_calls": [fragment]}),
+                    _chunk({}, finish_reason="tool_calls"),
+                ),
+            )
+        )
+
+        chunks = list(
+            provider.stream(
+                [ChatMessage(role="user", content="weather?")], model="gpt-5", tools=[WEATHER]
+            )
+        )
+
+        assert chunks[-1].tool_calls == [
+            ToolCall(id="call_1", name="get_weather", arguments={"city": "Osaka"})
+        ]
+
+    @respx.mock
+    def test_a_truncated_call_raises_rather_than_arriving_half_built(
+        self, provider: OpenAIProvider
+    ) -> None:
+        """A model that hits the token limit mid-arguments, the realistic failure."""
+        respx.post(CHAT_URL).mock(
+            return_value=httpx.Response(
+                200,
+                headers={"content-type": "text/event-stream"},
+                content=_sse(
+                    _chunk({"tool_calls": [_fragment(id_="call_1", name="get_weather")]}),
+                    _chunk({"tool_calls": [_fragment(arguments='{"city": "Osa')]}),
+                    _chunk({}, finish_reason="length"),
+                ),
+            )
+        )
+
+        with pytest.raises(XMagicError, match="get_weather"):
             list(
                 provider.stream(
-                    [ChatMessage(role="user", content="hi")], model="gpt-5", tools=[WEATHER]
+                    [ChatMessage(role="user", content="weather?")],
+                    model="gpt-5",
+                    tools=[WEATHER],
                 )
             )
+
+
+class TestAccumulator:
+    """The pieces of stage B that no adapter round trip reaches."""
+
+    def test_deltas_without_tool_calls_are_ignored(self) -> None:
+        accumulator = ToolCallAccumulator()
+
+        accumulator.add(_FakeDelta(None))
+        accumulator.add(_FakeDelta([]))
+
+        assert accumulator.finish() == []
+
+    def test_arguments_already_parsed_are_taken_as_they_are(self) -> None:
+        # Not OpenAI's shape, but some compatible backends send an object --
+        # the same tolerance `_arguments_to_dict` has on the blocking path.
+        accumulator = ToolCallAccumulator()
+
+        accumulator.add(_FakeDelta([_FakeFragment(0, "call_1", "get_weather", {"city": "Osaka"})]))
+
+        assert accumulator.finish() == [
+            ToolCall(id="call_1", name="get_weather", arguments={"city": "Osaka"})
+        ]
+
+    def test_a_call_with_no_arguments_at_all_is_still_a_call(self) -> None:
+        # A zero-parameter tool sends no argument fragments; an empty string is
+        # not valid JSON, so this would raise if it reached the parser bare.
+        accumulator = ToolCallAccumulator()
+
+        accumulator.add(_FakeDelta([_FakeFragment(0, "call_1", "ping", None)]))
+
+        assert accumulator.finish() == [ToolCall(id="call_1", name="ping", arguments={})]
+
+
+class _FakeFragment:
+    def __init__(self, index: int, id_: str | None, name: str | None, arguments: Any) -> None:
+        self.index = index
+        self.id = id_
+        self.function = _FakeFunction(name, arguments)
+
+
+class _FakeFunction:
+    def __init__(self, name: str | None, arguments: Any) -> None:
+        self.name = name
+        self.arguments = arguments
+
+
+class _FakeDelta:
+    def __init__(self, tool_calls: list[_FakeFragment] | None) -> None:
+        self.tool_calls = tool_calls
 
 
 class TestLiteLLMAdapter:
@@ -394,15 +645,34 @@ class TestLiteLLMAdapter:
             ToolCall(id="call_1", name="get_weather", arguments={"city": "Osaka"})
         ]
 
-    def test_streaming_with_tools_is_refused(self, provider: Any) -> None:
-        with pytest.raises(XMagicError, match="stage B"):
-            list(
-                provider.stream(
-                    [ChatMessage(role="user", content="hi")],
-                    model="openai/gpt-5",
-                    tools=[WEATHER],
-                )
+    @respx.mock
+    def test_streamed_calls_survive_the_second_adapter_too(self, provider: Any) -> None:
+        """The bet of §13.2, on the streaming path: one accumulator, ~150 vendors."""
+        respx.post(CHAT_URL).mock(
+            return_value=httpx.Response(
+                200,
+                headers={"content-type": "text/event-stream"},
+                content=_sse(
+                    _chunk({"tool_calls": [_fragment(id_="call_1", name="get_weather")]}),
+                    _chunk({"tool_calls": [_fragment(arguments='{"city": "Os')]}),
+                    _chunk({"tool_calls": [_fragment(arguments='aka"}')]}),
+                    _chunk({}, finish_reason="tool_calls"),
+                ),
             )
+        )
+
+        chunks = list(
+            provider.stream(
+                [ChatMessage(role="user", content="weather in Osaka?")],
+                model="openai/gpt-5",
+                tools=[WEATHER],
+            )
+        )
+
+        assert chunks[-1].done
+        assert chunks[-1].tool_calls == [
+            ToolCall(id="call_1", name="get_weather", arguments={"city": "Osaka"})
+        ]
 
 
 class TestXMagicAdapterRejects:
