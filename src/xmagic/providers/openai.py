@@ -19,7 +19,7 @@ from typing import Any, cast
 
 from xmagic.errors import ConfigurationError, XMagicError, error_for_status
 from xmagic.providers._openai_wire import (
-    STREAMING_TOOLS_UNSUPPORTED,
+    ToolCallAccumulator,
     messages_to_wire,
     tool_calls_from_wire,
     tools_to_wire,
@@ -112,7 +112,7 @@ class OpenAIProvider(Provider):
         **params: Any,
     ) -> Iterator[CompletionChunk]:
         if tools:
-            raise XMagicError(STREAMING_TOOLS_UNSUPPORTED)
+            params["tools"] = tools_to_wire(tools)
         try:
             chunks: Any = self._client.chat.completions.create(
                 model=model,
@@ -122,6 +122,7 @@ class OpenAIProvider(Provider):
             )
         except Exception as e:
             raise self._translate(e) from e
+        calls = ToolCallAccumulator()
         for chunk in chunks:
             if not chunk.choices:
                 continue  # usage-only frames carry no delta
@@ -134,8 +135,12 @@ class OpenAIProvider(Provider):
                 yield CompletionChunk(text=reasoning, kind="reasoning")
             if choice.delta.content:
                 yield CompletionChunk(text=choice.delta.content)
+            calls.add(choice.delta)
             if choice.finish_reason:
-                yield CompletionChunk(text="", done=True)
+                # `finish_reason` is "tool_calls" here rather than "stop", but
+                # branching on it would only duplicate what the accumulator
+                # already knows: no fragments means no calls.
+                yield CompletionChunk(text="", done=True, tool_calls=calls.finish())
 
     def capabilities(self) -> dict[str, bool]:
         return {"streaming": True, "tools": True, "vision": True}

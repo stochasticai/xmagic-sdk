@@ -36,7 +36,7 @@ from xmagic.errors import (
     error_for_status,
 )
 from xmagic.providers._openai_wire import (
-    STREAMING_TOOLS_UNSUPPORTED,
+    ToolCallAccumulator,
     messages_to_wire,
     tool_calls_from_wire,
     tools_to_wire,
@@ -186,7 +186,7 @@ class LiteLLMProvider(Provider):
         **params: Any,
     ) -> Iterator[CompletionChunk]:
         if tools:
-            raise XMagicError(STREAMING_TOOLS_UNSUPPORTED)
+            params["tools"] = tools_to_wire(tools)
         try:
             chunks: Any = self._litellm.completion(
                 model=model,
@@ -199,6 +199,7 @@ class LiteLLMProvider(Provider):
             raise self._translate(e) from e
 
         usage: Usage | None = None
+        calls = ToolCallAccumulator()
         try:
             for chunk in chunks:
                 usage = _usage_from(getattr(chunk, "usage", None)) or usage
@@ -213,13 +214,19 @@ class LiteLLMProvider(Provider):
                     yield CompletionChunk(text=reasoning, kind="reasoning")
                 if delta.content:
                     yield CompletionChunk(text=delta.content)
+                # Anthropic sends whole arguments and OpenAI sends fragments;
+                # LiteLLM levels that to the fragment shape either way, which is
+                # why the OpenAI accumulator is the right one for all of them.
+                calls.add(delta)
         except Exception as e:
             raise self._translate(e) from e
 
         # `done` is emitted here rather than on `finish_reason`, unlike the
         # OpenAI adapter: usage arrives in a frame *after* the finish reason, so
-        # closing the stream early would drop the token counts every time.
-        yield CompletionChunk(text="", done=True, usage=usage)
+        # closing the stream early would drop the token counts every time. Tool
+        # calls ride the same chunk, which is also the last point at which the
+        # accumulated argument fragments are known to be complete.
+        yield CompletionChunk(text="", done=True, usage=usage, tool_calls=calls.finish())
 
     def capabilities(self) -> dict[str, bool]:
         """Read the flags off LiteLLM rather than hand-maintaining a table.

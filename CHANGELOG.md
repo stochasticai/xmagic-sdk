@@ -10,6 +10,25 @@ codebase.**
 
 ## [Unreleased]
 
+### Added
+
+- **Streaming tool calls** (DESIGN.md §13.6, stage B; [#16](https://github.com/stochasticai/xmagic-sdk/issues/16)).
+  `tools=` now works on `stream()` for the `openai:` and `litellm:` adapters,
+  where it previously raised. A streamed call arrives as JSON *fragments* spread
+  across deltas, tied together by `index` rather than by id or arrival order, so
+  a new `ToolCallAccumulator` reassembles them.
+  - **`CompletionChunk.tool_calls`** carries the completed calls, on the terminal
+    chunk only. A fragment is not valid JSON on its own and a half-built call
+    cannot be distinguished from a finished one, so there is no honest
+    intermediate value to emit — the same placement `usage` already uses.
+  - A stream that ends mid-arguments **raises** rather than handing back a
+    truncated call, matching the blocking path (D1).
+  - `index` is treated as advisory: backends reachable through `base_url` that
+    omit it fall back to position within the delta.
+  - `XMagicProvider` still rejects `tools=` on both paths; its tools are
+    registered platform-side, which is a different capability (D4).
+
+
 ## [0.4.0] — 2026-08-25
 
 Five PRs since 0.3.0, and they add up to one thing: the provider layer is
