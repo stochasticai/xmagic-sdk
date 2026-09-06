@@ -180,9 +180,6 @@ Ready now, roughly in order of value per unit of work:
       `Completion.tool_calls`, `ToolDef.from_callable`, and one OpenAI-shape
       mapping shared by the `openai:` and `litellm:` adapters. D1-D5 accepted as
       designed. Still open:
-- [ ] **Tool calling, stage B — streaming.** `tools=` on `stream()` raises today.
-      Arguments arrive as JSON fragments accumulated by `index` with no
-      completion event, which is fiddly enough to be its own change
 - [ ] **Tool calling, stage D — execution loop.** Blocked on a decision, not on
       code: DESIGN.md §1 lists agent orchestration as a non-goal, and §13.8 Q1
       asks whether a call/execute/feed-back loop crosses that line. Every peer

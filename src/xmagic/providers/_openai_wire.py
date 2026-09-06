@@ -16,12 +16,6 @@ from typing import Any
 from xmagic.errors import XMagicError
 from xmagic.providers.base import ChatMessage, ContentPart, ToolCall, ToolDef
 
-STREAMING_TOOLS_UNSUPPORTED = (
-    "Streaming tool calls are not implemented yet (DESIGN.md §13.6, stage B): "
-    "arguments arrive as JSON fragments that have to be accumulated across "
-    "deltas. Use complete() with tools=, or drop tools= to stream text."
-)
-
 
 def _content_to_wire(content: str | list[ContentPart] | None) -> Any:
     """`None` survives as `None`: an assistant turn that only called tools."""
@@ -126,3 +120,67 @@ def tool_calls_from_wire(message: Any) -> list[ToolCall]:
             )
         )
     return found
+
+
+class ToolCallAccumulator:
+    """Reassemble streamed tool calls from the fragments they arrive in.
+
+    A streamed call is not one delta. The first carries the id and the function
+    name; later ones carry `arguments` as JSON *string fragments* that are
+    invalid JSON until every piece has landed. What ties them together is
+    `index` -- not the id, which only the opening fragment has, and not arrival
+    order, since a model calling two tools interleaves their fragments freely.
+
+    Backends reachable through `base_url` are less disciplined than OpenAI
+    about this, so `index` is treated as advisory: when it is missing, position
+    within the delta stands in, which is right for the common single-call case
+    and no worse than the alternative for the rest.
+    """
+
+    def __init__(self) -> None:
+        # Insertion-ordered, so calls come back in the order the model opened
+        # them rather than sorted by an index the vendor may not have sent.
+        self._slots: dict[int, dict[str, Any]] = {}
+
+    def add(self, delta: Any) -> None:
+        """Fold one delta's fragments in. Deltas carrying none are no-ops."""
+        for position, fragment in enumerate(getattr(delta, "tool_calls", None) or []):
+            index = getattr(fragment, "index", None)
+            if not isinstance(index, int) or isinstance(index, bool):
+                index = position
+            slot = self._slots.setdefault(index, {"id": "", "name": "", "arguments": ""})
+
+            identifier = getattr(fragment, "id", None)
+            if identifier:
+                slot["id"] = identifier
+            function = getattr(fragment, "function", None)
+            name = getattr(function, "name", None)
+            if name:
+                # Some backends repeat the name on every fragment instead of
+                # only the first; last-write-wins is the same value either way.
+                slot["name"] = name
+
+            arguments = getattr(function, "arguments", None)
+            if isinstance(arguments, dict):
+                # Already parsed, so there is nothing to concatenate -- the
+                # non-streaming path tolerates this shape too.
+                slot["arguments"] = arguments
+            elif arguments and isinstance(slot["arguments"], str):
+                slot["arguments"] += arguments
+
+    def finish(self) -> list[ToolCall]:
+        """The completed calls. Empty when the model made none.
+
+        Parsing happens here and nowhere earlier, because a fragment is not
+        valid JSON on its own. A stream that ends mid-call therefore raises out
+        of `_arguments_to_dict` rather than handing back a truncated call --
+        which is the same promise the blocking path makes (D1).
+        """
+        return [
+            ToolCall(
+                id=slot["id"],
+                name=slot["name"],
+                arguments=_arguments_to_dict(slot["arguments"], slot["name"]),
+            )
+            for slot in self._slots.values()
+        ]
