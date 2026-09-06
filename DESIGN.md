@@ -301,6 +301,20 @@ Chosen approach: **local proxy of the hosted xMagic web app**.
 
 - **HTTP**: httpx with retries + exponential backoff on 429/5xx honoring
   `Retry-After`; client-side rate-limit awareness per plan tier.
+- **Two HTTP stacks, and the rule for them**: `mcp` (2.x) requires `httpx2`, a
+  separate distribution from the `httpx` this package uses — separate import
+  names, so nothing complains at install time and `[mcp]` installs both. The rule:
+  **anything constructed to cross into `mcp` uses `httpx2`; everything else uses
+  `httpx`.** Today that boundary is one call site, `mcp/client.py::_target`, which
+  builds the `httpx2.AsyncClient` that `streamable_http_client` calls `.sse()` on.
+  Handing it an `httpx` client instead fails only when a server opens that
+  standalone stream, so request/response tools keep working and the bug stays
+  latent (#28). `httpx2.*` is in the mypy overrides, which is what turns the
+  boundary into something checked rather than remembered. We accepted the
+  split instead of migrating: the 4 source files are mechanical, but 14 test files
+  mock through respx, which intercepts `httpx` only. Revisit on a trigger, not a
+  schedule — a third crossing appearing, or `mcp` returning to mainline `httpx`
+  (#34).
 - **Errors**: typed hierarchy mapping `{error_code, message}`; response-shape and
    editor failures also stay under `XMagicError`; never swallow bodies.
 - **Streaming**: one SSE parser (httpx-sse) shared by SDK and CLI; events typed as
