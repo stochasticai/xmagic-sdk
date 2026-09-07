@@ -10,39 +10,20 @@ codebase.**
 
 ## [Unreleased]
 
-### Added
+## [0.4.0] — 2026-09-07
 
-- **Streaming tool calls** (DESIGN.md §13.6, stage B; [#16](https://github.com/stochasticai/xmagic-sdk/issues/16)).
-  `tools=` now works on `stream()` for the `openai:` and `litellm:` adapters,
-  where it previously raised. A streamed call arrives as JSON *fragments* spread
-  across deltas, tied together by `index` rather than by id or arrival order, so
-  a new `ToolCallAccumulator` reassembles them.
-  - **`CompletionChunk.tool_calls`** carries the completed calls, on the terminal
-    chunk only. A fragment is not valid JSON on its own and a half-built call
-    cannot be distinguished from a finished one, so there is no honest
-    intermediate value to emit — the same placement `usage` already uses.
-  - A stream that ends mid-arguments **raises** rather than handing back a
-    truncated call, matching the blocking path (D1).
-  - `index` is treated as advisory: backends reachable through `base_url` that
-    omit it fall back to position within the delta.
-  - `XMagicProvider` still rejects `tools=` on both paths; its tools are
-    registered platform-side, which is a different capability (D4).
-
-
-## [0.4.0] — 2026-08-25
-
-Five PRs since 0.3.0, and they add up to one thing: the provider layer is
+Six PRs since 0.3.0, and they add up to one thing: the provider layer is
 finally worth using. `LiteLLMProvider` reaches the roughly 150 vendors LiteLLM
 supports, `xmagic models` makes their models discoverable rather than
 guesswork, and tool calling is a typed surface instead of a `**params` hole
-that happened to line up.
+that happened to line up — on the streaming path as well as the blocking one.
 
 Read **Changed** before upgrading. Two behaviours differ, both in the tool
 surface: `XMagicProvider.capabilities()["tools"]` is now `False`, and raw
 vendor tool dicts passed through `**params` raise instead of being forwarded.
 Neither affects code that does not use tools.
 
-The suite went from 204 tests to 289, and `mypy --strict` now gates `tests/`
+The suite went from 204 tests to 297, and `mypy --strict` now gates `tests/`
 alongside `src/`. That gate earned itself twice this cycle, catching two real
 defects rather than style ones — a `StreamEvent` built outside its own
 `Literal`, and a message flattener that would have interpolated the string
@@ -50,7 +31,7 @@ defects rather than style ones — a `StreamEvent` built outside its own
 
 ### Added
 
-- **Tool calling as a typed surface** (DESIGN.md §13, stages A and C). Before
+- **Tool calling as a typed surface** (DESIGN.md §13, stages A, B and C). Before
   this, `capabilities()` advertised `tools: True` while `Provider.complete` had
   no `tools` parameter and `ChatMessage` had no `tool_call_id`, so a tool result
   could not be represented at all; tools "worked" only by `**params` passthrough
@@ -69,6 +50,19 @@ defects rather than style ones — a `StreamEvent` built outside its own
     existing construction is unchanged. `content` had to widen: an assistant
     turn that only calls tools has no text at all.
   - **`Completion.tool_calls`** carries what the model asked for.
+  - **Streaming works too** (stage B). A streamed call does not arrive whole:
+    `arguments` comes as JSON *fragments* spread across deltas, tied together by
+    `index` rather than by id (only the opening fragment has one) or arrival
+    order (a model interleaves parallel calls freely). `ToolCallAccumulator`
+    reassembles them.
+    - **`CompletionChunk.tool_calls`** carries the completed calls, on the
+      terminal chunk only. A fragment is not valid JSON alone and a half-built
+      call cannot be distinguished from a finished one, so there is no honest
+      intermediate value to emit — the same placement `usage` already uses.
+    - A stream that ends mid-arguments **raises** rather than handing back a
+      truncated call, matching the blocking path.
+    - `index` is treated as advisory: backends reachable through `base_url` that
+      omit it fall back to position within the delta.
   - Supported on `openai:` and `litellm:` refs, through one mapping — LiteLLM
     normalizes every vendor onto the OpenAI shape.
 
@@ -144,9 +138,9 @@ defects rather than style ones — a `StreamEvent` built outside its own
   *per-call tool definitions*, which xMagic does not take: its tools are
   registered in the dashboard and attached to an agent, which is a real
   capability and a different one. Passing `tools=` to an `xmagic:` ref now
-  raises rather than being silently ignored, and so does passing it to any
-  adapter's `stream()` — streaming accumulation is stage B, and dropping the
-  calls a model made is the failure this surface exists to prevent.
+  raises on both `complete()` and `stream()`, rather than being silently
+  ignored — dropping the calls a model made is the failure this surface exists
+  to prevent. The `openai:` and `litellm:` refs accept it on both paths.
 
 - **Raw vendor tool dicts are no longer passed through.** Before `tools=` was a
   typed parameter, `**params` with a list of OpenAI-shaped dicts was the only
