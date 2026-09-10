@@ -30,8 +30,9 @@ the loop and raised here. The OpenAI adapter now does the same, so both paths
 keep the promise the PR makes. 298 tests.
 
 The 0.4.0 changelog entry absorbed this — that release was prepared on `main`
-in #41 but never tagged or published, so it is still open. Tagging `v0.4.0` is
-the next step.
+in #41 but had not been tagged or published. Reached `main` through #43, with
+a tool-calling example (#44) added before the tag. **`v0.4.0` shipped to PyPI
+the same day**, wheel and sdist, through the release workflow.
 
 ---
 
