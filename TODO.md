@@ -249,10 +249,10 @@ day and are still open.
       that `_target` hands the transport an `httpx2` client. That last one is the
       only check that fails if the #28 defect returns: a wrong-library client
       still works for request/response tools, which is why it survived
-- [ ] **`metadata` stream events are dropped**, and they carry `message_id` — so
-      a streaming caller cannot learn the id of the message it just received.
-      Named in a comment in `providers/xmagic.py:157`; filed here so it is not
-      only a comment
+- [x] **`metadata` stream events are dropped** — done 2026-09-10. The
+      `message_id` they carry is now `CompletionChunk.id` on the terminal chunk
+      and `Completion.id` on the blocking path, with OpenAI's and LiteLLM's ids
+      in the same field
 - [ ] **Streaming calls are never retried** — decided 2026-09-10 to leave it
       that way until the platform answers one question (DESIGN.md §8): is a
       partially-delivered query safe to re-send, or does the agent see it

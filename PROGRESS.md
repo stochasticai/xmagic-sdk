@@ -5,6 +5,25 @@ the plan and [TODO.md](TODO.md) for what's next.
 
 ---
 
+## 2026-09-10 — The response id reaches the caller
+
+Fifth 0.5.0 item, and the smallest. xMagic sends the id of the message it is
+generating in a `metadata` frame before any text; the provider dropped that
+frame, so a streaming caller could read the whole answer and still not know
+which message it was — the id `chats.get_message` and the worklist review
+flow take. It was named in a code comment and in TODO.md as a known gap.
+
+- **`Completion.id` and `CompletionChunk.id`**, the latter on the terminal
+  chunk with `usage`, `tool_calls`, and `parsed`, even though the frame
+  arrives first — one place to look rather than one per provider.
+- **The same field on every adapter:** OpenAI's `chatcmpl-...` id and
+  whatever LiteLLM passes through. A backend that omits it leaves `None`.
+- **`_message_id_from`** reads the recorded live shape and, like
+  `_usage_from`, yields `None` on anything unexpected rather than failing a
+  generation over an id.
+- `xmagic chat --json` reports it as `id`. 8 new tests, including the CLI path
+  and the recorded frame shape verbatim.
+
 ## 2026-09-10 — Closable streams
 
 Fourth 0.5.0 item. `sse()` yielded from inside `with connect_sse(...)`, so a
