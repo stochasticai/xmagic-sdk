@@ -168,6 +168,11 @@ class ToolCallAccumulator:
             elif arguments and isinstance(slot["arguments"], str):
                 slot["arguments"] += arguments
 
+    @property
+    def pending(self) -> bool:
+        """Whether any fragment has arrived, complete or not."""
+        return bool(self._slots)
+
     def finish(self) -> list[ToolCall]:
         """The completed calls. Empty when the model made none.
 

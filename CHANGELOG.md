@@ -23,7 +23,7 @@ surface: `XMagicProvider.capabilities()["tools"]` is now `False`, and raw
 vendor tool dicts passed through `**params` raise instead of being forwarded.
 Neither affects code that does not use tools.
 
-The suite went from 204 tests to 297, and `mypy --strict` now gates `tests/`
+The suite went from 204 tests to 298, and `mypy --strict` now gates `tests/`
 alongside `src/`. That gate earned itself twice this cycle, catching two real
 defects rather than style ones — a `StreamEvent` built outside its own
 `Literal`, and a message flattener that would have interpolated the string

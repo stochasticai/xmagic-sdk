@@ -565,6 +565,40 @@ class TestStreamedToolCalls:
                 )
             )
 
+    @respx.mock
+    def test_a_stream_that_closes_without_a_finish_reason_still_raises(
+        self, provider: OpenAIProvider
+    ) -> None:
+        """The server hangs up mid-call and never sends `finish_reason`.
+
+        Found in review: the OpenAI adapter emitted its terminal chunk only on
+        `finish_reason`, so this case yielded nothing at all and the half-built
+        call vanished without an error -- the LiteLLM adapter, which closes
+        after the loop, already raised here.
+        """
+        respx.post(CHAT_URL).mock(
+            return_value=httpx.Response(
+                200,
+                headers={"content-type": "text/event-stream"},
+                content="".join(
+                    f"data: {json.dumps(f)}\n\n"
+                    for f in (
+                        _chunk({"tool_calls": [_fragment(id_="call_1", name="get_weather")]}),
+                        _chunk({"tool_calls": [_fragment(arguments='{"city": "Osa')]}),
+                    )
+                ),  # no finish_reason and no [DONE]
+            )
+        )
+
+        with pytest.raises(XMagicError, match="get_weather"):
+            list(
+                provider.stream(
+                    [ChatMessage(role="user", content="weather?")],
+                    model="gpt-5",
+                    tools=[WEATHER],
+                )
+            )
+
 
 class TestAccumulator:
     """The pieces of stage B that no adapter round trip reaches."""
