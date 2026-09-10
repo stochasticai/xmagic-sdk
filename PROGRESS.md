@@ -5,6 +5,36 @@ the plan and [TODO.md](TODO.md) for what's next.
 
 ---
 
+## 2026-09-10 — Streaming tool calls (stage B), reviewed and merged
+
+[#42](https://github.com/stochasticai/xmagic-sdk/pull/42) closes stage B of
+DESIGN.md §13.6. `tools=` on `stream()` now works on the `openai:` and
+`litellm:` refs instead of raising.
+
+- **`ToolCallAccumulator`** in `_openai_wire.py`, shared by both adapters.
+  Fragments are keyed by `index`, since only the opening fragment carries an id
+  and parallel calls interleave; a backend that omits `index` falls back to
+  position within the delta.
+- **Calls ride the terminal chunk only.** A fragment is not valid JSON on its
+  own and a half-built call looks the same as a finished one, so there is no
+  honest intermediate value. Same placement `usage` already has.
+- **A truncated call raises** out of `finish()` rather than arriving half-built,
+  matching D1 on the blocking path.
+
+One defect found in review, fixed before merge: the OpenAI adapter emitted its
+terminal chunk only on `finish_reason`, so a server that closed the stream
+without one yielded *nothing* — no `done`, no error, and the accumulated call
+gone. Verified by driving a two-fragment stream with no finish reason through
+the adapter: an empty list came back. The LiteLLM adapter already closed after
+the loop and raised here. The OpenAI adapter now does the same, so both paths
+keep the promise the PR makes. 298 tests.
+
+The 0.4.0 changelog entry absorbed this — that release was prepared on `main`
+in #41 but never tagged or published, so it is still open. Tagging `v0.4.0` is
+the next step.
+
+---
+
 ## 2026-08-25 — Recovering two tests from a closed PR, and branch cleanup
 
 Deleted 22 merged branches. One would not go: `fix/client-robustness`, the

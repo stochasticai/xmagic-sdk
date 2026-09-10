@@ -301,6 +301,20 @@ Chosen approach: **local proxy of the hosted xMagic web app**.
 
 - **HTTP**: httpx with retries + exponential backoff on 429/5xx honoring
   `Retry-After`; client-side rate-limit awareness per plan tier.
+- **Two HTTP stacks, and the rule for them**: `mcp` (2.x) requires `httpx2`, a
+  separate distribution from the `httpx` this package uses — separate import
+  names, so nothing complains at install time and `[mcp]` installs both. The rule:
+  **anything constructed to cross into `mcp` uses `httpx2`; everything else uses
+  `httpx`.** Today that boundary is one call site, `mcp/client.py::_target`, which
+  builds the `httpx2.AsyncClient` that `streamable_http_client` calls `.sse()` on.
+  Handing it an `httpx` client instead fails only when a server opens that
+  standalone stream, so request/response tools keep working and the bug stays
+  latent (#28). `httpx2.*` is in the mypy overrides, which is what turns the
+  boundary into something checked rather than remembered. We accepted the
+  split instead of migrating: the 4 source files are mechanical, but 14 test files
+  mock through respx, which intercepts `httpx` only. Revisit on a trigger, not a
+  schedule — a third crossing appearing, or `mcp` returning to mainline `httpx`
+  (#34).
 - **Errors**: typed hierarchy mapping `{error_code, message}`; response-shape and
    editor failures also stay under `XMagicError`; never swallow bodies.
 - **Streaming**: one SSE parser (httpx-sse) shared by SDK and CLI; events typed as
@@ -332,7 +346,7 @@ Chosen approach: **local proxy of the hosted xMagic web app**.
 | **6 — Polish** | docs, examples, CI, PyPI release |
 | **7 — Document redactor** *(proposed)* | `mcp init --template redactor`; see §12 |
 | **8 — Coding-agent bridge** *(proposed)* | `mcp init --template coding-agent`; see §11 |
-| **9 — Tool calling** *(A + C done)* | Typed `tools=` on the provider interface. Stages A and C shipped 2026-08-24; streaming (B) and the execution loop (D) remain, see §13 |
+| **9 — Tool calling** *(A + B + C done)* | Typed `tools=` on the provider interface. Stages A and C shipped 2026-08-24, streaming (B) followed; only the execution loop (D) remains, and it is blocked on a scope question rather than on code — see §13.8 Q1 |
 
 ## 10. Open questions
 
@@ -842,12 +856,19 @@ for call in completion.tool_calls:
 | Stage | Scope | Status |
 |---|---|---|
 | **A — types + blocking** | `ToolDef`/`ToolCall`, `ChatMessage` and `Completion` changes, OpenAI mapping both ways | ✅ 2026-08-24, in `providers/_openai_wire.py` and both adapters |
-| **B — streaming** | Accumulate `arguments` fragments by `index`, emit a complete `ToolCall` | ⬜ `tools=` on `stream()` raises rather than dropping the calls |
+| **B — streaming** | Accumulate `arguments` fragments by `index`, emit a complete `ToolCall` | ✅ `ToolCallAccumulator` in `_openai_wire.py`; calls ride the terminal chunk |
 | **C — schemas from callables** | Typed Python function → JSON Schema, via pydantic | ✅ 2026-08-24, `ToolDef.from_callable` |
 | **D — execution loop** | call → execute → feed back → repeat | ⬜ open question 1 below is unanswered |
 
-**A and C are the milestone that matters.** B and D should follow contact with a real
-use, not precede it.
+**A and C are the milestone that matters.** B followed, since a streaming caller
+passing `tools=` had no path at all; D still waits on the scope question below.
+
+Stage B settled one thing the design left open: **where a completed call surfaces.**
+Arguments arrive as JSON slices that are invalid until the last one lands, so there is
+no honest intermediate value — a half-built call is indistinguishable from a finished
+one. `CompletionChunk.tool_calls` is therefore populated on the terminal chunk only,
+which is where `usage` already lives. A stream that ends mid-arguments raises rather
+than yielding a truncated call, matching D1 on the blocking path.
 
 Two things the implementation settled that the design did not:
 
