@@ -16,7 +16,10 @@ import inspect
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
-from typing import Any, Literal, TypeAlias, get_type_hints
+from typing import TYPE_CHECKING, Any, Literal, TypeAlias, get_type_hints
+
+if TYPE_CHECKING:
+    from pydantic import BaseModel
 
 Role = Literal["system", "user", "assistant", "tool"]
 
@@ -36,6 +39,24 @@ A union of one for now. Image and audio parts land with multimodal input, which
 is its own item in TODO.md; the alias exists so that adding them does not change
 `ChatMessage`'s type again.
 """
+
+
+def claim_strict(schema: dict[str, Any]) -> bool:
+    """Whether a JSON Schema can honestly be sent under a vendor's strict mode.
+
+    Strict mode requires every property to be required and additional ones
+    forbidden, at every level. `$defs` means pydantic emitted a nested model,
+    whose inner objects this does not rewrite -- so strict is claimed only for
+    the flat, fully-required case rather than sending a schema the vendor
+    rejects outright. When it is claimed, the schema is amended in place to
+    forbid additional properties, which strict mode also demands.
+    """
+    properties = schema.get("properties", {})
+    required = schema.get("required", [])
+    strict = set(required) == set(properties) and "$defs" not in schema
+    if strict:
+        schema["additionalProperties"] = False
+    return strict
 
 
 @dataclass
@@ -111,15 +132,7 @@ class ToolDef:
         ).model_json_schema()
         # pydantic names the model; the name belongs to the tool, not the schema.
         schema.pop("title", None)
-        properties = schema.get("properties", {})
-        required = schema.get("required", [])
-        # Strict mode requires every property to be required and additional ones
-        # forbidden, at every level. `$defs` means pydantic emitted a nested
-        # model, whose inner objects this does not rewrite -- so claim strict
-        # only for the flat case rather than send a schema the vendor rejects.
-        strict = set(required) == set(properties) and "$defs" not in schema
-        if strict:
-            schema["additionalProperties"] = False
+        strict = claim_strict(schema)
 
         return cls(
             name=name or fn.__name__,
@@ -193,6 +206,13 @@ class Completion:
     usage: Usage | None = None
     tool_calls: list[ToolCall] = field(default_factory=list)
     """What the model wants run. Empty unless `tools=` was passed and used."""
+    parsed: BaseModel | None = None
+    """`text` validated into the `response_format=` model, when one was given.
+
+    Never silently `None` for a request that asked for a schema: text that does
+    not validate raises instead, so a caller who asked for a `Weather` gets a
+    `Weather` or an exception (DESIGN.md §14).
+    """
 
 
 ChunkKind = Literal["response", "reasoning"]
@@ -220,6 +240,12 @@ class CompletionChunk:
     to emit -- a half-built call is indistinguishable from a complete one. The
     terminal chunk is therefore where a completed call becomes available, which
     also matches ``usage``.
+    """
+    parsed: BaseModel | None = None
+    """The streamed text validated into the `response_format=` model.
+
+    Terminal chunk only, for the same reason as `tool_calls`: JSON that is
+    still arriving is not yet an instance of anything.
     """
 
 
@@ -258,9 +284,17 @@ class Provider(ABC):
         *,
         model: str,
         tools: list[ToolDef] | None = None,
+        response_format: type[BaseModel] | None = None,
         **params: Any,
     ) -> Completion:
-        """Blocking chat completion."""
+        """Blocking chat completion.
+
+        `response_format` is a pydantic model the answer must conform to. The
+        vendor is asked for that schema and the reply is validated into an
+        instance on `Completion.parsed`; a reply that does not validate raises
+        (DESIGN.md §14). An adapter whose backend takes no schema rejects it
+        rather than ignoring it.
+        """
 
     @abstractmethod
     def stream(
@@ -269,6 +303,7 @@ class Provider(ABC):
         *,
         model: str,
         tools: list[ToolDef] | None = None,
+        response_format: type[BaseModel] | None = None,
         **params: Any,
     ) -> Iterator[CompletionChunk]:
         """Streaming chat completion.
@@ -277,6 +312,9 @@ class Provider(ABC):
         terminal chunk (DESIGN.md §13.6, stage B). An adapter that cannot
         reassemble them raises rather than dropping them -- silently discarding
         the calls a model made is the failure this surface exists to prevent.
+
+        With `response_format`, the JSON streams as text and the validated
+        instance rides the terminal chunk as `parsed` (DESIGN.md §14).
         """
 
     def capabilities(self) -> dict[str, bool]:
@@ -285,6 +323,7 @@ class Provider(ABC):
         ``tools`` means **per-call tool definitions** — whether this adapter
         accepts `tools=` (DESIGN.md §13.4, D4). An agent with tools registered
         platform-side is a real capability, and a different one; it does not
-        make this flag true.
+        make this flag true. ``structured_output`` means `response_format=` is
+        accepted (DESIGN.md §14).
         """
-        return {"streaming": True, "tools": False, "vision": False}
+        return {"streaming": True, "tools": False, "vision": False, "structured_output": False}

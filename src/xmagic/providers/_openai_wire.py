@@ -13,8 +13,10 @@ from __future__ import annotations
 import json
 from typing import Any
 
+from pydantic import BaseModel, ValidationError
+
 from xmagic.errors import XMagicError
-from xmagic.providers.base import ChatMessage, ContentPart, ToolCall, ToolDef
+from xmagic.providers.base import ChatMessage, ContentPart, ToolCall, ToolDef, claim_strict
 
 
 def _content_to_wire(content: str | list[ContentPart] | None) -> Any:
@@ -189,3 +191,51 @@ class ToolCallAccumulator:
             )
             for slot in self._slots.values()
         ]
+
+
+def response_format_to_wire(model_type: type[BaseModel]) -> dict[str, Any]:
+    """A pydantic model as the vendor's `json_schema` response format.
+
+    The same strict rule as tools: claimed only for a flat, fully-required
+    schema, since strict mode constrains every level and a nested model would
+    be rejected outright. Unlike tools, `strict` is always sent here -- the
+    `json_schema` format is recent enough that every backend offering it knows
+    the key, and a backend that does not offer it fails on the format itself.
+    """
+    if not (isinstance(model_type, type) and issubclass(model_type, BaseModel)):
+        raise TypeError(
+            f"response_format= takes a pydantic model class, not "
+            f"{type(model_type).__name__}. Raw vendor dicts are not passed through; "
+            "define `class Answer(BaseModel)` and pass `Answer`."
+        )
+    schema = model_type.model_json_schema()
+    schema.pop("title", None)
+    return {
+        "type": "json_schema",
+        "json_schema": {
+            "name": model_type.__name__,
+            "schema": schema,
+            "strict": claim_strict(schema),
+        },
+    }
+
+
+def parse_structured(text: str, model_type: type[BaseModel], refusal: Any = None) -> BaseModel:
+    """Validate the reply into the requested model, or say exactly why not.
+
+    Raises rather than returning `None`: the caller asked for an instance, and a
+    silent `None` looks like success to code that reaches for `.parsed.field`
+    three lines later. A refusal is the vendor declining the request on safety
+    grounds; it arrives in its own field with no JSON alongside, so it is the
+    one case reported in the vendor's words rather than as a parse failure.
+    """
+    if refusal:
+        raise XMagicError(
+            f"The model refused to answer in the {model_type.__name__} schema: {refusal}"
+        )
+    try:
+        return model_type.model_validate_json(text)
+    except ValidationError as e:
+        raise XMagicError(
+            f"The model's reply did not validate as {model_type.__name__}: {e}. Reply was: {text!r}"
+        ) from e
