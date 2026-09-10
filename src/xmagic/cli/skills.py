@@ -7,6 +7,7 @@ from pathlib import Path
 import typer
 from rich.console import Console
 
+from xmagic.cli._output import fail, print_json
 from xmagic.skills import new_skill, pack_skill, validate_skill
 
 console = Console()
@@ -29,13 +30,18 @@ def new(
 
 
 @app.command()
-def validate(path: Path = typer.Argument(..., help="Skill directory or SKILL.md.")) -> None:
+def validate(
+    path: Path = typer.Argument(..., help="Skill directory or SKILL.md."),
+    as_json: bool = typer.Option(False, "--json", help="Machine-readable output."),
+) -> None:
     """Validate SKILL.md frontmatter (requires name + description)."""
     try:
         manifest = validate_skill(path)
     except ValueError as e:
-        console.print(f"[red]{e}[/red]")
-        raise typer.Exit(1) from None
+        fail(str(e))
+    if as_json:
+        print_json({"path": str(path), "name": manifest.name, "description": manifest.description})
+        return
     console.print(f"[green]OK[/green] name={manifest.name!r} description={manifest.description!r}")
 
 

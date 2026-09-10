@@ -9,11 +9,12 @@ and says so rather than implying a coverage it does not have.
 
 from __future__ import annotations
 
-import json
 
 import typer
 from rich.console import Console
 from rich.table import Table
+
+from xmagic.cli._output import print_json
 
 console = Console()
 # Warnings go to stderr so `--json` stdout stays machine-readable.
@@ -65,22 +66,20 @@ def list_models_cmd(
     truncated = len(shown) < len(found)
 
     if as_json:
-        console.print_json(
-            json.dumps(
-                [
-                    {
-                        "ref": m.ref,
-                        "provider": m.provider,
-                        "mode": m.mode,
-                        "context_window": m.context_window,
-                        "input_cost_per_1m": m.input_cost_per_1m,
-                        "output_cost_per_1m": m.output_cost_per_1m,
-                        "tools": m.tools,
-                        "vision": m.vision,
-                    }
-                    for m in shown
-                ]
-            )
+        print_json(
+            [
+                {
+                    "ref": m.ref,
+                    "provider": m.provider,
+                    "mode": m.mode,
+                    "context_window": m.context_window,
+                    "input_cost_per_1m": m.input_cost_per_1m,
+                    "output_cost_per_1m": m.output_cost_per_1m,
+                    "tools": m.tools,
+                    "vision": m.vision,
+                }
+                for m in shown
+            ]
         )
         if truncated:
             # Not silent: a script that got 40 of 2,390 rows and was told nothing
@@ -129,7 +128,7 @@ def list_providers_cmd(
         raise typer.Exit(1) from None
 
     if as_json:
-        console.print_json(json.dumps([{"provider": p, "models": n} for p, n in found]))
+        print_json([{"provider": p, "models": n} for p, n in found])
         return
 
     table = Table("provider", "models")

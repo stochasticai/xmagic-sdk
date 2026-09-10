@@ -212,6 +212,15 @@ xmagic serve [--port 8377]            # local web app proxy
 xmagic models list                    # models across configured providers
 ```
 
+Every command that produces data takes `--json`. Under it, stdout carries one
+JSON document and nothing else — no table, no footnote, no progress line — and
+errors go to stderr with a non-zero exit, so `xmagic ... --json | jq` works
+without cleanup and a script branches on the exit code. JSON is written with
+`json.dumps`, not Rich, so a script gets exact bytes rather than a highlighted,
+width-bound rendering. Interactive commands (`configure`, `mcp init|dev`,
+`skills new|pack`, `serve`, `tools register`, and an interactive `chat`) have
+no `--json`: they produce files or a session, not data.
+
 Config precedence: CLI flags > env (`XMAGIC_API_KEY`, `XMAGIC_BASE_URL`,
 `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GOOGLE_API_KEY`, ...) >
 `~/.config/xmagic/config.toml` > defaults. Keys are never written to project dirs.

@@ -33,6 +33,16 @@ codebase.**
   package, so a failing call could not be inspected.
 - **`xmagic -v` / `--verbose`** attaches a stderr handler at `DEBUG` for every
   CLI command, so a piped stdout stays clean.
+- **`--json` on every command that produces data.** New on `chat` (one-shot),
+  `drive ls|upload`, `workspaces` (list and switch), `agents` (list),
+  `skills validate`, `version`, and the worklist mutations — `create`, `edit`,
+  `delete`, `cancel`, `trigger`, `rerun`, and `schedules edit|pause|resume|delete`.
+  Under the flag stdout carries one JSON document and nothing else, and errors
+  go to stderr with a non-zero exit, so output pipes straight into `jq`. The
+  commands that already had `--json` (`models`, `tools`, `worklists` reads) now
+  write it the same way: `json.dumps` to stdout rather than Rich's highlighted,
+  width-bound `print_json`. `chat --json` emits `{model, text, reasoning,
+  usage}` after the answer completes, and refuses interactive mode.
 - **A `User-Agent` header** on every xMagic request:
   `xmagic-sdk/<version> python/<version> httpx/<version>`. The client
   identified itself to no one before, which ruled out server-side version
