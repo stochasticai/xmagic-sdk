@@ -5,6 +5,30 @@ the plan and [TODO.md](TODO.md) for what's next.
 
 ---
 
+## 2026-09-10 — Logging, and a `User-Agent`
+
+Second 0.5.0 item. Both close the same gap: a failing call was uninspectable
+on our side and unattributable on the server's.
+
+- **Logging** under `xmagic` / `xmagic.http`, `NullHandler` at the package
+  root. Request and response lines are `DEBUG` (method, path, status, elapsed,
+  and the server's request id through the same header lookup
+  `XMagicAPIError.request_id` uses); a retry is `INFO` with its delay and
+  attempt count. Headers and bodies are never logged, and a test pins that the
+  key does not appear in any record, retries included. Both transports run off
+  three shared helpers so the sync and async lines cannot drift.
+- **`xmagic -v`** attaches a stderr handler at `DEBUG` — the CLI is the
+  application, so it is the one place in the package that attaches a real
+  handler.
+- **`User-Agent: xmagic-sdk/<v> python/<v> httpx/<v>`** on every request, sync,
+  async, and streaming. The version moved into `xmagic/_version.py` so the
+  transport can read it without importing the package root, which imports the
+  client, which imports the transport.
+- **Left alone on purpose:** the OpenAI and LiteLLM adapters keep their
+  vendors' user agents. Overriding OpenAI's would corrupt their telemetry to
+  feed ours.
+- 12 new tests in `tests/test_logging_and_user_agent.py`.
+
 ## 2026-09-10 — Structured output
 
 First item of the 0.5.0 cycle, and the natural sequel to §13: same wire module,

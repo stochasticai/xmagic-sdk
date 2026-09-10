@@ -301,6 +301,16 @@ Chosen approach: **local proxy of the hosted xMagic web app**.
 
 - **HTTP**: httpx with retries + exponential backoff on 429/5xx honoring
   `Retry-After`; client-side rate-limit awareness per plan tier.
+- **Logging and identification**: the package logs under `xmagic` (transport
+  under `xmagic.http`) with a `NullHandler` at the root, so it is silent until
+  the application attaches a handler — the CLI does on `-v`. Request and
+  response lines (method, path, status, elapsed, server request id) are
+  `DEBUG`; a retry is `INFO`, since it is the one event worth hearing about by
+  default. Headers and bodies are never logged: the request carries the API
+  key. Every request sends `User-Agent: xmagic-sdk/<v> python/<v> httpx/<v>`,
+  which is what makes server-side version telemetry possible at all. Provider
+  adapters keep their vendors' own user agents — overriding OpenAI's would
+  corrupt *their* telemetry to feed ours.
 - **Two HTTP stacks, and the rule for them**: `mcp` (2.x) requires `httpx2`, a
   separate distribution from the `httpx` this package uses — separate import
   names, so nothing complains at install time and `[mcp]` installs both. The rule:

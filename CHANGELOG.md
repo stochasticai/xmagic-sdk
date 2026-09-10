@@ -24,6 +24,19 @@ codebase.**
   since an agent's output shape is dashboard configuration.
 - **`capabilities()["structured_output"]`**: `True` on `openai:`, read from
   LiteLLM's model metadata on `litellm:`, `False` on `xmagic:`.
+- **Logging.** The package logs under the `xmagic` logger (transport under
+  `xmagic.http`) with a `NullHandler` at the root, so nothing changes for an
+  application that configured no logging. Request and response lines — method,
+  path, status, elapsed time, and the server's request id when it sent one —
+  are `DEBUG`; a retry, with its delay and attempt count, is `INFO`. Headers and
+  bodies are never logged. Before this there was no logging anywhere in the
+  package, so a failing call could not be inspected.
+- **`xmagic -v` / `--verbose`** attaches a stderr handler at `DEBUG` for every
+  CLI command, so a piped stdout stays clean.
+- **A `User-Agent` header** on every xMagic request:
+  `xmagic-sdk/<version> python/<version> httpx/<version>`. The client
+  identified itself to no one before, which ruled out server-side version
+  telemetry. Provider adapters keep their vendors' own user agents.
 
 ## [0.4.0] — 2026-09-10
 
