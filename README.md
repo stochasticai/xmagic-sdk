@@ -388,11 +388,24 @@ print(provider.complete(messages, model="gpt-5", tools=[tool]).text)
 ```
 
 Works the same through `litellm:` refs, since LiteLLM normalizes every vendor
-onto the shape this maps. Two limits worth knowing: `tools=` on `stream()`
-raises rather than silently dropping the calls (streaming accumulation is not
-built yet), and `xmagic:` refs reject `tools=` — an xMagic agent's tools are
-registered in the dashboard and attached to the agent, which is a different
-capability, so `capabilities()["tools"]` reports `False` there.
+onto the shape this maps.
+
+Streaming works too. Arguments arrive as JSON fragments spread across deltas, so
+a completed call lands on the **terminal chunk** — the same place `usage` does —
+rather than mid-stream, where a half-built call could not be told apart from a
+finished one:
+
+```python
+for chunk in provider.stream(messages, model="gpt-5", tools=[tool]):
+    print(chunk.text, end="")
+    if chunk.done:
+        for call in chunk.tool_calls:
+            print(get_weather(**call.arguments))
+```
+
+One limit worth knowing: `xmagic:` refs reject `tools=` — an xMagic agent's
+tools are registered in the dashboard and attached to the agent, which is a
+different capability, so `capabilities()["tools"]` reports `False` there.
 
 Which refs exist is discoverable rather than guesswork:
 
