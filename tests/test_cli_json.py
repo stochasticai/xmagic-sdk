@@ -88,6 +88,7 @@ class TestChat:
         assert result.exit_code == 0, result.output
         assert _only_json(result) == {
             "model": f"xmagic:{AGENT}",
+            "id": None,  # no metadata frame in this stream
             "text": "hello",
             "reasoning": "thinking",
             "usage": None,
