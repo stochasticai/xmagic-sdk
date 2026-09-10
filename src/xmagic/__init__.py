@@ -10,8 +10,9 @@ Quickstart::
     print(resp.text)
 """
 
-from importlib.metadata import PackageNotFoundError, version as _installed_version
+import logging
 
+from xmagic._version import __version__
 from xmagic.client import AsyncXMagicClient, XMagicClient
 from xmagic.client.models import ChatType
 from xmagic.config import Settings
@@ -29,10 +30,12 @@ from xmagic.errors import (
     XMagicError,
 )
 
-try:
-    __version__ = _installed_version("xmagic-sdk")
-except PackageNotFoundError:  # running from a source checkout, not installed
-    __version__ = "0.0.0+unknown"
+# The package logs under "xmagic" (transport under "xmagic.http") and, like any
+# library, says nothing unless the application asks: attach a handler or call
+# `logging.basicConfig()` to see it. Request and response lines are DEBUG,
+# retries are INFO; headers and bodies are never logged, so the API key cannot
+# leak through here.
+logging.getLogger("xmagic").addHandler(logging.NullHandler())
 
 __all__ = [
     "APIConnectionError",

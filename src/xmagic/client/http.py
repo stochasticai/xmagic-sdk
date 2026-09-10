@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
+import platform
 import random
 import time
 from collections.abc import AsyncIterator, Iterator
@@ -16,8 +18,10 @@ from typing import Any, cast
 import httpx
 from httpx_sse import SSEError, aconnect_sse, connect_sse
 
+from xmagic._version import __version__
 from xmagic.config import Settings
 from xmagic.errors import (
+    _REQUEST_ID_HEADERS,
     APIConnectionError,
     APITimeoutError,
     ConfigurationError,
@@ -26,7 +30,14 @@ from xmagic.errors import (
     error_for_status,
 )
 
+log = logging.getLogger("xmagic.http")
+
 _RETRYABLE = {429, 500, 502, 503, 504}
+
+USER_AGENT = (
+    f"xmagic-sdk/{__version__} python/{platform.python_version()} httpx/{httpx.__version__}"
+)
+"""Sent on every request, so the server can tell which SDK version is talking."""
 
 _MISSING_KEY = (
     "No xMagic API key found. Set XMAGIC_API_KEY, run `xmagic configure`, "
@@ -175,9 +186,51 @@ def _client_kwargs(settings: Settings) -> dict[str, Any]:
         raise ConfigurationError(_MISSING_KEY)
     return {
         "base_url": settings.base_url,
-        "headers": {"x-api-key": settings.api_key},
+        "headers": {"x-api-key": settings.api_key, "User-Agent": USER_AGENT},
         "timeout": settings.timeout,
     }
+
+
+def _log_request(method: str, path: str, *, streaming: bool = False) -> float:
+    """One DEBUG line per attempt; returns the start time for the response line."""
+    log.debug("%s %s%s", method, path, " (stream)" if streaming else "")
+    return time.monotonic()
+
+
+def _log_response(method: str, path: str, response: httpx.Response, started: float) -> None:
+    """Status and elapsed time, plus the server's request id when it sent one.
+
+    Never headers and never bodies: the request carries the API key and the
+    response may carry the user's data, and neither belongs in a log file.
+    """
+    # The same lookup `XMagicAPIError.request_id` does, so a line here and an
+    # error there name the same id.
+    request_id = next(
+        (response.headers[h] for h in _REQUEST_ID_HEADERS if response.headers.get(h)), None
+    )
+    log.debug(
+        "%s %s -> %d in %.0fms%s",
+        method,
+        path,
+        response.status_code,
+        (time.monotonic() - started) * 1000,
+        f" (request id {request_id})" if request_id else "",
+    )
+
+
+def _log_retry(
+    method: str, path: str, response: httpx.Response, delay: float, attempt: int, max_retries: int
+) -> None:
+    """INFO rather than DEBUG: a retry is the one thing worth hearing about by default."""
+    log.info(
+        "%s %s returned %d; retrying in %.1fs (attempt %d of %d)",
+        method,
+        path,
+        response.status_code,
+        delay,
+        attempt + 1,
+        max_retries,
+    )
 
 
 def _stream_timeout(settings: Settings) -> httpx.Timeout:
@@ -255,12 +308,16 @@ class HttpTransport:
     def _send(self, method: str, path: str, **kwargs: Any) -> httpx.Response:
         """The retry loop, shared by every response shape."""
         for attempt in range(self.settings.max_retries + 1):
+            started = _log_request(method, path)
             try:
                 response = self._client.request(method, path, **kwargs)
             except httpx.RequestError as e:
                 raise _transport_error(e, self.settings.base_url) from e
+            _log_response(method, path, response, started)
             if response.status_code in _RETRYABLE and attempt < self.settings.max_retries:
-                time.sleep(_retry_delay(response, attempt))
+                delay = _retry_delay(response, attempt)
+                _log_retry(method, path, response, delay, attempt, self.settings.max_retries)
+                time.sleep(delay)
                 continue
             break
         return response
@@ -272,8 +329,10 @@ class HttpTransport:
         the ``[DONE]`` terminator.
         """
         kwargs.setdefault("timeout", _stream_timeout(self.settings))
+        started = _log_request(method, path, streaming=True)
         try:
             with connect_sse(self._client, method, path, **kwargs) as source:
+                _log_response(method, path, source.response, started)
                 _stream_error(source.response)
                 for sse in source.iter_sse():
                     data = _decode_sse(sse.data)
@@ -313,12 +372,16 @@ class AsyncHttpTransport:
     async def _send(self, method: str, path: str, **kwargs: Any) -> httpx.Response:
         """The retry loop, shared by every response shape."""
         for attempt in range(self.settings.max_retries + 1):
+            started = _log_request(method, path)
             try:
                 response = await self._client.request(method, path, **kwargs)
             except httpx.RequestError as e:
                 raise _transport_error(e, self.settings.base_url) from e
+            _log_response(method, path, response, started)
             if response.status_code in _RETRYABLE and attempt < self.settings.max_retries:
-                await asyncio.sleep(_retry_delay(response, attempt))
+                delay = _retry_delay(response, attempt)
+                _log_retry(method, path, response, delay, attempt, self.settings.max_retries)
+                await asyncio.sleep(delay)
                 continue
             break
         return response
@@ -330,8 +393,10 @@ class AsyncHttpTransport:
         the ``[DONE]`` terminator.
         """
         kwargs.setdefault("timeout", _stream_timeout(self.settings))
+        started = _log_request(method, path, streaming=True)
         try:
             async with aconnect_sse(self._client, method, path, **kwargs) as source:
+                _log_response(method, path, source.response, started)
                 await _astream_error(source.response)
                 async for sse in source.aiter_sse():
                     data = _decode_sse(sse.data)
