@@ -212,6 +212,15 @@ class CompletionChunk:
     kind: ChunkKind = "response"
     usage: Usage | None = None
     """Set on the terminal chunk when the provider reported token counts."""
+    tool_calls: list[ToolCall] = field(default_factory=list)
+    """What the model wants run, on the terminal chunk only.
+
+    Arguments arrive as JSON string fragments spread across deltas and mean
+    nothing until the last one lands, so there is no honest intermediate value
+    to emit -- a half-built call is indistinguishable from a complete one. The
+    terminal chunk is therefore where a completed call becomes available, which
+    also matches ``usage``.
+    """
 
 
 @dataclass
@@ -264,10 +273,10 @@ class Provider(ABC):
     ) -> Iterator[CompletionChunk]:
         """Streaming chat completion.
 
-        `tools` is accepted and rejected rather than ignored: accumulating
-        argument fragments across deltas is stage B (DESIGN.md §13.6), and
-        silently dropping the calls a model made is the failure this surface
-        exists to prevent.
+        Text arrives as it is generated; any tool calls arrive whole, on the
+        terminal chunk (DESIGN.md §13.6, stage B). An adapter that cannot
+        reassemble them raises rather than dropping them -- silently discarding
+        the calls a model made is the failure this surface exists to prevent.
         """
 
     def capabilities(self) -> dict[str, bool]:
