@@ -51,6 +51,7 @@ from xmagic.providers.base import (
     ToolDef,
     Usage,
 )
+from xmagic.client.streaming import Stream
 
 if TYPE_CHECKING:
     from pydantic import BaseModel
@@ -199,11 +200,20 @@ class LiteLLMProvider(Provider):
         tools: list[ToolDef] | None = None,
         response_format: type[BaseModel] | None = None,
         **params: Any,
-    ) -> Iterator[CompletionChunk]:
+    ) -> Stream[CompletionChunk]:
         if tools:
             params["tools"] = tools_to_wire(tools)
         if response_format is not None:
             params["response_format"] = response_format_to_wire(response_format)
+        return Stream(self._chunks(messages, model, response_format, params))
+
+    def _chunks(
+        self,
+        messages: list[ChatMessage],
+        model: str,
+        response_format: type[BaseModel] | None,
+        params: dict[str, Any],
+    ) -> Iterator[CompletionChunk]:
         try:
             chunks: Any = self._litellm.completion(
                 model=model,
