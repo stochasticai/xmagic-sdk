@@ -7,7 +7,7 @@ per provider instance (or pass ``chat_id=`` to reuse one).
 from __future__ import annotations
 
 from collections.abc import Iterator
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from xmagic.client import XMagicClient
 from xmagic.client.models import ChatType, StreamEvent
@@ -22,6 +22,9 @@ from xmagic.providers.base import (
     ToolDef,
     Usage,
 )
+
+if TYPE_CHECKING:
+    from pydantic import BaseModel
 
 
 def _usage_payload(event: StreamEvent) -> dict[str, Any]:
@@ -83,6 +86,14 @@ _NO_PER_CALL_TOOLS = (
     "the dashboard and attached to an agent (DESIGN.md §13.4, D4). Rejected rather "
     "than ignored, so a caller finds out here instead of wondering why the model "
     "never called anything. Use an `openai:` or `litellm:` ref for per-call tools."
+)
+
+
+_NO_RESPONSE_FORMAT = (
+    "xMagic agents do not take a per-call response schema: what an agent returns is "
+    "part of its configuration in the dashboard (DESIGN.md §14). Rejected rather than "
+    "ignored, so a caller finds out here instead of reading `.parsed` and getting "
+    "None. Use an `openai:` or `litellm:` ref for `response_format=`."
 )
 
 
@@ -160,10 +171,13 @@ class XMagicProvider(Provider):
         *,
         model: str,
         tools: list[ToolDef] | None = None,
+        response_format: type[BaseModel] | None = None,
         **params: Any,
     ) -> Completion:
         if tools:
             raise XMagicError(_NO_PER_CALL_TOOLS)
+        if response_format is not None:
+            raise XMagicError(_NO_RESPONSE_FORMAT)
         chat_id = self._ensure_chat(model)
         resp = self._client.chats.query(model, chat_id, _flatten(messages), **params)
         return Completion(text=resp.text, model=f"xmagic:{model}", raw=resp.model_dump())
@@ -174,10 +188,13 @@ class XMagicProvider(Provider):
         *,
         model: str,
         tools: list[ToolDef] | None = None,
+        response_format: type[BaseModel] | None = None,
         **params: Any,
     ) -> Iterator[CompletionChunk]:
         if tools:
             raise XMagicError(_NO_PER_CALL_TOOLS)
+        if response_format is not None:
+            raise XMagicError(_NO_RESPONSE_FORMAT)
         chat_id = self._ensure_chat(model)
         usage: Usage | None = None
         for event in self._client.chats.stream(model, chat_id, _flatten(messages), **params):
@@ -205,4 +222,4 @@ class XMagicProvider(Provider):
         # definitions (DESIGN.md §13.4, D4), and xMagic has none. Its tools are
         # real, but registered in the dashboard and attached to an agent, which
         # is a different capability -- and one this dict has no word for yet.
-        return {"streaming": True, "tools": False, "vision": False}
+        return {"streaming": True, "tools": False, "vision": False, "structured_output": False}

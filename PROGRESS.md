@@ -5,6 +5,31 @@ the plan and [TODO.md](TODO.md) for what's next.
 
 ---
 
+## 2026-09-10 — Structured output
+
+First item of the 0.5.0 cycle, and the natural sequel to §13: same wire module,
+same strict-mode rule, same promise about failure.
+
+- **`response_format=`** on `complete()` and `stream()` takes a pydantic model
+  class. Its schema goes out as the vendor's `json_schema` format and the reply
+  comes back validated on `Completion.parsed`.
+- **Never a silent `None`.** A reply that does not validate raises with
+  pydantic's reasons and the reply text; a vendor refusal raises in the vendor's
+  words rather than as a JSON error on empty content. Found while writing the
+  refusal test: OpenAI sends `content: null` alongside `refusal`, so parsing the
+  content would have produced "expected value at line 1" and hidden the reason.
+- **`claim_strict`** extracted from `ToolDef.from_callable` so tools and
+  response formats decide strict mode by one rule.
+- **Streaming** places the instance on the terminal chunk, like `tool_calls`
+  and `usage`. The OpenAI adapter's close-after-loop path from this morning's
+  review now also fires when a schema is owed, so a stream cut off mid-object
+  raises instead of ending silently.
+- `capabilities()` gains `structured_output`, read from
+  `litellm.supports_response_schema` on the LiteLLM path.
+- 18 new tests, in `tests/test_structured_output.py`. DESIGN.md §14 records the
+  decisions and what was left out on purpose: no `json_object` mode, no second
+  parse helper, no CLI flag yet.
+
 ## 2026-09-10 — Streaming tool calls (stage B), reviewed and merged
 
 [#42](https://github.com/stochasticai/xmagic-sdk/pull/42) closes stage B of
