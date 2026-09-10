@@ -7,8 +7,8 @@ from typing import Any
 
 import typer
 from rich.console import Console
-from rich.markup import escape
 
+from xmagic.cli._output import fail, note, print_json
 from xmagic.client import XMagicClient
 from xmagic.client.models import ChatType
 from xmagic.config import Settings
@@ -24,7 +24,8 @@ def _upload(paths: list[Path], settings: Settings) -> list[str]:
     with XMagicClient(api_key=settings.api_key, base_url=settings.base_url) as client:
         for path in paths:
             uploaded = client.files.upload(path)
-            console.print(f"[dim]uploaded {path.name} -> {uploaded.id}[/dim]")
+            # stderr: progress, not output. A piped `--json` stdout stays clean.
+            note(f"uploaded {path.name} -> {uploaded.id}")
             ids.append(uploaded.id)
     return ids
 
@@ -36,9 +37,10 @@ def run_chat(
     file: list[Path],
     chat_type: ChatType,
     stream: bool,
+    as_json: bool = False,
 ) -> None:
     """Run chat with concrete values, independent of Typer's option objects."""
-    return _chat_impl(prompt, model, agent, file, chat_type, stream)
+    return _chat_impl(prompt, model, agent, file, chat_type, stream, as_json)
 
 
 def _chat_impl(
@@ -48,8 +50,11 @@ def _chat_impl(
     file: list[Path],
     chat_type: ChatType,
     stream: bool,
+    as_json: bool,
 ) -> None:
     """Send a prompt (or start an interactive session) against any model."""
+    if as_json and not prompt:
+        raise typer.BadParameter("--json needs a one-shot prompt; it has no interactive mode.")
     settings = Settings.load()
     ref = (
         model
@@ -73,11 +78,7 @@ def _chat_impl(
     try:
         provider = get_provider(model_ref, settings=settings, **options)
     except (XMagicError, ImportError) as e:
-        # `escape`, because error text is data. Without it Rich reads bracketed
-        # content as markup and silently drops it -- "[providers.openai] api_key"
-        # rendered as " api_key", pointing at nothing.
-        console.print(f"[red]{escape(str(e))}[/red]")
-        raise typer.Exit(1) from None
+        fail(str(e))
 
     model_name = model_ref.model
 
@@ -85,10 +86,45 @@ def _chat_impl(
     try:
         uploaded_ids = _upload(files, settings) if files else []
     except XMagicError as e:
-        console.print(f"[red]{e}[/red]")
-        raise typer.Exit(1) from None
+        fail(str(e))
 
     params: dict[str, Any] = {"uploaded_files": uploaded_ids} if uploaded_ids else {}
+
+    def ask_json(text: str) -> None:
+        """One document, after the answer is complete.
+
+        Streaming JSON fragments would hand a script something it cannot parse
+        until the end anyway, so the stream is consumed here and emitted whole.
+        Reasoning is kept separate from the answer, as it is on screen.
+        """
+        messages = [ChatMessage(role="user", content=text)]
+        answer: list[str] = []
+        reasoning: list[str] = []
+        usage = None
+        if stream:
+            for chunk in provider.stream(messages, model=model_name, **params):
+                (reasoning if chunk.kind == "reasoning" else answer).append(chunk.text)
+                usage = chunk.usage or usage
+        else:
+            completion = provider.complete(messages, model=model_name, **params)
+            answer.append(completion.text)
+            usage = completion.usage
+        print_json(
+            {
+                "model": ref,
+                "text": "".join(answer),
+                "reasoning": "".join(reasoning) or None,
+                "usage": (
+                    {
+                        "input_tokens": usage.input_tokens,
+                        "output_tokens": usage.output_tokens,
+                        "total_tokens": usage.total_tokens,
+                    }
+                    if usage
+                    else None
+                ),
+            }
+        )
 
     def ask(text: str) -> None:
         messages = [ChatMessage(role="user", content=text)]
@@ -110,7 +146,7 @@ def _chat_impl(
 
     try:
         if prompt:
-            ask(prompt)
+            (ask_json if as_json else ask)(prompt)
             return
         console.print(f"[dim]Interactive chat with {ref} — Ctrl-D to exit.[/dim]")
         while True:
@@ -119,8 +155,7 @@ def _chat_impl(
             except (EOFError, KeyboardInterrupt, typer.Abort):
                 break
     except (XMagicError, NotImplementedError) as e:
-        console.print(f"[red]{escape(str(e))}[/red]")
-        raise typer.Exit(1) from None
+        fail(str(e))
 
 
 def chat(
@@ -140,5 +175,6 @@ def chat(
         ChatType.STANDARD.value, "--chat-type", help="UI context the chat belongs to."
     ),
     stream: bool = typer.Option(True, "--stream/--no-stream"),
+    as_json: bool = typer.Option(False, "--json", help="Machine-readable output."),
 ) -> None:
-    return run_chat(prompt, model, agent, list(file or []), chat_type, stream)
+    return run_chat(prompt, model, agent, list(file or []), chat_type, stream, as_json)

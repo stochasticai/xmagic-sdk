@@ -37,6 +37,7 @@ from xmagic.cli import (
     worklists,
     workspaces,
 )
+from xmagic.cli._output import print_json
 
 console = Console()
 
@@ -81,8 +82,13 @@ app.add_typer(worklists.app, name="worklists", help="Background worklist task op
 
 
 @app.command()
-def version() -> None:
+def version(
+    as_json: bool = typer.Option(False, "--json", help="Machine-readable output."),
+) -> None:
     """Print the xmagic-sdk version."""
+    if as_json:
+        print_json({"version": __version__})
+        return
     console.print(f"xmagic-sdk {__version__}")
 
 

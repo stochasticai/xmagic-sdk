@@ -178,6 +178,16 @@ xmagic chat --agent <agent_id> --chat-type playground "Try something"
 An interactive session reuses a single chat, so the agent keeps its context
 across turns.
 
+For scripts, every command that produces data takes `--json`: stdout is then
+one JSON document and nothing else, errors go to stderr, and the exit code is
+the verdict, so the output pipes straight into `jq`:
+
+```bash
+xmagic chat --agent <agent_id> --json "Summarize our Q3 goals" | jq -r .text
+xmagic agents --json | jq -r '.[].id'
+xmagic worklists trigger <task_id> --json | jq .status
+```
+
 ### 7. Manage Worklists
 
 List one page of background tasks, inspect a task and its latest result, or

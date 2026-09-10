@@ -14,6 +14,7 @@ from rich.table import Table
 
 from xmagic import XMagicClient
 from xmagic.cli._editor import edit_file as _edit_file
+from xmagic.cli._output import fail, print_json
 from xmagic.client.models import WorklistTask, WorklistTaskPage, WorklistTaskStatus
 from xmagic.config import Settings
 from xmagic.errors import XMagicAPIError, XMagicError
@@ -55,10 +56,10 @@ def _agent_id(agent_id: str | None) -> str:
 
 
 def _handle_error(error: XMagicError | ValueError | RuntimeError) -> None:
-    console.print(f"[red]{error}[/red]")
+    hint = None
     if isinstance(error, XMagicAPIError) and error.error_code in _ERROR_HINTS:
-        console.print(f"[yellow]Hint: {_ERROR_HINTS[error.error_code]}[/yellow]")
-    raise typer.Exit(1) from None
+        hint = _ERROR_HINTS[error.error_code]
+    fail(str(error), hint)
 
 
 def _task_json(task: WorklistTask) -> dict[str, Any]:
@@ -210,7 +211,7 @@ def _list(
                 limit=limit,
             )
         if as_json:
-            console.print_json(json.dumps(page.model_dump(mode="json")))
+            print_json(page.model_dump(mode="json"))
         else:
             _print_task_page(page)
     except (XMagicError, ValueError, RuntimeError) as error:
@@ -248,8 +249,7 @@ def get_task(
             task = client.worklists.get(target_agent, task_id)
             result = _latest_result(client, target_agent, task)
         if as_json:
-            payload = {"task": _task_json(task), "result": result}
-            console.print_json(json.dumps(payload))
+            print_json({"task": _task_json(task), "result": result})
             return
         _print_task_table(task)
         if result:
@@ -292,6 +292,7 @@ def review_tasks(
 @app.command("create")
 def create_task(
     agent_id: str | None = typer.Option(None, "--agent", help="Agent id."),
+    as_json: bool = typer.Option(False, "--json", help="Machine-readable output."),
 ) -> None:
     """Create a worklist task by editing a YAML template."""
     try:
@@ -302,6 +303,9 @@ def create_task(
         payload = yaml_to_create_payload(edited)
         with XMagicClient() as client:
             task = client.worklists.create(_agent_id(agent_id), payload)
+        if as_json:
+            print_json(_task_json(task))
+            return
         console.print(f"[green]Created worklist task {task.id} ({task.status.value}).[/green]")
     except (XMagicError, ValueError, RuntimeError) as error:
         _handle_error(error)
@@ -311,6 +315,7 @@ def create_task(
 def edit_task(
     task_id: str,
     agent_id: str | None = typer.Option(None, "--agent", help="Agent id."),
+    as_json: bool = typer.Option(False, "--json", help="Machine-readable output."),
 ) -> None:
     """Edit a task's YAML-editable fields."""
     try:
@@ -328,6 +333,9 @@ def edit_task(
             return
         with XMagicClient() as client:
             updated = client.worklists.update(target_agent, task_id, payload)
+        if as_json:
+            print_json(_task_json(updated))
+            return
         console.print(f"[green]Updated worklist task {updated.id}.[/green]")
     except (XMagicError, ValueError, RuntimeError) as error:
         _handle_error(error)
@@ -344,12 +352,16 @@ def delete_task(
     task_id: str,
     agent_id: str | None = typer.Option(None, "--agent", help="Agent id."),
     yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation."),
+    as_json: bool = typer.Option(False, "--json", help="Machine-readable output."),
 ) -> None:
     """Delete a worklist task."""
     try:
         _confirm_delete(task_id, yes)
         with XMagicClient() as client:
             client.worklists.delete(_agent_id(agent_id), task_id)
+        if as_json:
+            print_json({"deleted": task_id})
+            return
         console.print(f"[green]Deleted worklist task {task_id}.[/green]")
     except (XMagicError, ValueError, RuntimeError) as error:
         _handle_error(error)
@@ -359,11 +371,15 @@ def delete_task(
 def cancel_task(
     task_id: str,
     agent_id: str | None = typer.Option(None, "--agent", help="Agent id."),
+    as_json: bool = typer.Option(False, "--json", help="Machine-readable output."),
 ) -> None:
     """Cancel an in-progress worklist task."""
     try:
         with XMagicClient() as client:
             task = client.worklists.stop(_agent_id(agent_id), task_id)
+        if as_json:
+            print_json(_task_json(task))
+            return
         console.print(f"[green]Cancelled worklist task {task.id}.[/green]")
     except (XMagicError, ValueError, RuntimeError) as error:
         _handle_error(error)
@@ -373,11 +389,15 @@ def cancel_task(
 def trigger_task(
     task_id: str,
     agent_id: str | None = typer.Option(None, "--agent", help="Agent id."),
+    as_json: bool = typer.Option(False, "--json", help="Machine-readable output."),
 ) -> None:
     """Trigger a pending worklist task."""
     try:
         with XMagicClient() as client:
             task = client.worklists.trigger(_agent_id(agent_id), task_id)
+        if as_json:
+            print_json(_task_json(task))
+            return
         console.print(f"[green]Triggered worklist task {task.id}.[/green]")
     except (XMagicError, ValueError, RuntimeError) as error:
         _handle_error(error)
@@ -387,11 +407,15 @@ def trigger_task(
 def rerun_task(
     task_id: str,
     agent_id: str | None = typer.Option(None, "--agent", help="Agent id."),
+    as_json: bool = typer.Option(False, "--json", help="Machine-readable output."),
 ) -> None:
     """Clone and rerun a completed, failed, or cancelled task."""
     try:
         with XMagicClient() as client:
             task = client.worklists.rerun(_agent_id(agent_id), task_id)
+        if as_json:
+            print_json(_task_json(task))
+            return
         console.print(f"[green]Started rerun as worklist task {task.id}.[/green]")
     except (XMagicError, ValueError, RuntimeError) as error:
         _handle_error(error)
@@ -408,7 +432,7 @@ def get_schedule(
         with XMagicClient() as client:
             schedule = client.worklists.get_schedule(_agent_id(agent_id), schedule_id)
         if as_json:
-            console.print_json(json.dumps(schedule.model_dump(mode="json")))
+            print_json(schedule.model_dump(mode="json"))
         else:
             console.print_json(json.dumps(schedule.model_dump(mode="json"), indent=2))
     except (XMagicError, ValueError, RuntimeError) as error:
@@ -419,6 +443,7 @@ def get_schedule(
 def edit_schedule(
     schedule_id: str,
     agent_id: str | None = typer.Option(None, "--agent", help="Agent id."),
+    as_json: bool = typer.Option(False, "--json", help="Machine-readable output."),
 ) -> None:
     """Edit a recurring worklist schedule's YAML-editable fields."""
     try:
@@ -438,6 +463,9 @@ def edit_schedule(
             return
         with XMagicClient() as client:
             updated = client.worklists.update_schedule(target_agent, schedule_id, payload)
+        if as_json:
+            print_json(updated.model_dump(mode="json"))
+            return
         console.print(f"[green]Updated recurring schedule {updated.id}.[/green]")
     except (XMagicError, ValueError, RuntimeError) as error:
         _handle_error(error)
@@ -447,11 +475,15 @@ def edit_schedule(
 def pause_schedule(
     schedule_id: str,
     agent_id: str | None = typer.Option(None, "--agent", help="Agent id."),
+    as_json: bool = typer.Option(False, "--json", help="Machine-readable output."),
 ) -> None:
     """Pause a recurring worklist schedule."""
     try:
         with XMagicClient() as client:
             schedule = client.worklists.pause_schedule(_agent_id(agent_id), schedule_id)
+        if as_json:
+            print_json(schedule.model_dump(mode="json"))
+            return
         console.print(f"[green]Paused schedule {schedule.id}.[/green]")
     except (XMagicError, ValueError, RuntimeError) as error:
         _handle_error(error)
@@ -461,11 +493,15 @@ def pause_schedule(
 def resume_schedule(
     schedule_id: str,
     agent_id: str | None = typer.Option(None, "--agent", help="Agent id."),
+    as_json: bool = typer.Option(False, "--json", help="Machine-readable output."),
 ) -> None:
     """Resume a paused recurring worklist schedule."""
     try:
         with XMagicClient() as client:
             schedule = client.worklists.resume_schedule(_agent_id(agent_id), schedule_id)
+        if as_json:
+            print_json(schedule.model_dump(mode="json"))
+            return
         console.print(f"[green]Resumed schedule {schedule.id}.[/green]")
     except (XMagicError, ValueError, RuntimeError) as error:
         _handle_error(error)
@@ -476,6 +512,7 @@ def delete_schedule(
     schedule_id: str,
     agent_id: str | None = typer.Option(None, "--agent", help="Agent id."),
     yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation."),
+    as_json: bool = typer.Option(False, "--json", help="Machine-readable output."),
 ) -> None:
     """Deactivate a recurring worklist schedule."""
     try:
@@ -484,6 +521,9 @@ def delete_schedule(
             raise typer.Exit()
         with XMagicClient() as client:
             client.worklists.delete_schedule(_agent_id(agent_id), schedule_id)
+        if as_json:
+            print_json({"deactivated": schedule_id})
+            return
         console.print(f"[green]Deactivated schedule {schedule_id}.[/green]")
     except (XMagicError, ValueError, RuntimeError) as error:
         _handle_error(error)
