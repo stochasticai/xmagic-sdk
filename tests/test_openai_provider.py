@@ -183,4 +183,9 @@ def test_vendor_errors_map_onto_this_sdk_hierarchy(
 
 
 def test_capabilities_advertise_tools_and_vision(provider: OpenAIProvider) -> None:
-    assert provider.capabilities() == {"streaming": True, "tools": True, "vision": True}
+    assert provider.capabilities() == {
+        "streaming": True,
+        "tools": True,
+        "vision": True,
+        "structured_output": True,
+    }

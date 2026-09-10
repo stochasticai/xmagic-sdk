@@ -27,7 +27,7 @@ Two behaviours differ from ``OpenAIProvider`` and are deliberate:
 from __future__ import annotations
 
 from collections.abc import Iterator
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from xmagic.errors import (
     APIConnectionError,
@@ -38,6 +38,8 @@ from xmagic.errors import (
 from xmagic.providers._openai_wire import (
     ToolCallAccumulator,
     messages_to_wire,
+    parse_structured,
+    response_format_to_wire,
     tool_calls_from_wire,
     tools_to_wire,
 )
@@ -49,6 +51,9 @@ from xmagic.providers.base import (
     ToolDef,
     Usage,
 )
+
+if TYPE_CHECKING:
+    from pydantic import BaseModel
 
 
 def _usage_from(reported: Any) -> Usage | None:
@@ -151,10 +156,13 @@ class LiteLLMProvider(Provider):
         *,
         model: str,
         tools: list[ToolDef] | None = None,
+        response_format: type[BaseModel] | None = None,
         **params: Any,
     ) -> Completion:
         if tools:
             params["tools"] = tools_to_wire(tools)
+        if response_format is not None:
+            params["response_format"] = response_format_to_wire(response_format)
         try:
             resp: Any = self._litellm.completion(
                 model=model, messages=messages_to_wire(messages), **self._call_kwargs(), **params
@@ -165,8 +173,9 @@ class LiteLLMProvider(Provider):
         if not resp.choices:
             return Completion(text="", model=f"litellm:{model}", raw=resp.model_dump(), usage=usage)
         message = resp.choices[0].message
+        text = message.content or ""
         return Completion(
-            text=message.content or "",
+            text=text,
             model=f"litellm:{model}",
             # `model_dump()` drops `usage`, so the counts would be unreachable
             # from `raw` alone -- they ride on `Usage` instead.
@@ -175,6 +184,11 @@ class LiteLLMProvider(Provider):
             # The same reader as the OpenAI adapter, because LiteLLM hands us
             # the OpenAI shape whichever vendor answered.
             tool_calls=tool_calls_from_wire(message),
+            parsed=(
+                parse_structured(text, response_format, getattr(message, "refusal", None))
+                if response_format is not None
+                else None
+            ),
         )
 
     def stream(
@@ -183,10 +197,13 @@ class LiteLLMProvider(Provider):
         *,
         model: str,
         tools: list[ToolDef] | None = None,
+        response_format: type[BaseModel] | None = None,
         **params: Any,
     ) -> Iterator[CompletionChunk]:
         if tools:
             params["tools"] = tools_to_wire(tools)
+        if response_format is not None:
+            params["response_format"] = response_format_to_wire(response_format)
         try:
             chunks: Any = self._litellm.completion(
                 model=model,
@@ -200,6 +217,8 @@ class LiteLLMProvider(Provider):
 
         usage: Usage | None = None
         calls = ToolCallAccumulator()
+        text: list[str] = []
+        refusal: list[str] = []
         try:
             for chunk in chunks:
                 usage = _usage_from(getattr(chunk, "usage", None)) or usage
@@ -213,7 +232,10 @@ class LiteLLMProvider(Provider):
                 if reasoning:
                     yield CompletionChunk(text=reasoning, kind="reasoning")
                 if delta.content:
+                    text.append(delta.content)
                     yield CompletionChunk(text=delta.content)
+                if getattr(delta, "refusal", None):
+                    refusal.append(delta.refusal)
                 # Anthropic sends whole arguments and OpenAI sends fragments;
                 # LiteLLM levels that to the fragment shape either way, which is
                 # why the OpenAI accumulator is the right one for all of them.
@@ -226,7 +248,17 @@ class LiteLLMProvider(Provider):
         # closing the stream early would drop the token counts every time. Tool
         # calls ride the same chunk, which is also the last point at which the
         # accumulated argument fragments are known to be complete.
-        yield CompletionChunk(text="", done=True, usage=usage, tool_calls=calls.finish())
+        yield CompletionChunk(
+            text="",
+            done=True,
+            usage=usage,
+            tool_calls=calls.finish(),
+            parsed=(
+                parse_structured("".join(text), response_format, "".join(refusal))
+                if response_format is not None
+                else None
+            ),
+        )
 
     def capabilities(self) -> dict[str, bool]:
         """Read the flags off LiteLLM rather than hand-maintaining a table.
@@ -245,4 +277,5 @@ class LiteLLMProvider(Provider):
             "streaming": True,
             "tools": bool(self._litellm.supports_function_calling(model=model)),
             "vision": bool(self._litellm.supports_vision(model=model)),
+            "structured_output": bool(self._litellm.supports_response_schema(model=model)),
         }
