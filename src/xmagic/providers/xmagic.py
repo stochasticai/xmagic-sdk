@@ -7,10 +7,12 @@ per provider instance (or pass ``chat_id=`` to reuse one).
 from __future__ import annotations
 
 from collections.abc import Iterator
+from contextlib import closing
 from typing import TYPE_CHECKING, Any
 
 from xmagic.client import XMagicClient
 from xmagic.client.models import ChatType, StreamEvent
+from xmagic.client.streaming import Stream
 from xmagic.config import Settings
 from xmagic.errors import XMagicAPIError, XMagicError
 from xmagic.providers.base import (
@@ -190,14 +192,32 @@ class XMagicProvider(Provider):
         tools: list[ToolDef] | None = None,
         response_format: type[BaseModel] | None = None,
         **params: Any,
-    ) -> Iterator[CompletionChunk]:
+    ) -> Stream[CompletionChunk]:
         if tools:
             raise XMagicError(_NO_PER_CALL_TOOLS)
         if response_format is not None:
             raise XMagicError(_NO_RESPONSE_FORMAT)
+        return Stream(self._chunks(messages, model, params))
+
+    def _chunks(
+        self, messages: list[ChatMessage], model: str, params: dict[str, Any]
+    ) -> Iterator[CompletionChunk]:
         chat_id = self._ensure_chat(model)
         usage: Usage | None = None
-        for event in self._client.chats.stream(model, chat_id, _flatten(messages), **params):
+        # `closing`, so closing this generator -- which is what `Stream.close()`
+        # does -- unwinds into the transport and closes the response right then.
+        # `closing` rather than `with` on the stream itself so any iterator
+        # with a `close()`, a bare generator included, is handled the same way.
+        with closing(
+            self._client.chats.stream(model, chat_id, _flatten(messages), **params)
+        ) as events:
+            yield from self._translate_events(events, usage)
+
+    @staticmethod
+    def _translate_events(
+        events: Iterator[StreamEvent], usage: Usage | None
+    ) -> Iterator[CompletionChunk]:
+        for event in events:
             if event.type == "done":
                 yield CompletionChunk(text="", done=True, usage=usage)
             elif event.type == "response":

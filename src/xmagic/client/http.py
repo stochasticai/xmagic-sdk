@@ -12,7 +12,7 @@ import logging
 import platform
 import random
 import time
-from collections.abc import AsyncIterator, Iterator
+from collections.abc import AsyncGenerator, Generator
 from typing import Any, cast
 
 import httpx
@@ -322,11 +322,14 @@ class HttpTransport:
             break
         return response
 
-    def sse(self, method: str, path: str, **kwargs: Any) -> Iterator[dict[str, Any]]:
+    def sse(self, method: str, path: str, **kwargs: Any) -> Generator[dict[str, Any], None, None]:
         """Stream Server-Sent Events, yielding parsed JSON payloads.
 
         Yields ``{"event": <name>, "data": <parsed json or str>}`` and stops at
-        the ``[DONE]`` terminator.
+        the ``[DONE]`` terminator. Typed as the generator it is, because its
+        ``close()`` is part of the contract: it raises ``GeneratorExit`` at the
+        suspended ``yield``, which exits the ``with`` below and closes the
+        response at that moment (see ``client/streaming.py``).
         """
         kwargs.setdefault("timeout", _stream_timeout(self.settings))
         started = _log_request(method, path, streaming=True)
@@ -386,7 +389,9 @@ class AsyncHttpTransport:
             break
         return response
 
-    async def sse(self, method: str, path: str, **kwargs: Any) -> AsyncIterator[dict[str, Any]]:
+    async def sse(
+        self, method: str, path: str, **kwargs: Any
+    ) -> AsyncGenerator[dict[str, Any], None]:
         """Stream Server-Sent Events, yielding parsed JSON payloads.
 
         Yields ``{"event": <name>, "data": <parsed json or str>}`` and stops at

@@ -310,6 +310,21 @@ Chosen approach: **local proxy of the hosted xMagic web app**.
 
 - **HTTP**: httpx with retries + exponential backoff on 429/5xx honoring
   `Retry-After`; client-side rate-limit awareness per plan tier.
+- **Stream lifecycle**: `chats.stream()` and every `Provider.stream()` return
+  a `Stream` (`AsyncStream` on the async client): an iterator with a
+  `close()` / `aclose()` that raises `GeneratorExit` at the suspended `yield`,
+  unwinding the transport's `with connect_sse(...)` and closing the response
+  right then. That is also how a query is cancelled. Both are context managers.
+  Without it, a stream abandoned mid-loop was released at garbage collection —
+  and an abandoned *async* generator only when the loop's finalizer ran, which
+  after the loop is gone is never. Adapters close the vendor's stream too when
+  it offers a `close()` (OpenAI's does; LiteLLM's wrapper does not).
+  **Streams are not retried**, on purpose: a 429 on `chats.stream` fails on the
+  first attempt while `chats.query` gets the backoff schedule. Restarting a
+  stream re-sends the query, and whether a partially-delivered query is safe to
+  re-send is a platform fact — does the agent see it twice? — that only the
+  platform can state (#5). Until it does, the honest behaviour is to raise and
+  let the caller decide.
 - **Logging and identification**: the package logs under `xmagic` (transport
   under `xmagic.http`) with a `NullHandler` at the root, so it is silent until
   the application attaches a handler — the CLI does on `-v`. Request and
