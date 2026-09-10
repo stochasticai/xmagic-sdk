@@ -10,7 +10,7 @@ codebase.**
 
 ## [Unreleased]
 
-## [0.4.0] — 2026-09-07
+## [0.4.0] — 2026-09-10
 
 Six PRs since 0.3.0, and they add up to one thing: the provider layer is
 finally worth using. `LiteLLMProvider` reaches the roughly 150 vendors LiteLLM
