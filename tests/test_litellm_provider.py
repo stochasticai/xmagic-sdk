@@ -357,7 +357,12 @@ class TestCapabilities:
         provider = LiteLLMProvider()
         provider.default_model = "openai/gpt-5"  # type: ignore[attr-defined]
 
-        assert provider.capabilities() == {"streaming": True, "tools": True, "vision": True}
+        assert provider.capabilities() == {
+            "streaming": True,
+            "tools": True,
+            "vision": True,
+            "structured_output": True,
+        }
 
     def test_a_text_only_model_does_not_advertise_vision(self) -> None:
         provider = LiteLLMProvider()
@@ -372,7 +377,12 @@ class TestCapabilities:
         provider = LiteLLMProvider()
         provider.default_model = "nobody/invented-this"  # type: ignore[attr-defined]
 
-        assert provider.capabilities() == {"streaming": True, "tools": False, "vision": False}
+        assert provider.capabilities() == {
+            "streaming": True,
+            "tools": False,
+            "vision": False,
+            "structured_output": False,
+        }
 
     def test_no_model_at_all_falls_back_too(self) -> None:
         # Constructed directly rather than through `get_provider`, so there is no
@@ -381,4 +391,5 @@ class TestCapabilities:
             "streaming": True,
             "tools": False,
             "vision": False,
+            "structured_output": False,
         }
