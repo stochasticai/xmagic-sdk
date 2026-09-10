@@ -191,9 +191,11 @@ Ready now, roughly in order of value per unit of work:
       takes a pydantic model, `Completion.parsed` carries the validated instance
       or the call raises. No `json_object` mode and no CLI flag yet; the flag
       belongs with `--json` output below
-- [ ] **Logging, and a `User-Agent` header.** There is no logging anywhere in the
-      package, so a failing call cannot be inspected; and the client identifies
-      itself to no one, which rules out server-side version telemetry
+- [x] **Logging, and a `User-Agent` header** — done 2026-09-10 (DESIGN.md §8).
+      `xmagic` / `xmagic.http` loggers, `NullHandler` at the root, `DEBUG` for
+      request/response lines and `INFO` for retries, never headers or bodies;
+      `xmagic -v` for the CLI. `User-Agent: xmagic-sdk/<v> python/<v> httpx/<v>`
+      on every xMagic request. Provider adapters keep their vendors' user agents
 - [ ] **`--json` output for the CLI.** Nothing is scriptable today without
       parsing Rich-formatted text
 - [ ] **Stream cancellation and deterministic close.** `sse()` yields from inside
