@@ -111,6 +111,7 @@ class OpenAIProvider(Provider):
             text=text,
             model=f"openai:{model}",
             raw=resp.model_dump(),
+            id=getattr(resp, "id", None) or None,
             tool_calls=tool_calls_from_wire(message),
             parsed=_parsed(text, response_format, getattr(message, "refusal", None)),
         )
@@ -163,7 +164,11 @@ class OpenAIProvider(Provider):
         response_format: type[BaseModel] | None,
     ) -> Iterator[CompletionChunk]:
         finished = False
+        response_id: str | None = None
         for chunk in chunks:
+            # Every frame carries the same id; the last one seen is as good as
+            # the first, and a backend that omits it leaves `None`.
+            response_id = getattr(chunk, "id", None) or response_id
             if not chunk.choices:
                 continue  # usage-only frames carry no delta
             choice = chunk.choices[0]
@@ -189,6 +194,7 @@ class OpenAIProvider(Provider):
                     done=True,
                     tool_calls=calls.finish(),
                     parsed=_parsed("".join(text), response_format, "".join(refusal)),
+                    id=response_id,
                 )
         if not finished and (calls.pending or response_format is not None):
             # The server closed the stream without a finish reason while a call
@@ -202,6 +208,7 @@ class OpenAIProvider(Provider):
                 done=True,
                 tool_calls=calls.finish(),
                 parsed=_parsed("".join(text), response_format, "".join(refusal)),
+                id=response_id,
             )
 
     def capabilities(self) -> dict[str, bool]:
