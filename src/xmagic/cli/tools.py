@@ -21,6 +21,7 @@ import typer
 from rich.console import Console
 from rich.markup import escape
 
+from xmagic.cli._output import print_json
 from xmagic.errors import XMagicError
 
 console = Console()
@@ -86,13 +87,11 @@ def list_tools_cmd(
         raise typer.Exit(1) from None
 
     if as_json:
-        console.print_json(
-            json.dumps(
-                [
-                    {"name": t.name, "description": t.description, "input_schema": t.input_schema}
-                    for t in tools
-                ]
-            )
+        print_json(
+            [
+                {"name": t.name, "description": t.description, "input_schema": t.input_schema}
+                for t in tools
+            ]
         )
         return
     if not tools:
@@ -125,10 +124,8 @@ def call_tool_cmd(
         raise typer.Exit(1) from None
 
     if as_json:
-        console.print_json(
-            json.dumps(
-                {"is_error": result.is_error, "text": result.text, "structured": result.structured}
-            )
+        print_json(
+            {"is_error": result.is_error, "text": result.text, "structured": result.structured}
         )
     else:
         console.print(escape(result.text) if result.text else "[dim](no content)[/dim]")

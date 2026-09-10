@@ -196,8 +196,10 @@ Ready now, roughly in order of value per unit of work:
       request/response lines and `INFO` for retries, never headers or bodies;
       `xmagic -v` for the CLI. `User-Agent: xmagic-sdk/<v> python/<v> httpx/<v>`
       on every xMagic request. Provider adapters keep their vendors' user agents
-- [ ] **`--json` output for the CLI.** Nothing is scriptable today without
-      parsing Rich-formatted text
+- [x] **`--json` output for the CLI** — done 2026-09-10 (DESIGN.md §5). Every
+      data-producing command; JSON on stdout via `json.dumps`, errors on stderr,
+      exit code as the verdict. A `chat --schema` flag for structured output is
+      the natural follow-up now that the output is scriptable
 - [ ] **Stream cancellation and deterministic close.** `sse()` yields from inside
       a `with connect_sse(...)`, so a caller who breaks out of the loop leaves the
       response open until GC; there is no way to cancel an in-flight query

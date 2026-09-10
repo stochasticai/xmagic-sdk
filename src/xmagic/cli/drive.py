@@ -9,6 +9,7 @@ from rich.console import Console
 from rich.table import Table
 
 from xmagic import XMagicClient
+from xmagic.cli._output import fail, print_json
 from xmagic.errors import XMagicError
 
 console = Console()
@@ -19,19 +20,22 @@ def _client() -> XMagicClient:
     try:
         return XMagicClient()
     except XMagicError as e:
-        console.print(f"[red]{e}[/red]")
-        raise typer.Exit(1) from None
+        fail(str(e))
 
 
 @app.command("ls")
-def list_folders() -> None:
+def list_folders(
+    as_json: bool = typer.Option(False, "--json", help="Machine-readable output."),
+) -> None:
     """List Drive folders (knowledge bases)."""
     client = _client()
     try:
         folders = client.drive.list_folders()
     except XMagicError as e:
-        console.print(f"[red]{e}[/red]")
-        raise typer.Exit(1) from None
+        fail(str(e))
+    if as_json:
+        print_json([f.model_dump(mode="json") for f in folders])
+        return
     table = Table("id", "name")
     for f in folders:
         table.add_row(f.id, f.name or "")
@@ -42,12 +46,15 @@ def list_folders() -> None:
 def upload(
     folder_id: str = typer.Argument(...),
     path: Path = typer.Argument(..., exists=True, dir_okay=False),
+    as_json: bool = typer.Option(False, "--json", help="Machine-readable output."),
 ) -> None:
     """Upload a file into a folder (auto-indexed by xMagic)."""
     client = _client()
     try:
         f = client.drive.upload_file(folder_id, path)
     except XMagicError as e:
-        console.print(f"[red]{e}[/red]")
-        raise typer.Exit(1) from None
+        fail(str(e))
+    if as_json:
+        print_json(f.model_dump(mode="json"))
+        return
     console.print(f"[green]Uploaded {path.name} -> file id {f.id}[/green]")

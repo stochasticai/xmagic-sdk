@@ -5,6 +5,30 @@ the plan and [TODO.md](TODO.md) for what's next.
 
 ---
 
+## 2026-09-10 — `--json` everywhere it means something
+
+Third 0.5.0 item. The TODO line said nothing was scriptable; that was half
+stale — `models`, `tools`, and the worklist reads already had `--json` — but
+the half that was true covered the commands a script most wants: `chat`,
+`workspaces`, `agents`, `drive`, and every worklist mutation.
+
+- **One rule, in `cli/_output.py`:** under `--json`, stdout carries one JSON
+  document written by `json.dumps` and nothing else; errors go to stderr via
+  `fail()` with a non-zero exit. Rich's `print_json` was replaced at the sites
+  that already used it — it highlights and is bound to a console width, and a
+  script should get the bytes `json.dumps` produced.
+- **`chat --json`** consumes the stream and emits `{model, text, reasoning,
+  usage}` once, after the answer completes; streaming JSON fragments would hand
+  a script something it cannot parse until the end anyway. Refuses interactive
+  mode. The "uploaded x -> id" progress line moved to stderr for the same reason.
+- **Errors to stderr** for every command touched. `CliRunner.output` combines
+  both streams under Click 8.4, so no existing assertion moved.
+- **Not given the flag, on purpose:** `configure`, `mcp init|dev`,
+  `skills new|pack`, `serve`, `tools register`, and interactive `chat` produce
+  files or a session, not data.
+- Tests in `tests/test_cli_json.py` parse `result.stdout` for each command and
+  pin that a failure leaves stdout empty.
+
 ## 2026-09-10 — Logging, and a `User-Agent`
 
 Second 0.5.0 item. Both close the same gap: a failing call was uninspectable
