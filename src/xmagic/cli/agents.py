@@ -14,6 +14,7 @@ from rich.console import Console
 from rich.table import Table
 
 from xmagic import XMagicClient
+from xmagic.cli._output import fail, print_json
 from xmagic.client.agents import config_id_from_temporary
 from xmagic.client.models import ChatType, PhoneSummary, SubagentSummary
 from xmagic.config import Settings
@@ -62,9 +63,12 @@ def _edit_file(path: Path) -> None:
         raise EditorError(f"Editor exited with status code {result.returncode}")
 
 
-def _list_agents() -> None:
+def _list_agents(as_json: bool = False) -> None:
     with XMagicClient() as client:
         agents = client.agents.list()
+    if as_json:
+        print_json([item.model_dump(mode="json") for item in agents])
+        return
     table = Table("name", "id", "role")
     for item in agents:
         table.add_row(item.name or "", item.id, item.role or "")
@@ -87,15 +91,17 @@ def _ensure_agent_in_current_workspace(client: XMagicClient, agent_id: str) -> N
 
 
 @app.callback(invoke_without_command=True)
-def agent(ctx: typer.Context) -> None:
+def agent(
+    ctx: typer.Context,
+    as_json: bool = typer.Option(False, "--json", help="Machine-readable output."),
+) -> None:
     """List agents in the current workspace context."""
     if ctx.invoked_subcommand:
         return
     try:
-        _list_agents()
+        _list_agents(as_json)
     except XMagicError as e:
-        console.print(f"[red]{e}[/red]")
-        raise typer.Exit(1) from None
+        fail(str(e))
 
 
 @app.command("config")
