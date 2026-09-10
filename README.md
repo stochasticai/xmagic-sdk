@@ -429,8 +429,9 @@ unsupported one fails locally instead of at the vendor.
 ### Next steps
 
 Runnable scripts for each of the flows above live in
-[`examples/`](examples/) — chat, streaming, files and Drive, and the MCP
-scaffold walkthrough (that one needs no API key).
+[`examples/`](examples/) — chat, streaming, files and Drive, the MCP scaffold
+walkthrough, skills packaging, bring-your-own-model, and tool calling. The last
+four need no xMagic key.
 
 `xmagic --help` lists every command, and each subcommand takes `--help` too.
 See [DESIGN.md](DESIGN.md) for how the pieces fit together.
