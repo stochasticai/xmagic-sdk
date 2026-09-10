@@ -17,6 +17,9 @@ Command groups:
 
 from __future__ import annotations
 
+import logging
+import sys
+
 import typer
 from rich.console import Console
 
@@ -42,6 +45,27 @@ app = typer.Typer(
     help="CLI for xMagic, Stochastic's AI agent platform.",
     no_args_is_help=True,
 )
+
+
+@app.callback()
+def _root(
+    verbose: bool = typer.Option(
+        False,
+        "--verbose",
+        "-v",
+        help="Show every request, response, and retry on stderr.",
+    ),
+) -> None:
+    if verbose:
+        # The SDK logs under "xmagic" and ships a NullHandler; this is the one
+        # place the CLI, as the application, attaches a real one. stderr, so a
+        # piped stdout (`--json`) stays clean.
+        handler = logging.StreamHandler(sys.stderr)
+        handler.setFormatter(logging.Formatter("%(name)s: %(message)s"))
+        package = logging.getLogger("xmagic")
+        package.addHandler(handler)
+        package.setLevel(logging.DEBUG)
+
 
 app.command("configure")(configure.configure)
 app.command("chat")(chat.chat)

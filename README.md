@@ -247,6 +247,21 @@ so an agent that thinks for a while is not mistaken for a dead connection:
 client = XMagicClient(timeout=30.0, stream_timeout=600.0, max_retries=5)
 ```
 
+When a call needs inspecting, the client logs under the `xmagic` logger and is
+silent until you ask — request and response lines at `DEBUG`, retries at
+`INFO`, and never headers or bodies, so the API key cannot end up in a log
+file. `xmagic -v <command>` turns it on for the CLI; from Python:
+
+```python
+import logging
+
+logging.basicConfig(level=logging.DEBUG)  # or just logging.getLogger("xmagic")
+```
+
+Every request also carries a `User-Agent` naming the SDK, Python, and httpx
+versions, so a problem on the server side can be tied to the version that hit
+it.
+
 Everything that can go wrong raises a subclass of `XMagicError`, so one `except`
 contains the SDK — including connection failures, which are wrapped rather than
 leaked as `httpx` exceptions:
