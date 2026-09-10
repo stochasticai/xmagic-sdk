@@ -23,10 +23,12 @@ them.
 from __future__ import annotations
 
 from collections.abc import AsyncIterator, Iterator
+from contextlib import aclosing, closing
 from typing import Any
 
 from xmagic.client.http import AsyncHttpTransport, HttpTransport
 from xmagic.client.models import Chat, ChatType, Message, QueryResponse, StreamEvent
+from xmagic.client.streaming import AsyncStream, Stream
 
 _STREAM_TYPES = {
     "reasoning",
@@ -153,11 +155,26 @@ class ChatsAPI:
         *,
         uploaded_files: list[str] | None = None,
         **extra: Any,
-    ) -> Iterator[StreamEvent]:
-        """Send a streaming query; yields typed SSE events until [DONE]."""
+    ) -> Stream[StreamEvent]:
+        """Send a streaming query; yields typed SSE events until [DONE].
+
+        The result is a :class:`Stream`: iterate it, or ``with`` it, and
+        ``close()`` it to cancel the query and release the connection at once.
+        """
         payload = _query_payload(query, is_stream=True, uploaded_files=uploaded_files, extra=extra)
-        for raw in self._t.sse("POST", _query_path(agent_id, chat_id), json=payload):
-            yield _stream_event(raw)
+        return Stream(self._events(agent_id, chat_id, payload))
+
+    def _events(
+        self, agent_id: str, chat_id: str, payload: dict[str, Any]
+    ) -> Iterator[StreamEvent]:
+        # `closing`: when this generator is closed, close the transport's too.
+        # Dropping it would leave the response to reference counting, which is
+        # prompt on CPython and a promise nowhere else.
+        with closing(
+            self._t.sse("POST", _query_path(agent_id, chat_id), json=payload)
+        ) as raw_events:
+            for raw in raw_events:
+                yield _stream_event(raw)
 
     def async_query(
         self,
@@ -228,7 +245,7 @@ class AsyncChatsAPI:
         body = await self._t.request("POST", _query_path(agent_id, chat_id), json=payload)
         return QueryResponse.model_validate(body["data"])
 
-    async def stream(
+    def stream(
         self,
         agent_id: str,
         chat_id: str,
@@ -236,11 +253,27 @@ class AsyncChatsAPI:
         *,
         uploaded_files: list[str] | None = None,
         **extra: Any,
-    ) -> AsyncIterator[StreamEvent]:
-        """Send a streaming query; yields typed SSE events until [DONE]."""
+    ) -> AsyncStream[StreamEvent]:
+        """Send a streaming query; yields typed SSE events until [DONE].
+
+        The result is an :class:`AsyncStream`: iterate it, or ``async with`` it,
+        and ``await aclose()`` to cancel the query and release the connection.
+        """
         payload = _query_payload(query, is_stream=True, uploaded_files=uploaded_files, extra=extra)
-        async for raw in self._t.sse("POST", _query_path(agent_id, chat_id), json=payload):
-            yield _stream_event(raw)
+        return AsyncStream(self._events(agent_id, chat_id, payload))
+
+    async def _events(
+        self, agent_id: str, chat_id: str, payload: dict[str, Any]
+    ) -> AsyncIterator[StreamEvent]:
+        # `aclosing` is the whole point on this side: an async generator that is
+        # merely dropped is finalized by the event loop's hooks, on the loop's
+        # schedule -- and not at all once the loop is gone. Closing it here is
+        # what makes `AsyncStream.aclose()` release the connection right then.
+        async with aclosing(
+            self._t.sse("POST", _query_path(agent_id, chat_id), json=payload)
+        ) as raw_events:
+            async for raw in raw_events:
+                yield _stream_event(raw)
 
     async def async_query(
         self,
