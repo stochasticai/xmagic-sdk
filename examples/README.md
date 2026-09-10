@@ -15,10 +15,12 @@ uv run python examples/01_basic_chat.py
 | [`04_mcp_server.py`](04_mcp_server.py) | Scaffold a containerized MCP server (a custom tool) and walk through registering it. | **no** |
 | [`05_skills.py`](05_skills.py) | Scaffold, validate, and pack a skill into an upload-ready zip. | **no** |
 | [`06_provider_model.py`](06_provider_model.py) | Bring your own model: resolve a `provider:model` ref, read its capabilities, stream the answer. Works with OpenAI, any LiteLLM vendor, or a local model. | **no** (needs a *vendor* key, or none at all for Ollama) |
+| [`07_tool_calling.py`](07_tool_calling.py) | Tool calling: schemas from typed functions via `ToolDef.from_callable`, the call → run → feed-back loop on `complete()`, and the same on `stream()` where calls land on the terminal chunk. | **no** (same as 06) |
 
 Start with `04_mcp_server.py` or `05_skills.py` if you don't have credentials
-yet — they only write files locally. `06_provider_model.py` needs no xMagic key
-either, and runs against a local model with no key at all.
+yet — they only write files locally. `06_provider_model.py` and
+`07_tool_calling.py` need no xMagic key either, and run against a local model
+with no key at all.
 
 ## Setup
 
@@ -57,3 +59,9 @@ The first three scripts resolve the agent as `XMAGIC_AGENT_ID` first, then the
   xMagic, so it spends that vendor's credits rather than your xMagic quota.
   `AnthropicProvider` and `GoogleProvider` remain unimplemented on purpose —
   reach both through `litellm:` (see [DESIGN.md](../DESIGN.md) §4).
+- `07_tool_calling.py` takes the same optional ref and spends the same vendor
+  credits. It writes its own call → run → feed-back loop on purpose: the SDK
+  ships the typed surface (`ToolDef`, `ToolCall`, `role="tool"` messages) and
+  no agent runtime, which is a non-goal in [DESIGN.md](../DESIGN.md) §1. An
+  `xmagic:` ref rejects `tools=` — an agent's tools are attached in the
+  dashboard, not passed per call.
