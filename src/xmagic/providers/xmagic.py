@@ -71,6 +71,17 @@ def _usage_from(event: StreamEvent) -> Usage | None:
     return usage if any(v is not None for v in known) else None
 
 
+def _message_id_from(event: StreamEvent) -> str | None:
+    """The message id a `metadata` frame carries, under ``raw["data"]``.
+
+    Confirmed against a recorded live stream (tests/fixtures/stream_sse_frames.txt).
+    Best effort like `_usage_from`: an unexpected shape yields `None`, because
+    an id is not worth failing a generation over.
+    """
+    value = _usage_payload(event).get("message_id")
+    return value if isinstance(value, str) and value else None
+
+
 def _stream_error(event: StreamEvent) -> XMagicAPIError:
     """Turn an ``error`` frame into the same error type the HTTP layer raises."""
     payload = _usage_payload(event)
@@ -182,7 +193,9 @@ class XMagicProvider(Provider):
             raise XMagicError(_NO_RESPONSE_FORMAT)
         chat_id = self._ensure_chat(model)
         resp = self._client.chats.query(model, chat_id, _flatten(messages), **params)
-        return Completion(text=resp.text, model=f"xmagic:{model}", raw=resp.model_dump())
+        return Completion(
+            text=resp.text, model=f"xmagic:{model}", raw=resp.model_dump(), id=resp.message_id
+        )
 
     def stream(
         self,
@@ -217,9 +230,15 @@ class XMagicProvider(Provider):
     def _translate_events(
         events: Iterator[StreamEvent], usage: Usage | None
     ) -> Iterator[CompletionChunk]:
+        message_id: str | None = None
         for event in events:
             if event.type == "done":
-                yield CompletionChunk(text="", done=True, usage=usage)
+                yield CompletionChunk(text="", done=True, usage=usage, id=message_id)
+            elif event.type == "metadata":
+                # Arrives first, before any text, carrying the id of the message
+                # being generated -- the one `chats.get_message` takes. Held
+                # until the terminal chunk so it sits with `usage`.
+                message_id = _message_id_from(event)
             elif event.type == "response":
                 yield CompletionChunk(text=event.text)
             elif event.type == "reasoning":
@@ -231,11 +250,9 @@ class XMagicProvider(Provider):
                 raise _stream_error(event)
             elif event.type == "token_usage":
                 usage = _usage_from(event)
-            # `metadata`, `ping`, `live_update`, `end_response`, `end_reasoning`
-            # and `fast_response_simulation` are deliberately ignored. Named here
-            # so the next reader knows that is a decision rather than an
-            # oversight -- note `metadata` carries `message_id`, so a streaming
-            # caller still cannot learn the id of the message it just received.
+            # `ping`, `live_update`, `end_response`, `end_reasoning` and
+            # `fast_response_simulation` are deliberately ignored. Named here so
+            # the next reader knows that is a decision rather than an oversight.
 
     def capabilities(self) -> dict[str, bool]:
         # `tools: False` is not a downgrade: the flag means per-call tool

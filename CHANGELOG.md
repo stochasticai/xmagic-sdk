@@ -51,6 +51,14 @@ codebase.**
   its response until the collector reached it, and an abandoned async stream
   could hold it forever. Both classes are exported from `xmagic`. Adapters
   close the vendor's stream as well where it offers a `close()`.
+- **`Completion.id` and `CompletionChunk.id`** — the provider's identifier for
+  the response. On xMagic it is the `message_id` that `chats.get_message` and
+  the worklist review flow take; it arrives in a `metadata` frame before any
+  text, and the provider used to drop that frame, so a streaming caller could
+  read the whole answer and still not know which message it was. It now rides
+  the terminal chunk next to `usage`. OpenAI's `chatcmpl-...` id and whatever
+  LiteLLM passes through land in the same field. `xmagic chat --json` reports
+  it as `id`.
 - **A `User-Agent` header** on every xMagic request:
   `xmagic-sdk/<version> python/<version> httpx/<version>`. The client
   identified itself to no one before, which ruled out server-side version

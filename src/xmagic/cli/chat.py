@@ -101,17 +101,21 @@ def _chat_impl(
         answer: list[str] = []
         reasoning: list[str] = []
         usage = None
+        response_id = None
         if stream:
             for chunk in provider.stream(messages, model=model_name, **params):
                 (reasoning if chunk.kind == "reasoning" else answer).append(chunk.text)
                 usage = chunk.usage or usage
+                response_id = chunk.id or response_id
         else:
             completion = provider.complete(messages, model=model_name, **params)
             answer.append(completion.text)
             usage = completion.usage
+            response_id = completion.id
         print_json(
             {
                 "model": ref,
+                "id": response_id,
                 "text": "".join(answer),
                 "reasoning": "".join(reasoning) or None,
                 "usage": (

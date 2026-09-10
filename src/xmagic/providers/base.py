@@ -206,6 +206,13 @@ class Completion:
     usage: Usage | None = None
     tool_calls: list[ToolCall] = field(default_factory=list)
     """What the model wants run. Empty unless `tools=` was passed and used."""
+    id: str | None = None
+    """The provider's identifier for this response, when it sent one.
+
+    xMagic's `message_id`, which `chats.get_message` and the worklist review
+    flow take; OpenAI's `chatcmpl-...` id; whatever LiteLLM passes through.
+    `None` when the provider reported none.
+    """
     parsed: BaseModel | None = None
     """`text` validated into the `response_format=` model, when one was given.
 
@@ -246,6 +253,13 @@ class CompletionChunk:
 
     Terminal chunk only, for the same reason as `tool_calls`: JSON that is
     still arriving is not yet an instance of anything.
+    """
+    id: str | None = None
+    """The provider's identifier for the response, on the terminal chunk.
+
+    On xMagic it arrives in a `metadata` frame before any text, but it rides
+    the terminal chunk with `usage`, `tool_calls`, and `parsed` so there is one
+    place to look rather than one per provider.
     """
 
 
