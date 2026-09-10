@@ -132,6 +132,12 @@ defects rather than style ones — a `StreamEvent` built outside its own
   streaming half of that invariant was asserted, so `_stream_timeout` leaking
   onto the non-streaming path would have failed no test.
 
+- **`examples/07_tool_calling.py`.** Two typed functions become tools through
+  `ToolDef.from_callable`, the script runs the call → execute → feed-back loop
+  on `complete()` and then on `stream()`, where the calls surface on the
+  terminal chunk. Needs no xMagic key. The loop is written out in the example
+  rather than shipped in the SDK, which is the §13.8 Q1 question left as it is.
+
 ### Changed
 
 - **`XMagicProvider.capabilities()["tools"]` is now `False`.** The flag means
