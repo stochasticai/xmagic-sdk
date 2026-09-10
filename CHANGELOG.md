@@ -10,6 +10,23 @@ codebase.**
 
 ## [Unreleased]
 
+## [0.5.0] — 2026-09-10
+
+Five PRs in one day, and they share a theme: the SDK is now something you can
+*operate*, not only call. A failing request can be inspected (logging, a
+`User-Agent`), a stream can be cancelled and is released the moment you stop
+reading it, every command that produces data is scriptable through `--json`,
+and a response tells you which message it was. Structured output rounds out
+the provider layer that 0.4.0 made worth using: a pydantic model in, a
+validated instance out, on the streaming path as well as the blocking one.
+
+Nothing public is removed and no loop has to change. Read **Changed** for the
+two places behaviour differs: argument errors on `stream()` now raise at the
+call rather than at the first item, and the commands that already had
+`--json` write it with `json.dumps` rather than Rich.
+
+The suite went from 298 tests to 369.
+
 ### Added
 
 - **Structured output** (DESIGN.md §14). `response_format=` on `complete()` and
@@ -63,6 +80,22 @@ codebase.**
   `xmagic-sdk/<version> python/<version> httpx/<version>`. The client
   identified itself to no one before, which ruled out server-side version
   telemetry. Provider adapters keep their vendors' own user agents.
+
+### Changed
+
+- **`stream()` validates its arguments at the call.** Every adapter's
+  `stream()` is now a plain method returning a `Stream`, rather than a
+  generator function, so passing `tools=` or `response_format=` to an
+  `xmagic:` ref raises where the call is made instead of at the first `next()`.
+  Code that wrapped the first iteration in a `try` still catches it; code that
+  wrapped only the call now does too.
+- **`--json` output is plain `json.dumps`** on `models`, `tools`, and the
+  worklist reads, as it is on every newly covered command. Rich's `print_json`
+  highlighted and re-indented to the console width; the bytes on stdout are now
+  exactly what `json.dumps(..., indent=2)` produces. A script that parsed the
+  output sees no difference; one that compared it byte-for-byte will.
+- **`chat --json`** carries an `id` field alongside `model`, `text`,
+  `reasoning`, and `usage`.
 
 ## [0.4.0] — 2026-09-10
 
@@ -540,7 +573,8 @@ it (see [DESIGN.md](DESIGN.md)).
   unverified against docs.xmagic.ai/api-drive (Phase 4).
 
 [#2]: https://github.com/stochasticai/xmagic-sdk/issues/2
-[Unreleased]: https://github.com/stochasticai/xmagic-sdk/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/stochasticai/xmagic-sdk/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/stochasticai/xmagic-sdk/releases/tag/v0.5.0
 [0.4.0]: https://github.com/stochasticai/xmagic-sdk/releases/tag/v0.4.0
 [0.3.0]: https://github.com/stochasticai/xmagic-sdk/releases/tag/v0.3.0
 [0.2.0]: https://github.com/stochasticai/xmagic-sdk/releases/tag/v0.2.0
