@@ -123,6 +123,7 @@ class OpenAIProvider(Provider):
         except Exception as e:
             raise self._translate(e) from e
         calls = ToolCallAccumulator()
+        finished = False
         for chunk in chunks:
             if not chunk.choices:
                 continue  # usage-only frames carry no delta
@@ -140,7 +141,15 @@ class OpenAIProvider(Provider):
                 # `finish_reason` is "tool_calls" here rather than "stop", but
                 # branching on it would only duplicate what the accumulator
                 # already knows: no fragments means no calls.
+                finished = True
                 yield CompletionChunk(text="", done=True, tool_calls=calls.finish())
+        if not finished and calls.pending:
+            # The server closed the stream without a finish reason while a call
+            # was still accumulating. Ending here would drop it without a word,
+            # which is the one failure this surface must not have; closing the
+            # way LiteLLM does means a truncated call raises out of `finish()`.
+            # A text-only stream that ends the same way is left as it was.
+            yield CompletionChunk(text="", done=True, tool_calls=calls.finish())
 
     def capabilities(self) -> dict[str, bool]:
         return {"streaming": True, "tools": True, "vision": True}
