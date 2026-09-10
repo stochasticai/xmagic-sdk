@@ -182,6 +182,7 @@ class LiteLLMProvider(Provider):
             # from `raw` alone -- they ride on `Usage` instead.
             raw=resp.model_dump(),
             usage=usage,
+            id=getattr(resp, "id", None) or None,
             # The same reader as the OpenAI adapter, because LiteLLM hands us
             # the OpenAI shape whichever vendor answered.
             tool_calls=tool_calls_from_wire(message),
@@ -229,9 +230,11 @@ class LiteLLMProvider(Provider):
         calls = ToolCallAccumulator()
         text: list[str] = []
         refusal: list[str] = []
+        response_id: str | None = None
         try:
             for chunk in chunks:
                 usage = _usage_from(getattr(chunk, "usage", None)) or usage
+                response_id = getattr(chunk, "id", None) or response_id
                 if not chunk.choices:
                     continue  # usage-only frames carry no delta
                 delta = chunk.choices[0].delta
@@ -268,6 +271,7 @@ class LiteLLMProvider(Provider):
                 if response_format is not None
                 else None
             ),
+            id=response_id,
         )
 
     def capabilities(self) -> dict[str, bool]:

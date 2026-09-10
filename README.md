@@ -426,9 +426,9 @@ Works the same through `litellm:` refs, since LiteLLM normalizes every vendor
 onto the shape this maps.
 
 Streaming works too. Arguments arrive as JSON fragments spread across deltas, so
-a completed call lands on the **terminal chunk** — the same place `usage` does —
-rather than mid-stream, where a half-built call could not be told apart from a
-finished one:
+a completed call lands on the **terminal chunk** — the same place `usage` and
+the response `id` do — rather than mid-stream, where a half-built call could
+not be told apart from a finished one:
 
 ```python
 for chunk in provider.stream(messages, model="gpt-5", tools=[tool]):
@@ -437,6 +437,10 @@ for chunk in provider.stream(messages, model="gpt-5", tools=[tool]):
         for call in chunk.tool_calls:
             print(get_weather(**call.arguments))
 ```
+
+Every completion carries the provider's `id` for it: xMagic's `message_id`,
+which `chats.get_message` takes, or OpenAI's `chatcmpl-...`. On a stream it is
+on the terminal chunk. `xmagic chat --json` reports it as `id`.
 
 One limit worth knowing: `xmagic:` refs reject `tools=` — an xMagic agent's
 tools are registered in the dashboard and attached to the agent, which is a
