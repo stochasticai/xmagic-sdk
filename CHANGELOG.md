@@ -43,6 +43,14 @@ codebase.**
   write it the same way: `json.dumps` to stdout rather than Rich's highlighted,
   width-bound `print_json`. `chat --json` emits `{model, text, reasoning,
   usage}` after the answer completes, and refuses interactive mode.
+- **Closable streams.** `chats.stream()` returns a `Stream` (`AsyncStream` on
+  the async client) and every `Provider.stream()` does too: still an iterator,
+  so no loop changes, plus `close()` / `aclose()` to cancel the query and
+  release the connection now rather than at garbage collection, and a context
+  manager that does so on exit. Before this, a stream abandoned mid-loop held
+  its response until the collector reached it, and an abandoned async stream
+  could hold it forever. Both classes are exported from `xmagic`. Adapters
+  close the vendor's stream as well where it offers a `close()`.
 - **A `User-Agent` header** on every xMagic request:
   `xmagic-sdk/<version> python/<version> httpx/<version>`. The client
   identified itself to no one before, which ruled out server-side version

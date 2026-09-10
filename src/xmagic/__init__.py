@@ -15,6 +15,7 @@ import logging
 from xmagic._version import __version__
 from xmagic.client import AsyncXMagicClient, XMagicClient
 from xmagic.client.models import ChatType
+from xmagic.client.streaming import AsyncStream, Stream
 from xmagic.config import Settings
 from xmagic.errors import (
     APIConnectionError,
@@ -40,6 +41,7 @@ logging.getLogger("xmagic").addHandler(logging.NullHandler())
 __all__ = [
     "APIConnectionError",
     "APITimeoutError",
+    "AsyncStream",
     "AsyncXMagicClient",
     "AuthenticationError",
     "BadRequestError",
@@ -50,6 +52,7 @@ __all__ = [
     "RateLimitError",
     "ServerError",
     "Settings",
+    "Stream",
     "XMagicAPIError",
     "XMagicClient",
     "XMagicError",

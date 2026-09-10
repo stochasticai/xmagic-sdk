@@ -5,6 +5,33 @@ the plan and [TODO.md](TODO.md) for what's next.
 
 ---
 
+## 2026-09-10 — Closable streams
+
+Fourth 0.5.0 item. `sse()` yielded from inside `with connect_sse(...)`, so a
+caller who broke out of the loop left the response open until the collector
+reached the suspended generator — and nothing in the type said the stream
+could be closed at all.
+
+- **`Stream` and `AsyncStream`** in `client/streaming.py` wrap the generator.
+  Still iterators, so every existing loop is unchanged; `close()` / `aclose()`
+  raise `GeneratorExit` at the suspended `yield`, which unwinds the transport's
+  `with` and closes the response right then. Both are context managers.
+  Exported from `xmagic`.
+- **Every streaming call returns one:** `chats.stream()` on both clients and
+  `stream()` on all three provider adapters. The adapters gained a
+  `_chunks()` generator behind a plain `stream()`, which also means argument
+  validation now raises at the call rather than at the first `next()`.
+- **The async client is where it mattered.** An abandoned async generator is
+  finalized by the loop's `asyncgen` hooks, on the loop's schedule, and not at
+  all once the loop is gone. The async `stream()` had to become a plain method
+  returning the wrapper — as `async def` it returned a coroutine, and `async
+  for` over it broke, which the async contract tests caught on the first run.
+- **Vendor streams are closed too** through `contextlib.closing`, where the
+  vendor offers a `close()`: OpenAI's `Stream` does, LiteLLM's wrapper does not.
+- **Streaming retry stays out, on purpose,** and DESIGN.md §8 says why:
+  re-sending a partially-delivered query is safe only if the agent does not
+  see it twice, which is a platform fact to ask about on #5, not one to assume.
+
 ## 2026-09-10 — `--json` everywhere it means something
 
 Third 0.5.0 item. The TODO line said nothing was scriptable; that was half
