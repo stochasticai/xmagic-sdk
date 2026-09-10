@@ -347,6 +347,7 @@ Chosen approach: **local proxy of the hosted xMagic web app**.
 | **7 — Document redactor** *(proposed)* | `mcp init --template redactor`; see §12 |
 | **8 — Coding-agent bridge** *(proposed)* | `mcp init --template coding-agent`; see §11 |
 | **9 — Tool calling** *(A + B + C done)* | Typed `tools=` on the provider interface. Stages A and C shipped 2026-08-24, streaming (B) followed; only the execution loop (D) remains, and it is blocked on a scope question rather than on code — see §13.8 Q1 |
+| **10 — Structured output** *(done)* | `response_format=` takes a pydantic model, `Completion.parsed` carries the validated instance; see §14 |
 
 ## 10. Open questions
 
@@ -905,3 +906,50 @@ new dependency: pydantic is a core dependency and does the schema generation.
 5. **Should this wait for `LiteLLMProvider`?** Building A against OpenAI alone risks
    encoding one vendor's model; building it against LiteLLM's normalization proves the
    shape generalizes. Sequencing question, not a design one.
+
+## 14. Structured output
+
+`response_format=` on `complete()` and `stream()` takes a pydantic model class.
+The adapter sends its JSON Schema as the vendor's `json_schema` response format
+and validates the reply into an instance on `Completion.parsed` (and on the
+terminal `CompletionChunk` when streaming). Table stakes across every peer SDK,
+and the natural sequel to §13: the same wire module, the same strict-mode rule,
+the same promise about failure.
+
+### 14.1 Decisions
+
+- **A pydantic class, not a dict.** A raw `{"type": "json_schema", ...}` dict is
+  rejected with directions, for the same reason raw tool dicts are (§13.4). The
+  class is the schema *and* the parser, so there is exactly one thing to write.
+- **`parsed` is never a silent `None` for a request that asked for a schema.** A
+  reply that does not validate raises `XMagicError` with pydantic's reasons and
+  the reply text. A vendor refusal (OpenAI's `refusal` field, which LiteLLM
+  passes through) raises in the vendor's words rather than as a JSON error on
+  empty content. This is D1 from §13 applied to output: the caller reaches for
+  `.parsed.field` next, and a `None` there is a crash in *their* code that says
+  nothing about why.
+- **Strict mode is claimed by the same rule tools use** — flat and fully
+  required — through one shared `claim_strict`. A nested model or a default
+  turns it off rather than sending a schema the vendor rejects. Unlike tools,
+  `strict` is always sent, because every backend that offers `json_schema` at
+  all knows the key.
+- **Streaming: JSON as text, instance on the terminal chunk.** The same
+  placement as `tool_calls` and `usage`, for the same reason — half a JSON
+  object is not an instance of anything. A stream that closes mid-object raises
+  out of the parser; the OpenAI adapter closes after the loop when a schema is
+  owed, as it already does for a pending tool call.
+- **`xmagic:` rejects it.** An agent's output shape is part of its dashboard
+  configuration, not a per-call parameter. `capabilities()["structured_output"]`
+  is `False` there, `True` on `openai:`, and read from
+  `litellm.supports_response_schema` on `litellm:`.
+
+### 14.2 Not done, on purpose
+
+- No `json_object` mode. It guarantees syntax and nothing about shape, which is
+  the failure `parsed` exists to close.
+- No `Completion.parse(Model)` helper alongside `parsed`. Two ways to get the
+  same instance is one too many; `Model.model_validate_json(completion.text)`
+  is there for anyone who wants to parse after the fact.
+- The CLI gains no `--schema` flag yet. Filed under `--json` output in TODO.md,
+  since a schema on the command line is only useful if the result is scriptable.
+

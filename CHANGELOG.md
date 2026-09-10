@@ -10,6 +10,21 @@ codebase.**
 
 ## [Unreleased]
 
+### Added
+
+- **Structured output** (DESIGN.md §14). `response_format=` on `complete()` and
+  `stream()` takes a pydantic model class; the vendor is asked for its schema as
+  a `json_schema` response format and the reply comes back validated on
+  **`Completion.parsed`** — or raises, with pydantic's reasons and the reply
+  text, never a silent `None`. A vendor refusal raises in the vendor's words.
+  Strict mode is claimed by the rule tools already use, through one shared
+  `claim_strict`. On `stream()` the JSON arrives as text and the instance rides
+  the terminal chunk as `CompletionChunk.parsed`, next to `usage` and
+  `tool_calls`. Supported on `openai:` and `litellm:` refs; `xmagic:` rejects it,
+  since an agent's output shape is dashboard configuration.
+- **`capabilities()["structured_output"]`**: `True` on `openai:`, read from
+  LiteLLM's model metadata on `litellm:`, `False` on `xmagic:`.
+
 ## [0.4.0] — 2026-09-10
 
 Six PRs since 0.3.0, and they add up to one thing: the provider layer is
