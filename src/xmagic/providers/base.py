@@ -315,6 +315,10 @@ class Provider(ABC):
 
         With `response_format`, the JSON streams as text and the validated
         instance rides the terminal chunk as `parsed` (DESIGN.md §14).
+
+        Adapters return a `Stream`, which is an `Iterator` with a `close()`
+        that cancels the call and releases its connection now rather than at
+        garbage collection, and a context manager that does so on exit.
         """
 
     def capabilities(self) -> dict[str, bool]:

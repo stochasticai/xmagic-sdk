@@ -15,6 +15,7 @@ context is whatever the caller passes in ``messages``.
 from __future__ import annotations
 
 from collections.abc import Iterator
+from contextlib import closing
 from typing import TYPE_CHECKING, Any, cast
 
 from xmagic.errors import ConfigurationError, XMagicError, error_for_status
@@ -33,6 +34,7 @@ from xmagic.providers.base import (
     Provider,
     ToolDef,
 )
+from xmagic.client.streaming import Stream
 
 if TYPE_CHECKING:
     from pydantic import BaseModel
@@ -121,11 +123,20 @@ class OpenAIProvider(Provider):
         tools: list[ToolDef] | None = None,
         response_format: type[BaseModel] | None = None,
         **params: Any,
-    ) -> Iterator[CompletionChunk]:
+    ) -> Stream[CompletionChunk]:
         if tools:
             params["tools"] = tools_to_wire(tools)
         if response_format is not None:
             params["response_format"] = response_format_to_wire(response_format)
+        return Stream(self._chunks(messages, model, response_format, params))
+
+    def _chunks(
+        self,
+        messages: list[ChatMessage],
+        model: str,
+        response_format: type[BaseModel] | None,
+        params: dict[str, Any],
+    ) -> Iterator[CompletionChunk]:
         try:
             chunks: Any = self._client.chat.completions.create(
                 model=model,
@@ -138,6 +149,19 @@ class OpenAIProvider(Provider):
         calls = ToolCallAccumulator()
         text: list[str] = []
         refusal: list[str] = []
+        # `closing`: the vendor's stream owns a response too, and a caller who
+        # closes ours should not leave theirs to the garbage collector.
+        with closing(chunks):
+            yield from self._deltas(chunks, calls, text, refusal, response_format)
+
+    def _deltas(
+        self,
+        chunks: Any,
+        calls: ToolCallAccumulator,
+        text: list[str],
+        refusal: list[str],
+        response_format: type[BaseModel] | None,
+    ) -> Iterator[CompletionChunk]:
         finished = False
         for chunk in chunks:
             if not chunk.choices:
