@@ -200,9 +200,9 @@ Ready now, roughly in order of value per unit of work:
       data-producing command; JSON on stdout via `json.dumps`, errors on stderr,
       exit code as the verdict. A `chat --schema` flag for structured output is
       the natural follow-up now that the output is scriptable
-- [ ] **Stream cancellation and deterministic close.** `sse()` yields from inside
-      a `with connect_sse(...)`, so a caller who breaks out of the loop leaves the
-      response open until GC; there is no way to cancel an in-flight query
+- [x] **Stream cancellation and deterministic close** — done 2026-09-10
+      (DESIGN.md §8). `Stream` / `AsyncStream` wrap every streaming call:
+      `close()` cancels and releases now, `with` does it on exit
 - [ ] **A test double for consumers** — export the recorded fixtures or a fake
       client, so downstream users can test against this SDK without network
 
@@ -253,14 +253,14 @@ day and are still open.
       a streaming caller cannot learn the id of the message it just received.
       Named in a comment in `providers/xmagic.py:157`; filed here so it is not
       only a comment
-- [ ] **Streaming calls are never retried.** `sse()` has no retry loop, so a 429
-      or 503 on `chats.stream` fails on the first attempt while the same status on
-      `chats.query` gets the full backoff schedule. Found 2026-08-07 while fixing
-      the status handling below; retrying a stream needs a decision about whether
-      a partially-consumed stream can be safely restarted, so it is not a
-      one-liner
-- [ ] **No stream cancellation, and no deterministic close** — listed under
-      "Ready now" above; noting here that the two touch the same code
+- [ ] **Streaming calls are never retried** — decided 2026-09-10 to leave it
+      that way until the platform answers one question (DESIGN.md §8): is a
+      partially-delivered query safe to re-send, or does the agent see it
+      twice? Retrying before the connection is established is safe on any
+      reading and is the one piece worth building without the answer; ask on
+      [#5](https://github.com/stochasticai/xmagic-sdk/issues/5) first
+- [x] **No stream cancellation, and no deterministic close** — done 2026-09-10,
+      see "Ready now" above
 
 Larger, and worth their own design pass:
 

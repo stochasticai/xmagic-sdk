@@ -230,10 +230,14 @@ from xmagic import XMagicClient
 client = XMagicClient()  # reads env/config; or XMagicClient(api_key="xm-...")
 chat = client.chats.create("<agent_id>", title="demo")
 
-# Streaming
-for event in client.chats.stream("<agent_id>", chat.id, "Explain xMagic skills"):
-    if event.type == "response":
-        print(event.text, end="")
+# Streaming. The stream is closable: `with` releases the connection the moment
+# the block ends, and close() mid-loop cancels the query outright.
+with client.chats.stream("<agent_id>", chat.id, "Explain xMagic skills") as events:
+    for event in events:
+        if event.type == "response":
+            print(event.text, end="")
+        if "enough" in event.text:
+            events.close()  # cancel now; nothing else arrives
 
 # Blocking
 resp = client.chats.query("<agent_id>", chat.id, "One-sentence summary?")
@@ -247,6 +251,11 @@ print(review.action, review.task.id)
 `XMagicClient` is a context manager, so `with XMagicClient() as client:` closes
 the underlying HTTP connection for you. It retries `429` and `5xx` with
 jittered exponential backoff, honoring `Retry-After`.
+
+A stream left mid-loop without `with` or `close()` is released only when the
+garbage collector reaches it — soon on CPython for the sync client, but for the
+async client only when the event loop's finalizer runs, which after the loop is
+gone is never. `Provider.stream()` returns the same kind of closable stream.
 
 Timeouts come in two flavours, because streams need a looser bound than unary
 calls — `timeout` (default 60s) bounds a whole request, while `stream_timeout`
@@ -306,9 +315,10 @@ from xmagic import AsyncXMagicClient
 
 async with AsyncXMagicClient() as client:
     chat = await client.chats.create("<agent_id>", title="demo")
-    async for event in client.chats.stream("<agent_id>", chat.id, "Explain xMagic skills"):
-        if event.type == "response":
-            print(event.text, end="")
+    async with client.chats.stream("<agent_id>", chat.id, "Explain xMagic skills") as events:
+        async for event in events:
+            if event.type == "response":
+                print(event.text, end="")
 
       review = await client.worklists.review("<agent_id>", "<task_id>")
       print(review.action, review.task.id)
