@@ -187,8 +187,10 @@ Ready now, roughly in order of value per unit of work:
 - [ ] **`capabilities()` is a `dict[str, bool]` with no defined vocabulary.**
       D4 made the `tools` flag honest, but there is now no word for "has tools
       registered platform-side", which is what xMagic actually offers. §13.8 Q3
-- [ ] **Structured output** — `response_format` passthrough plus a "parse into
-      this pydantic model" helper. Table stakes across every peer SDK
+- [x] **Structured output** — done 2026-09-10 (DESIGN.md §14). `response_format=`
+      takes a pydantic model, `Completion.parsed` carries the validated instance
+      or the call raises. No `json_object` mode and no CLI flag yet; the flag
+      belongs with `--json` output below
 - [ ] **Logging, and a `User-Agent` header.** There is no logging anywhere in the
       package, so a failing call cannot be inspected; and the client identifies
       itself to no one, which rules out server-side version telemetry

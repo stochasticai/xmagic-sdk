@@ -407,6 +407,29 @@ One limit worth knowing: `xmagic:` refs reject `tools=` — an xMagic agent's
 tools are registered in the dashboard and attached to the agent, which is a
 different capability, so `capabilities()["tools"]` reports `False` there.
 
+Structured output is a pydantic model in, an instance out:
+
+```python
+from pydantic import BaseModel
+
+
+class Weather(BaseModel):
+    city: str
+    temp_c: float
+
+
+completion = provider.complete(messages, model="gpt-5", response_format=Weather)
+print(completion.parsed.temp_c)  # a Weather, validated -- or an exception, never None
+```
+
+The model's schema is sent as the vendor's `json_schema` response format, with
+strict mode claimed for a flat, fully-required model (the same rule tools use).
+A reply that does not validate raises, and so does a safety refusal, in the
+vendor's words. On `stream()` the JSON arrives as text and the instance rides
+the terminal chunk as `parsed`, where `usage` and `tool_calls` already are.
+`xmagic:` refs reject `response_format=` too: an agent's output shape is part
+of its configuration, not a per-call parameter.
+
 Which refs exist is discoverable rather than guesswork:
 
 ```bash

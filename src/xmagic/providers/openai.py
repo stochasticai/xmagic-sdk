@@ -15,12 +15,14 @@ context is whatever the caller passes in ``messages``.
 from __future__ import annotations
 
 from collections.abc import Iterator
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 
 from xmagic.errors import ConfigurationError, XMagicError, error_for_status
 from xmagic.providers._openai_wire import (
     ToolCallAccumulator,
     messages_to_wire,
+    parse_structured,
+    response_format_to_wire,
     tool_calls_from_wire,
     tools_to_wire,
 )
@@ -31,6 +33,9 @@ from xmagic.providers.base import (
     Provider,
     ToolDef,
 )
+
+if TYPE_CHECKING:
+    from pydantic import BaseModel
 
 
 class OpenAIProvider(Provider):
@@ -80,10 +85,13 @@ class OpenAIProvider(Provider):
         *,
         model: str,
         tools: list[ToolDef] | None = None,
+        response_format: type[BaseModel] | None = None,
         **params: Any,
     ) -> Completion:
         if tools:
             params["tools"] = tools_to_wire(tools)
+        if response_format is not None:
+            params["response_format"] = response_format_to_wire(response_format)
         try:
             # `Any`: `create` is a large overload set keyed on `stream`, and
             # `**params` makes it unresolvable statically. The wire contract is
@@ -96,11 +104,13 @@ class OpenAIProvider(Provider):
         if not resp.choices:
             return Completion(text="", model=f"openai:{model}", raw=resp.model_dump())
         message = resp.choices[0].message
+        text = message.content or ""
         return Completion(
-            text=message.content or "",
+            text=text,
             model=f"openai:{model}",
             raw=resp.model_dump(),
             tool_calls=tool_calls_from_wire(message),
+            parsed=_parsed(text, response_format, getattr(message, "refusal", None)),
         )
 
     def stream(
@@ -109,10 +119,13 @@ class OpenAIProvider(Provider):
         *,
         model: str,
         tools: list[ToolDef] | None = None,
+        response_format: type[BaseModel] | None = None,
         **params: Any,
     ) -> Iterator[CompletionChunk]:
         if tools:
             params["tools"] = tools_to_wire(tools)
+        if response_format is not None:
+            params["response_format"] = response_format_to_wire(response_format)
         try:
             chunks: Any = self._client.chat.completions.create(
                 model=model,
@@ -123,6 +136,8 @@ class OpenAIProvider(Provider):
         except Exception as e:
             raise self._translate(e) from e
         calls = ToolCallAccumulator()
+        text: list[str] = []
+        refusal: list[str] = []
         finished = False
         for chunk in chunks:
             if not chunk.choices:
@@ -135,21 +150,41 @@ class OpenAIProvider(Provider):
             if reasoning:
                 yield CompletionChunk(text=reasoning, kind="reasoning")
             if choice.delta.content:
+                text.append(choice.delta.content)
                 yield CompletionChunk(text=choice.delta.content)
+            if getattr(choice.delta, "refusal", None):
+                refusal.append(choice.delta.refusal)
             calls.add(choice.delta)
             if choice.finish_reason:
                 # `finish_reason` is "tool_calls" here rather than "stop", but
                 # branching on it would only duplicate what the accumulator
                 # already knows: no fragments means no calls.
                 finished = True
-                yield CompletionChunk(text="", done=True, tool_calls=calls.finish())
-        if not finished and calls.pending:
+                yield CompletionChunk(
+                    text="",
+                    done=True,
+                    tool_calls=calls.finish(),
+                    parsed=_parsed("".join(text), response_format, "".join(refusal)),
+                )
+        if not finished and (calls.pending or response_format is not None):
             # The server closed the stream without a finish reason while a call
-            # was still accumulating. Ending here would drop it without a word,
-            # which is the one failure this surface must not have; closing the
-            # way LiteLLM does means a truncated call raises out of `finish()`.
-            # A text-only stream that ends the same way is left as it was.
-            yield CompletionChunk(text="", done=True, tool_calls=calls.finish())
+            # was still accumulating, or while a schema was owed. Ending here
+            # would drop it without a word, which is the one failure this
+            # surface must not have; closing the way LiteLLM does means a
+            # truncated call or truncated JSON raises out of the parser. A
+            # plain text stream that ends the same way is left as it was.
+            yield CompletionChunk(
+                text="",
+                done=True,
+                tool_calls=calls.finish(),
+                parsed=_parsed("".join(text), response_format, "".join(refusal)),
+            )
 
     def capabilities(self) -> dict[str, bool]:
-        return {"streaming": True, "tools": True, "vision": True}
+        return {"streaming": True, "tools": True, "vision": True, "structured_output": True}
+
+
+def _parsed(text: str, response_format: type[BaseModel] | None, refusal: Any) -> BaseModel | None:
+    if response_format is None:
+        return None
+    return parse_structured(text, response_format, refusal)
