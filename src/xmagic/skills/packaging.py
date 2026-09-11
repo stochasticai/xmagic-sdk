@@ -13,6 +13,9 @@ import re
 import zipfile
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
+
+import yaml
 
 _FRONTMATTER_RE = re.compile(r"\A---\s*\n(.*?)\n---\s*\n", re.DOTALL)
 
@@ -46,16 +49,42 @@ class SkillManifest:
     description: str
 
 
-def _parse_frontmatter(text: str) -> dict[str, str]:
+def _parse_frontmatter(text: str) -> dict[str, Any]:
+    """The frontmatter block as YAML parsed it.
+
+    A real YAML parse rather than a line split, so a folded multi-line
+    description, a quoted colon, or a comment all read as the author meant
+    them. A block that is not a mapping is refused: ``name`` and
+    ``description`` have nowhere to live in a list or a bare scalar.
+    """
     match = _FRONTMATTER_RE.match(text)
     if not match:
         raise ValueError("SKILL.md must start with YAML frontmatter delimited by '---'")
-    fields: dict[str, str] = {}
-    for line in match.group(1).splitlines():
-        if ":" in line:
-            key, _, value = line.partition(":")
-            fields[key.strip()] = value.strip().strip("\"'")
+    try:
+        fields = yaml.safe_load(match.group(1))
+    except yaml.YAMLError as e:
+        raise ValueError(f"SKILL.md frontmatter is not valid YAML: {e}") from e
+    if fields is None:
+        return {}
+    if not isinstance(fields, dict):
+        raise ValueError(
+            "SKILL.md frontmatter must be a YAML mapping of keys to values, "
+            f"not a {type(fields).__name__}"
+        )
     return fields
+
+
+def _required_string(fields: dict[str, Any], key: str) -> str:
+    """A non-empty string under ``key``, or a message naming what was there."""
+    value = fields.get(key)
+    if value is None or (isinstance(value, str) and not value.strip()):
+        raise ValueError(f"SKILL.md frontmatter missing required key: {key}")
+    if not isinstance(value, str):
+        raise ValueError(
+            f"SKILL.md frontmatter key {key!r} must be a string, "
+            f"not {type(value).__name__} ({value!r}); quote it if it looks like a number"
+        )
+    return value.strip()
 
 
 def validate_skill(path: str | Path) -> SkillManifest:
@@ -68,10 +97,10 @@ def validate_skill(path: str | Path) -> SkillManifest:
     if not skill_md.is_file():
         raise ValueError(f"SKILL.md not found at {skill_md}")
     fields = _parse_frontmatter(skill_md.read_text(encoding="utf-8"))
-    missing = [k for k in ("name", "description") if not fields.get(k)]
-    if missing:
-        raise ValueError(f"SKILL.md frontmatter missing required keys: {', '.join(missing)}")
-    return SkillManifest(name=fields["name"], description=fields["description"])
+    return SkillManifest(
+        name=_required_string(fields, "name"),
+        description=_required_string(fields, "description"),
+    )
 
 
 def new_skill(name: str, directory: str | Path, description: str = "TODO") -> Path:
