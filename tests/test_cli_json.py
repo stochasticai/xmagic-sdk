@@ -91,6 +91,7 @@ class TestChat:
             "id": None,  # no metadata frame in this stream
             "text": "hello",
             "reasoning": "thinking",
+            "parsed": None,  # no --schema
             "usage": None,
         }
 

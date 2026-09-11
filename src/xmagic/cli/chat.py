@@ -9,6 +9,7 @@ import typer
 from rich.console import Console
 
 from xmagic.cli._output import fail, note, print_json
+from xmagic.cli._schema import SchemaError, load_schema_model
 from xmagic.client import XMagicClient
 from xmagic.client.models import ChatType
 from xmagic.config import Settings
@@ -38,9 +39,10 @@ def run_chat(
     chat_type: ChatType,
     stream: bool,
     as_json: bool = False,
+    schema: Path | None = None,
 ) -> None:
     """Run chat with concrete values, independent of Typer's option objects."""
-    return _chat_impl(prompt, model, agent, file, chat_type, stream, as_json)
+    return _chat_impl(prompt, model, agent, file, chat_type, stream, as_json, schema)
 
 
 def _chat_impl(
@@ -51,10 +53,18 @@ def _chat_impl(
     chat_type: ChatType,
     stream: bool,
     as_json: bool,
+    schema: Path | None = None,
 ) -> None:
     """Send a prompt (or start an interactive session) against any model."""
     if as_json and not prompt:
         raise typer.BadParameter("--json needs a one-shot prompt; it has no interactive mode.")
+    # Before any request: a bad schema file should fail without a network call.
+    response_format = None
+    if schema is not None:
+        try:
+            response_format = load_schema_model(schema)
+        except SchemaError as e:
+            raise typer.BadParameter(str(e), param_hint="--schema") from None
     settings = Settings.load()
     ref = (
         model
@@ -89,35 +99,43 @@ def _chat_impl(
         fail(str(e))
 
     params: dict[str, Any] = {"uploaded_files": uploaded_ids} if uploaded_ids else {}
+    if response_format is not None:
+        params["response_format"] = response_format
 
     def ask_json(text: str) -> None:
         """One document, after the answer is complete.
 
         Streaming JSON fragments would hand a script something it cannot parse
         until the end anyway, so the stream is consumed here and emitted whole.
-        Reasoning is kept separate from the answer, as it is on screen.
+        Reasoning is kept separate from the answer, as it is on screen. With
+        `--schema`, `parsed` is the validated instance as JSON, so a script
+        reads `.parsed.field` without parsing `text` itself.
         """
         messages = [ChatMessage(role="user", content=text)]
         answer: list[str] = []
         reasoning: list[str] = []
         usage = None
         response_id = None
+        parsed = None
         if stream:
             for chunk in provider.stream(messages, model=model_name, **params):
                 (reasoning if chunk.kind == "reasoning" else answer).append(chunk.text)
                 usage = chunk.usage or usage
                 response_id = chunk.id or response_id
+                parsed = chunk.parsed or parsed
         else:
             completion = provider.complete(messages, model=model_name, **params)
             answer.append(completion.text)
             usage = completion.usage
             response_id = completion.id
+            parsed = completion.parsed
         print_json(
             {
                 "model": ref,
                 "id": response_id,
                 "text": "".join(answer),
                 "reasoning": "".join(reasoning) or None,
+                "parsed": parsed.model_dump(mode="json") if parsed is not None else None,
                 "usage": (
                     {
                         "input_tokens": usage.input_tokens,
@@ -180,5 +198,13 @@ def chat(
     ),
     stream: bool = typer.Option(True, "--stream/--no-stream"),
     as_json: bool = typer.Option(False, "--json", help="Machine-readable output."),
+    schema: Path = typer.Option(
+        None,
+        "--schema",
+        exists=True,
+        dir_okay=False,
+        readable=True,
+        help="JSON Schema file the reply must conform to. openai:/litellm: refs only.",
+    ),
 ) -> None:
-    return run_chat(prompt, model, agent, list(file or []), chat_type, stream, as_json)
+    return run_chat(prompt, model, agent, list(file or []), chat_type, stream, as_json, schema)
