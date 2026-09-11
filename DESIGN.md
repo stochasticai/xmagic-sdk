@@ -991,6 +991,20 @@ the same promise about failure.
 - No `Completion.parse(Model)` helper alongside `parsed`. Two ways to get the
   same instance is one too many; `Model.model_validate_json(completion.text)`
   is there for anyone who wants to parse after the fact.
-- The CLI gains no `--schema` flag yet. Filed under `--json` output in TODO.md,
-  since a schema on the command line is only useful if the result is scriptable.
+
+### 14.3 The CLI flag
+
+`xmagic chat --schema FILE` takes a JSON Schema file, because a shell cannot
+write a pydantic class. The rule in §14.1 holds: the CLI builds the class from
+the file (`cli/_schema.py`) and hands *that* to the provider, so the adapters
+still see exactly one kind of `response_format=`. The mapping covers the subset
+a response format uses -- an object of typed, described properties, nested
+objects and arrays, `enum`/`const`, `anyOf` and nullable types, `required`,
+`default`, and the numeric and length constraints -- and refuses every other
+keyword by name. Dropping a `pattern` or a `format` the vendor never sees would
+leave the caller believing a constraint is enforced when nothing enforces it.
+A property that is not `required` reads as `None` when absent, since JSON has
+no other way to say so. Under `--json` the validated instance is `parsed`,
+next to `text`, `id`, and `usage`; without `--json` the reply is still
+validated, and a mismatch fails the command rather than printing it.
 

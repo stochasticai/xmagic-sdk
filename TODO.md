@@ -127,7 +127,10 @@ points with no extra (DESIGN.md §4).
       raised on [#5](https://github.com/stochasticai/xmagic-sdk/issues/5)
 - [ ] CLI surface for the new Drive routes (`xmagic drive download`, `rm`,
       `rename`) and recursive listing
-- [ ] Richer SKILL.md validation (proper YAML parsing vs current line-based)
+- [x] Richer SKILL.md validation — done 2026-09-11. Frontmatter goes through
+      `yaml.safe_load`, so folded descriptions and quoted colons read as
+      written; a non-mapping block or a non-string `name`/`description` is
+      refused with the reason rather than coerced
 - [ ] Wire skills upload / tool registration APIs if xMagic publishes them
       (open question §10.1)
 
@@ -204,8 +207,9 @@ Ready now, roughly in order of value per unit of work:
       registered platform-side", which is what xMagic actually offers. §13.8 Q3
 - [x] **Structured output** — done 2026-09-10 (DESIGN.md §14). `response_format=`
       takes a pydantic model, `Completion.parsed` carries the validated instance
-      or the call raises. No `json_object` mode and no CLI flag yet; the flag
-      belongs with `--json` output below
+      or the call raises. No `json_object` mode. The CLI flag followed on
+      2026-09-11: `chat --schema FILE` builds the model from a JSON Schema file
+      (DESIGN.md §14.3) and `--json` output gained `parsed`
 - [x] **Logging, and a `User-Agent` header** — done 2026-09-10 (DESIGN.md §8).
       `xmagic` / `xmagic.http` loggers, `NullHandler` at the root, `DEBUG` for
       request/response lines and `INFO` for retries, never headers or bodies;
@@ -213,8 +217,7 @@ Ready now, roughly in order of value per unit of work:
       on every xMagic request. Provider adapters keep their vendors' user agents
 - [x] **`--json` output for the CLI** — done 2026-09-10 (DESIGN.md §5). Every
       data-producing command; JSON on stdout via `json.dumps`, errors on stderr,
-      exit code as the verdict. A `chat --schema` flag for structured output is
-      the natural follow-up now that the output is scriptable
+      exit code as the verdict. `chat --schema` followed on 2026-09-11
 - [x] **Stream cancellation and deterministic close** — done 2026-09-10
       (DESIGN.md §8). `Stream` / `AsyncStream` wrap every streaming call:
       `close()` cancels and releases now, `with` does it on exit
