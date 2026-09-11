@@ -12,6 +12,17 @@ codebase.**
 
 ### Added
 
+- **`xmagic chat --schema FILE`** — structured output from the command line.
+  The file is a JSON Schema; the CLI builds the pydantic model the provider
+  interface takes (DESIGN.md §14.3), the reply is validated against it, and
+  under `--json` the instance is a new **`parsed`** key next to `text`, `id`,
+  and `usage`. A reply that does not validate, or a vendor refusal, fails the
+  command with the reason on stderr and nothing on stdout. The mapping covers
+  objects, arrays, scalars, `enum`/`const`, `anyOf` and nullable types,
+  `required`, `description`, `default`, and the numeric and length
+  constraints; every other keyword (`$ref`, `format`, `oneOf`, ...) is refused
+  by name rather than dropped, and a bad file fails before any request.
+  `openai:` and `litellm:` refs only, as with `response_format=`.
 - **`xmagic mcp init` output fits the layout xMagic-hosted deployment will
   expect.** Hosting is on the platform roadmap, not available yet; its runtime
   runs `python /code/mcp_server.py` after `pip install -r requirements.txt`
@@ -24,6 +35,20 @@ codebase.**
 - **`GET /health` on the generated server**, answering `{"ok": true}` without
   a key. The container `HEALTHCHECK` probes it instead of a bare TCP connect,
   and it is the health path to give a hosted deployment when that ships.
+
+### Changed
+
+- **`chat --json` always carries `parsed`**, `null` without `--schema`, so the
+  document has one shape.
+- **SKILL.md frontmatter is parsed as YAML** (`yaml.safe_load`) rather than
+  split on the first colon per line. A folded multi-line `description`, a
+  quoted value containing a colon, and a comment now read as written. A block
+  that is not a mapping, and a `name` or `description` that is not a string,
+  are refused with the reason instead of being coerced or read as empty; the
+  missing-key message names one key at a time.
+
+### Added
+
 - **Structured output** (DESIGN.md §14). `response_format=` on `complete()` and
   `stream()` takes a pydantic model class; the vendor is asked for its schema as
   a `json_schema` response format and the reply comes back validated on

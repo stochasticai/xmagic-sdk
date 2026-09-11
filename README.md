@@ -188,6 +188,27 @@ xmagic agents --json | jq -r '.[].id'
 xmagic worklists trigger <task_id> --json | jq .status
 ```
 
+To get the answer in a shape a script can rely on, hand `chat` a JSON Schema
+file with `--schema`. The reply is validated against it before anything is
+printed, and under `--json` the instance is on `parsed`:
+
+```bash
+cat > weather.json <<'EOF'
+{"type": "object",
+ "properties": {"city": {"type": "string"}, "temp_c": {"type": "number"}},
+ "required": ["city", "temp_c"]}
+EOF
+xmagic chat -m openai:gpt-5 --schema weather.json --json "Weather in Osaka?" | jq .parsed.temp_c
+```
+
+A reply that does not match fails with a non-zero exit and pydantic's reasons on
+stderr, never a half-valid document on stdout. `--schema` works with `openai:`
+and `litellm:` refs; an xMagic agent's output shape is part of its dashboard
+configuration, so `--agent` rejects it. The file may use object, array, scalar,
+enum, `anyOf`, and nullable types, `required`, `description`, `default`, and
+the numeric and length constraints; anything else (`$ref`, `format`, `oneOf`,
+...) is refused by name rather than silently dropped.
+
 ### 7. Manage Worklists
 
 List one page of background tasks, inspect a task and its latest result, or
@@ -467,7 +488,9 @@ A reply that does not validate raises, and so does a safety refusal, in the
 vendor's words. On `stream()` the JSON arrives as text and the instance rides
 the terminal chunk as `parsed`, where `usage` and `tool_calls` already are.
 `xmagic:` refs reject `response_format=` too: an agent's output shape is part
-of its configuration, not a per-call parameter.
+of its configuration, not a per-call parameter. On the command line the same
+thing is `xmagic chat --schema weather.json`, which takes the JSON Schema file
+and builds the model for you (section 6).
 
 Which refs exist is discoverable rather than guesswork:
 
