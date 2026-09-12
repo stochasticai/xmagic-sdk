@@ -13,10 +13,26 @@ from pathlib import Path
 
 _TEMPLATES = {
     "pyproject.toml.tmpl": "pyproject.toml",
+    "requirements.txt.tmpl": "requirements.txt",
     "Dockerfile.tmpl": "Dockerfile",
     "compose.yaml.tmpl": "compose.yaml",
     "README.md.tmpl": "README.md",
+    # Root-level entrypoint for xMagic's hosted deployment, which runs
+    # ``python /code/mcp_server.py``. It imports the server from src/.
+    "mcp_server.py.tmpl": "mcp_server.py",
 }
+
+# One list, rendered into both pyproject.toml and requirements.txt so the
+# container build and the hosted deployment cannot resolve different versions.
+DEPENDENCIES = (
+    # Bounded to one major on purpose. An unbounded "mcp>=1.0" is what broke
+    # this template once already: mcp 2.0 moved FastMCP to
+    # mcp.server.mcpserver.MCPServer, so generated projects resolved to a
+    # version whose import did not exist.
+    "mcp>=2.0,<3",
+    "starlette>=0.37",
+    "uvicorn>=0.29",
+)
 
 
 def _module_name(name: str) -> str:
@@ -39,7 +55,12 @@ def scaffold_mcp_server(name: str, directory: str | Path = ".") -> Path:
         raise FileExistsError(f"{target} already exists")
 
     templates = resources.files("xmagic.mcp") / "templates"
-    ctx = {"name": name, "module": module}
+    ctx = {
+        "name": name,
+        "module": module,
+        "dependencies_toml": "\n".join(f'    "{dep}",' for dep in DEPENDENCIES),
+        "dependencies_txt": "\n".join(DEPENDENCIES),
+    }
 
     target.mkdir(parents=True)
     for tmpl, out_name in _TEMPLATES.items():
