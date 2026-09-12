@@ -26,9 +26,19 @@ cloudflared tunnel --url http://localhost:8000
 4. API key: the value of `TOOL_API_KEY` (recommended; rotate regularly)
 5. Attach the tool to a Job in your Agent's Studio and deploy
 
+## Host on xMagic (upcoming)
+
+xMagic-hosted deployment is on the platform roadmap and is not available yet.
+When it lands, the hosted runtime will unpack a zip of this directory, install
+`requirements.txt`, and run `mcp_server.py` from the project root. Both files
+are generated here already and start the same server as `docker compose up`,
+so nothing about this project needs to change. Give the deployment `/health`
+as its health path — it answers without a key. Until then, deploy the
+container yourself as described below.
+
 ## Production checklist
 
-- [ ] Deploy the container (Cloud Run, Fly.io, ECS, k8s, ...) behind HTTPS
+- [ ] Deploy on xMagic, or run the container (Cloud Run, Fly.io, ECS, k8s, ...) behind HTTPS
 - [ ] Set `TOOL_API_KEY` and register the same value in xMagic
 - [ ] Return well-structured JSON from every tool
 - [ ] Keep request logging on for debugging; add timeouts to upstream calls

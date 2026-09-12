@@ -1,0 +1,25 @@
+"""Entrypoint for running {name} on xMagic's hosted deployment.
+
+xMagic's deployment runtime unpacks the uploaded project at /code and runs
+``python /code/mcp_server.py`` after installing requirements.txt, so this file
+must sit at the project root under exactly this name. It starts the same
+server that ``src/{module}/server.py`` runs locally; there is one server, not a
+hosted variant of it.
+
+Local development does not use this file: ``docker compose up`` runs
+``src/{module}/server.py`` directly.
+"""
+
+import sys
+from pathlib import Path
+
+# The hosted runtime runs this file as a script from /code, not as an installed
+# package, so src/ has to be importable by hand.
+sys.path.insert(0, str(Path(__file__).resolve().parent / "src"))
+
+from {module}.server import PORT, app  # noqa: E402
+
+if __name__ == "__main__":
+    import uvicorn
+
+    uvicorn.run(app, host="0.0.0.0", port=PORT)

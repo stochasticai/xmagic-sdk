@@ -12,6 +12,18 @@ codebase.**
 
 ### Added
 
+- **`xmagic mcp init` output fits the layout xMagic-hosted deployment will
+  expect.** Hosting is on the platform roadmap, not available yet; its runtime
+  runs `python /code/mcp_server.py` after `pip install -r requirements.txt`
+  (see TODO.md Phase 2 for what was verified). The scaffold now generates
+  both: a root-level `mcp_server.py` that imports the server from `src/` and
+  a `requirements.txt` rendered from the same dependency list as
+  `pyproject.toml`, so the container build and the hosted runtime cannot
+  resolve different versions. One server, no hosted variant. The generated
+  project already passes the platform's `validate-code` check.
+- **`GET /health` on the generated server**, answering `{"ok": true}` without
+  a key. The container `HEALTHCHECK` probes it instead of a bare TCP connect,
+  and it is the health path to give a hosted deployment when that ships.
 - **Structured output** (DESIGN.md §14). `response_format=` on `complete()` and
   `stream()` takes a pydantic model class; the vendor is asked for its schema as
   a `json_schema` response format and the reply comes back validated on
