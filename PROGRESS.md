@@ -5,7 +5,28 @@ the plan and [TODO.md](TODO.md) for what's next.
 
 ---
 
-## 2026-09-10 — The response id reaches the caller
+## 2026-09-11 — `chat --schema`, and SKILL.md read as YAML
+
+Two loose ends from 0.5.0, taken together because both are small and both were
+named in TODO.md as the natural next step.
+
+- **`xmagic chat --schema FILE`.** DESIGN.md §14.1 says `response_format=`
+  takes a pydantic class and not a dict, and a shell cannot write a class, so
+  the CLI builds one from a JSON Schema file (`cli/_schema.py`, §14.3) and the
+  adapters are untouched. The mapping is deliberately a subset — objects,
+  arrays, scalars, `enum`/`const`, `anyOf`, nullable types, `required`,
+  `default`, the numeric and length constraints — and every other keyword is
+  refused by name, because a `pattern` the vendor never sees is a constraint
+  the caller wrongly believes is enforced. `--json` gains `parsed`, always
+  present, `null` without a schema. Validated on the plain path too.
+- **SKILL.md frontmatter through `yaml.safe_load`.** The line-based parser
+  read `description: >` as the literal `>` and a quoted colon as the end of
+  the key. Now a non-mapping block and a non-string value are refused with the
+  reason rather than coerced.
+- 32 new tests: the converter and its refusals, the flag on both stream and
+  blocking paths, refusal and validation failures, the pre-request failure on
+  a bad file, the xMagic rejection with no request made, and the YAML cases.
+
 
 Fifth 0.5.0 item, and the smallest. xMagic sends the id of the message it is
 generating in a `metadata` frame before any text; the provider dropped that
