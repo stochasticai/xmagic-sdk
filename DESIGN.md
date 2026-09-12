@@ -31,6 +31,8 @@ Status: **Draft v0.1** · Target: Python >= 3.10 · License: Apache-2.0
 - Agent orchestration frameworks (we expose primitives, not a graph runtime). §11 wraps
   an existing harness; it does not build one.
 - Hosting/deployment of MCP servers beyond templates and docs (no built-in PaaS).
+  Wrapping xMagic's own hosted deployment once the platform offers it is in scope;
+  see §10.1.
 
 ---
 
@@ -390,6 +392,11 @@ platform team in [#5](https://github.com/stochasticai/xmagic-sdk/issues/5).
 
 1. Does xMagic expose (or plan) APIs for custom-tool registration and skill upload?
    (CLI currently stops at "packaged + validated, register in dashboard".)
+   **Partly resolved 2026-09-12:** `/v1/custom-tool-configs` (registration) and
+   `/v1/mcp-servers` (hosted deployment) are both reachable and validate input.
+   Hosting is on the platform roadmap but not offered yet — deployments are
+   rejected before scheduling. Neither surface is documented. Details in
+   TODO.md Phase 2.
 2. Exact MCP transport xMagic's agent runtime speaks (streamable HTTP assumed; SSE
    legacy transport kept available behind a template flag).
 3. Web-app proxy viability against the hosted app's CSP/auth — validate early in
