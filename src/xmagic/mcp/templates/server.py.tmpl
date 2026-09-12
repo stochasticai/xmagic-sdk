@@ -2,6 +2,9 @@
 
 Serves the MCP streamable-HTTP transport at /mcp. Register the public HTTPS
 URL of this endpoint in xMagic: Sidebar -> Custom tools -> Create tool.
+
+GET /health answers 200 without a key, for container and platform probes. The
+MCP endpoint itself answers 4xx to a plain GET, so it cannot serve as one.
 """
 
 import logging
@@ -11,6 +14,7 @@ from mcp.server.mcpserver import MCPServer
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import JSONResponse
+from starlette.routing import Route
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(message)s")
 log = logging.getLogger("{module}")
@@ -20,6 +24,7 @@ log = logging.getLogger("{module}")
 # endpoint is UNAUTHENTICATED (a warning is logged).
 TOOL_API_KEY = os.environ.get("TOOL_API_KEY", "")
 PORT = int(os.environ.get("PORT", "8000"))
+HEALTH_PATH = "/health"
 
 server = MCPServer("{name}")
 
@@ -50,6 +55,8 @@ class ApiKeyMiddleware(BaseHTTPMiddleware):
     """
 
     async def dispatch(self, request: Request, call_next):
+        if request.url.path == HEALTH_PATH:
+            return await call_next(request)
         supplied = request.headers.get("x-api-key") or request.headers.get(
             "authorization", ""
         ).removeprefix("Bearer ").strip()
@@ -62,7 +69,13 @@ class ApiKeyMiddleware(BaseHTTPMiddleware):
         return await call_next(request)
 
 
+async def health(_: Request) -> JSONResponse:
+    """Liveness probe. Unauthenticated on purpose: probes carry no key."""
+    return JSONResponse({{"ok": True}})
+
+
 app = server.streamable_http_app()
+app.router.routes.append(Route(HEALTH_PATH, health, methods=["GET"]))
 if TOOL_API_KEY:
     app.add_middleware(ApiKeyMiddleware)
 else:

@@ -45,13 +45,37 @@ def test_mcp_scaffold(tmp_path: Path) -> None:
     from xmagic.mcp import scaffold_mcp_server
 
     project = scaffold_mcp_server("my-tool", tmp_path)
-    for expected in ("Dockerfile", "compose.yaml", "pyproject.toml", "README.md"):
+    for expected in (
+        "Dockerfile",
+        "compose.yaml",
+        "pyproject.toml",
+        "README.md",
+        "requirements.txt",
+        "mcp_server.py",  # what xMagic's hosted runtime executes
+    ):
         assert (project / expected).is_file()
     server = project / "src" / "my_tool" / "server.py"
     assert server.is_file()
     content = server.read_text()
     assert "MCPServer" in content and "streamable_http_app" in content
     assert "{name}" not in content  # template fully rendered
+
+
+def test_mcp_scaffold_pins_the_same_dependencies_everywhere(tmp_path: Path) -> None:
+    """requirements.txt (hosted) and pyproject.toml (container) must not drift."""
+    from xmagic.mcp import scaffold_mcp_server
+    from xmagic.mcp.scaffold import DEPENDENCIES
+
+    project = scaffold_mcp_server("pin-check", tmp_path)
+    reqs = [
+        line
+        for line in (project / "requirements.txt").read_text().splitlines()
+        if line and not line.startswith("#")
+    ]
+    assert reqs == list(DEPENDENCIES)
+    pyproject = (project / "pyproject.toml").read_text()
+    for dep in DEPENDENCIES:
+        assert f'"{dep}",' in pyproject
 
 
 def test_mcp_scaffold_rejects_bad_names(tmp_path: Path) -> None:
@@ -80,6 +104,41 @@ def test_mcp_generated_server_imports_and_enforces_auth(tmp_path: Path) -> None:
     assert "TOOL_API_KEY" in content
     assert "{{" not in content  # all escapes rendered
     # Mounted where the generated README tells users to register the tool.
+    paths = [getattr(route, "path", None) for route in module.app.routes]
+    assert "/mcp" in paths
+    # Probed by the container HEALTHCHECK and by xMagic's hosted deployment.
+    assert "/health" in paths
+
+
+def test_mcp_generated_health_route_needs_no_key(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Probes carry no credentials, so /health must bypass the key middleware."""
+    pytest.importorskip("mcp")
+    from starlette.testclient import TestClient
+
+    monkeypatch.setenv("TOOL_API_KEY", "sekrit")
+    module, _ = _import_generated_server(tmp_path, "health-check")
+    with TestClient(module.app) as client:
+        assert client.get("/health").status_code == 200
+        assert client.get("/health").json() == {"ok": True}
+        # The key is still enforced everywhere else.
+        assert client.get("/mcp").status_code == 401
+
+
+def test_mcp_generated_hosted_entrypoint_starts_the_same_server(tmp_path: Path) -> None:
+    """mcp_server.py is what xMagic's hosted runtime runs; it must import src/."""
+    pytest.importorskip("mcp")
+    import importlib.util
+
+    from xmagic.mcp import scaffold_mcp_server
+
+    project = scaffold_mcp_server("entry-check", tmp_path)
+    path = project / "mcp_server.py"
+    spec = importlib.util.spec_from_file_location("scaffolded_entry_check", path)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
     assert "/mcp" in [getattr(route, "path", None) for route in module.app.routes]
 
 
@@ -116,7 +175,7 @@ def test_mcp_generated_dockerfile_installs_deps_before_src(tmp_path: Path) -> No
     dockerfile = (project / "Dockerfile").read_text()
     # deps-only install (installing "." before COPY src/ would fail the build)
     assert "-r pyproject.toml" in dockerfile
-    assert "socket.create_connection" in dockerfile  # healthcheck is a TCP probe
+    assert "/health" in dockerfile  # healthcheck hits the unauthenticated route
 
 
 def test_cli_version_and_chat_requires_target(

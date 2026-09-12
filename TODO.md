@@ -27,13 +27,28 @@ unblocked the rest of the phase, and it is now finished.
 - [ ] Confirm which header xMagic actually sends the custom-tool API key in
       (`x-api-key` vs `Authorization: Bearer`) — template accepts both for now
 - [ ] Optional SSE (legacy transport) flag for the template if xMagic requires it
-- [ ] **Check `/v1/mcp-servers` before building `mcp dev --tunnel`.** The 0.0.x
-      SDK (PyPI, Nov 2025) drove a platform deployment API — create, list, status,
-      update, delete, logs, stop, `validate-code` — and read a live endpoint URL
-      off the finished deployment. If any of that is still public, tunnelling to a
-      local container solves a problem the platform already solved, and `mcp init`
-      should scaffold *for* it. Asked as Q2 follow-up in
-      [#5](https://github.com/stochasticai/xmagic-sdk/issues/5)
+- [x] **Check `/v1/mcp-servers` before building `mcp dev --tunnel`.** Checked
+      2026-09-12 with a live key. **Hosting is on the platform roadmap but not
+      offered yet**: the deployment routes from the 0.0.x SDK are still
+      reachable (`GET /v1/mcp-servers` lists, `POST` requires `name` +
+      `code_zip_upload_file_id`, `POST .../validate-code` unzips the upload,
+      requires `mcp_server.py` at the root, and returns an AI review), but
+      every deployment is rejected ~1 s after submission — `status: failed`,
+      `url: null`, `service_account_name: null`, `{}` from `/logs` — before a
+      container is scheduled. That is the feature being gated, not a bug in
+      the upload. What the runtime *will* do, from its returned startup
+      script: `pip install -r requirements.txt` then `python mcp_server.py`,
+      found up to two levels deep under `/code`, with `MCP_RUN_LOCALLY=true`
+      set; `command`/`args` in the request are ignored. `mcp init` now
+      generates both files, so scaffolded projects pass validation today.
+      `/v1/custom-tool-configs` (registration) is reachable too — DESIGN.md
+      §10.1 assumed it was not. Probe deployment ids, if anyone wants them:
+      `6aa4f114af2a6e6aa27259e7`, `6aa4f1f316c3d6dd08c8296a`
+- [ ] `xmagic mcp deploy|list|logs|stop|delete` on `/v1/mcp-servers`, and a
+      real `xmagic tools register` on `/v1/custom-tool-configs` — build when
+      hosting ships. The 0.0.3 wheel's `mcp/deploy_mcp.py` is the reference
+      for payloads and status values (`deploying` → `running` | `failed`;
+      note the server's `cpu_milllicores` spelling)
 
 ### Local tool invocation
 
