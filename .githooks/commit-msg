@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+#
+# Refuse commit messages that carry AI attribution: `Claude-Session:` trailers,
+# `Co-Authored-By: Claude ...`, `Generated with [Claude Code]`, or claude.ai
+# session links. Tooling used to append these automatically; this repository
+# does not record them. CI runs the same script over every commit in a pull
+# request and over the PR description, so bypassing the hook only moves the
+# failure.
+#
+# Enabled by the same line as the pre-commit hook:
+#
+#     git config core.hooksPath .githooks
+#
+# Bypass with `git commit --no-verify` -- but CI will still refuse the push.
+
+set -uo pipefail
+
+exec python3 "$(git rev-parse --show-toplevel)/scripts/check_attribution.py" "$1"

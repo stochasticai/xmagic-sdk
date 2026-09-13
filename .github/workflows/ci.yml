@@ -20,6 +20,22 @@ jobs:
         python-version: ["3.11", "3.12", "3.13", "3.14"]
     steps:
       - uses: actions/checkout@v5
+        with:
+          # The attribution check below walks the PR's commit range.
+          fetch-depth: 0
+
+      # Refuse AI attribution (Claude-Session trailers, Co-Authored-By: Claude,
+      # "Generated with Claude Code", claude.ai session links) in every commit
+      # of the PR and in its description. A step in this job rather than a job
+      # of its own, so the existing required status checks cover it; one
+      # matrix entry is enough since the result does not depend on Python.
+      - name: Attribution check
+        if: github.event_name == 'pull_request' && matrix.python-version == '3.12'
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          python3 scripts/check_attribution.py --range "${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}"
+          printf '%s' "$PR_BODY" | python3 scripts/check_attribution.py --stdin
 
       - name: Install uv
         uses: astral-sh/setup-uv@v6

@@ -13,7 +13,7 @@ The project uses [uv](https://docs.astral.sh/uv/) for dependency management.
 git clone https://github.com/stochasticai/xmagic-sdk.git
 cd xmagic-sdk
 uv sync --all-extras            # installs the package, all extras, and dev tools
-git config core.hooksPath .githooks   # enable the pre-commit hook
+git config core.hooksPath .githooks   # enable the pre-commit and commit-msg hooks
 ```
 
 That creates a `.venv/` with the package installed in editable mode, so
@@ -40,6 +40,21 @@ rather than hand-matching style. Tests live in `tests/`
 and use
 [respx](https://lundberg.github.io/respx/) to mock HTTP — no network calls and
 no real API key should be required to run the suite.
+
+## No AI attribution
+
+Commit messages, pull request descriptions, issue text, and comments must not
+carry AI-tooling attribution: no `Claude-Session:` trailers, no
+`Co-Authored-By: Claude ...` lines, no "Generated with Claude Code" footers,
+and no claude.ai session links. Some tools append these automatically; strip
+them before committing. Product names in prose are fine — a
+`litellm:anthropic/...` model ref is not attribution.
+
+Two things enforce this. `.githooks/commit-msg` rejects such a message at
+commit time (enabled by the same `git config` line as the pre-commit hook),
+and CI runs `scripts/check_attribution.py` over every commit in a pull
+request and over the PR description, so `--no-verify` only moves the failure
+to the PR.
 
 ## Pre-commit hook
 
