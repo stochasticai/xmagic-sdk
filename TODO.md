@@ -3,6 +3,82 @@
 Working task list, organized by DESIGN.md roadmap phase. Move completed items
 to [PROGRESS.md](PROGRESS.md) with a date.
 
+## Release plan
+
+Each version introduces one capability, named in its heading. A version is
+ready when that capability is complete, not when the Unreleased section is
+long (RELEASING.md). Items keep their checkboxes in the phase sections below;
+this is the map, not a second list.
+
+### 0.5.0 — Drive it from a script, debug it, test against it
+
+The SDK and CLI become something you can run unattended. Every command yields
+output a program can parse, every call can be inspected when it fails, every
+stream can be released, and a consumer can test against the SDK without the
+network. All but the last item landed in #45–#52.
+
+- **Machine-readable output.** `--json` on every command that produces data,
+  and `chat --schema FILE` for a validated structured reply from the shell.
+- **Structured output in the SDK.** `response_format=` takes a pydantic model,
+  `Completion.parsed` carries the validated instance or the call raises, and
+  `capabilities()["structured_output"]` says whether a ref supports it.
+- **Inspectable calls.** `xmagic` / `xmagic.http` loggers with `xmagic -v`,
+  a `User-Agent` on every request, and `Completion.id` /
+  `CompletionChunk.id` to tie a reply to the message the platform recorded.
+- **Deterministic streams.** `Stream` / `AsyncStream` with `close()` and
+  context-manager exit, on every streaming call.
+- [ ] **A test double for consumers** — export the recorded fixtures, or a
+      fake client, so a script's own tests run without a key or the network.
+      The last piece of "unattended"; the release waits for it.
+
+Also in the release, outside the theme: `mcp init` emits the hosted layout and
+`/health`; SKILL.md frontmatter is read as YAML. Minor bump, per the Changed
+entries in CHANGELOG.md.
+
+### 0.6.0 — Files in, results out: Drive and Worklists complete
+
+Everything a worklist consumes or produces is reachable from the SDK and CLI
+without opening the web app. The client already speaks every Drive route the
+platform documents; this release puts them on the command line and closes the
+loop from local file to worklist input to output back in Drive.
+
+- [ ] **Drive on the command line** — `xmagic drive download`, `rm`, `rename`,
+      and recursive listing, for the routes implemented on 2026-08-06.
+- [ ] **Worklist inputs from local files** — upload for `input_s3_file_paths`
+      straight from worklist YAML or the CLI, instead of requiring a
+      pre-existing S3 path.
+- [ ] **Worklist outputs to Drive** — the `examples/` walkthrough (completed
+      outputs → presigned download → Drive upload) that 0.3.0 documented and
+      never shipped.
+- [ ] **Complete listings** — `list_folders` / `list_files` paginate instead
+      of truncating at 20. Needs the request parameter names from
+      [#5]; if they have not arrived, the release ships with the cap
+      documented and this item moves to the next version.
+
+Pagination changes what a listing returns, which is the Changed entry that
+makes this a minor bump.
+
+### After 0.6.0 — Tools, end to end
+
+The next capability, not yet a version: the tool-calling execution loop
+(stage D, pending the DESIGN.md §13.8 Q1 decision), a `capabilities()`
+vocabulary that can say "tools registered platform-side", remote invocation of
+a registered tool, and `mcp deploy|list|logs|stop|delete` once hosting is
+offered. Named here so the two decisions and the [#5] answers have somewhere
+to land; it gets a number when enough of it is unblocked to be one release.
+
+### Kept out of the plan
+
+- **Hygiene, not features**, done whenever: a second owner on the PyPI project;
+  the `httpx`/`httpx2` boundary decision ([#34]).
+- **Not scheduled:** Phase 5 (`xmagic serve`), the redactor and coding-agent
+  bridge templates (§11, §12), and the larger surface items (observability,
+  middleware, human-in-the-loop, multimodal, caching). Each wants its own
+  design pass before it gets a version.
+
+[#5]: https://github.com/stochasticai/xmagic-sdk/issues/5
+[#34]: https://github.com/stochasticai/xmagic-sdk/issues/34
+
 ## Phase 1 — Core client ✅ complete
 
 Live validation ([#2](https://github.com/stochasticai/xmagic-sdk/issues/2))
