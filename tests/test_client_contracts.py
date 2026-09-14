@@ -15,7 +15,7 @@ precedence as the SDK itself (explicit env var > .env > ``xmagic configure``'s
 
 Run live tests with:
 
-    XMAGIC_LIVE_TESTS=1 uv run pytest tests/test_client_contracts.py -k live
+    XMAGIC_LIVE_TESTS=1 uv run pytest tests/test_client_contracts.py -m live
 """
 
 from __future__ import annotations
