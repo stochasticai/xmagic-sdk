@@ -33,13 +33,16 @@ uv run mypy               # types (strict, src/ only)
 
 All four must pass before a pull request can be merged; CI runs the same
 commands across Python 3.11–3.14, checking formatting with `ruff format
---check .`. `mypy` is strict and covers `src/` only — the package ships
-`py.typed`, so those annotations are a promise to consumers' type checkers.
-`tests/` is not type-checked yet; see TODO.md. The repo is fully formatted, so run `ruff format .` before pushing
-rather than hand-matching style. Tests live in `tests/`
-and use
+--check .`. `mypy` is strict and covers both `src/` and `tests/` — the package
+ships `py.typed`, so those annotations are a promise to consumers' type
+checkers. The repo is fully formatted, so run `ruff format .` before pushing
+rather than hand-matching style. Tests live in `tests/` and use
 [respx](https://lundberg.github.io/respx/) to mock HTTP — no network calls and
 no real API key should be required to run the suite.
+
+The HTTP mocks replay fixtures recorded from the live API, never hand-written
+ones. How to record a new one, and how to run the opt-in live tests, is in
+[tests/fixtures/README.md](tests/fixtures/README.md).
 
 ## No AI attribution
 
@@ -117,6 +120,12 @@ docs: expand quickstart with skills packaging example
    it addresses (`Fixes #42`).
 7. Keep the PR focused — one logical change. Rebase or push follow-up commits in
    response to review; we squash on merge.
+
+## Releasing
+
+Maintainers only. The checklist is in [RELEASING.md](RELEASING.md); the
+publishing itself is done by `.github/workflows/release.yml` when a GitHub
+Release is published, never by hand.
 
 ## Reporting security issues
 
