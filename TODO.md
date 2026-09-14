@@ -5,58 +5,76 @@ to [PROGRESS.md](PROGRESS.md) with a date.
 
 ## Release plan
 
-Versions are cut when there is a reason to, not when a phase ends (see
-RELEASING.md). This section says what each upcoming version is meant to hold, so
-"is it ready?" has an answer that is not "the Unreleased section looks long".
-Items keep their checkboxes in the phase sections below; this is the map, not a
-second list.
+Each version introduces one capability, named in its heading. A version is
+ready when that capability is complete, not when the Unreleased section is
+long (RELEASING.md). Items keep their checkboxes in the phase sections below;
+this is the map, not a second list.
 
-### 0.5.0 — ship what has landed
+### 0.5.0 — Drive it from a script, debug it, test against it
 
-Everything under `[Unreleased]` in CHANGELOG.md as of 2026-09-13, eleven entries
-from PRs #45–#52: structured output and `chat --schema`, logging and a
-`User-Agent`, `--json` on every data command, closable streams, response ids on
-`Completion` and the terminal chunk, the hosted layout and `/health` from
-`mcp init`, and SKILL.md frontmatter read as YAML.
+The SDK and CLI become something you can run unattended. Every command yields
+output a program can parse, every call can be inspected when it fails, every
+stream can be released, and a consumer can test against the SDK without the
+network. All but the last item landed in #45–#52.
 
-Minor bump, per the two **Changed** entries. Nothing else is waiting to get in;
-the earlier prep (#50) was closed because #51 and #52 landed after it was
-written. Cutting it is the RELEASING.md checklist and nothing more.
+- **Machine-readable output.** `--json` on every command that produces data,
+  and `chat --schema FILE` for a validated structured reply from the shell.
+- **Structured output in the SDK.** `response_format=` takes a pydantic model,
+  `Completion.parsed` carries the validated instance or the call raises, and
+  `capabilities()["structured_output"]` says whether a ref supports it.
+- **Inspectable calls.** `xmagic` / `xmagic.http` loggers with `xmagic -v`,
+  a `User-Agent` on every request, and `Completion.id` /
+  `CompletionChunk.id` to tie a reply to the message the platform recorded.
+- **Deterministic streams.** `Stream` / `AsyncStream` with `close()` and
+  context-manager exit, on every streaming call.
+- [ ] **A test double for consumers** — export the recorded fixtures, or a
+      fake client, so a script's own tests run without a key or the network.
+      The last piece of "unattended"; the release waits for it.
 
-### 0.6.0 — the work that is ours to build
+Also in the release, outside the theme: `mcp init` emits the hosted layout and
+`/health`; SKILL.md frontmatter is read as YAML. Minor bump, per the Changed
+entries in CHANGELOG.md.
 
-Candidates, all unblocked, roughly in order of value per unit of work:
+### 0.6.0 — Files in, results out: Drive and Worklists complete
 
-- **Tool calling stage D, the execution loop** — needs the DESIGN.md §13.8 Q1
-  decision first (does a call/execute/feed-back loop cross the orchestration
-  non-goal?). If the answer is no, it leaves this list rather than waiting.
-- **`capabilities()` vocabulary** (§13.8 Q3) — decide the words, including one
-  for "tools registered platform-side". Small, and pairs with stage D.
-- **Drive CLI for the routes the client already has** — `xmagic drive download`,
-  `rm`, `rename`, and recursive listing (Phase 4).
-- **Worklists** — the outputs-to-Drive example that was documented but never
-  written, and uploading local files for `input_s3_file_paths` from YAML.
-- **A test double for consumers** — export the recorded fixtures or a fake
-  client, so downstream users can test without the network.
-- **`mcp` and its second HTTP library** ([#34]) — a decision on the
-  `httpx`/`httpx2` boundary; may produce no code.
-- **Second owner on the PyPI project** — not code, but do it before this ships;
-  yank and maintainer rights are single-homed today.
+Everything a worklist consumes or produces is reachable from the SDK and CLI
+without opening the web app. The client already speaks every Drive route the
+platform documents; this release puts them on the command line and closes the
+loop from local file to worklist input to output back in Drive.
 
-Stage D or the capabilities vocabulary is what makes this a minor bump. If both
-are decided against, the rest is additions and fixes and ships as 0.5.x patches
-instead.
+- [ ] **Drive on the command line** — `xmagic drive download`, `rm`, `rename`,
+      and recursive listing, for the routes implemented on 2026-08-06.
+- [ ] **Worklist inputs from local files** — upload for `input_s3_file_paths`
+      straight from worklist YAML or the CLI, instead of requiring a
+      pre-existing S3 path.
+- [ ] **Worklist outputs to Drive** — the `examples/` walkthrough (completed
+      outputs → presigned download → Drive upload) that 0.3.0 documented and
+      never shipped.
+- [ ] **Complete listings** — `list_folders` / `list_files` paginate instead
+      of truncating at 20. Needs the request parameter names from
+      [#5]; if they have not arrived, the release ships with the cap
+      documented and this item moves to the next version.
 
-### Kept out of both, on purpose
+Pagination changes what a listing returns, which is the Changed entry that
+makes this a minor bump.
 
-- **Waiting on the platform** ([#5]): Drive pagination parameter names,
-  `mcp deploy|list|logs|stop|delete` (hosting is gated), streaming retry
-  semantics, direct tool invocation, registration and skill-upload APIs. Each
-  goes into the next version after its answer arrives.
+### After 0.6.0 — Tools, end to end
+
+The next capability, not yet a version: the tool-calling execution loop
+(stage D, pending the DESIGN.md §13.8 Q1 decision), a `capabilities()`
+vocabulary that can say "tools registered platform-side", remote invocation of
+a registered tool, and `mcp deploy|list|logs|stop|delete` once hosting is
+offered. Named here so the two decisions and the [#5] answers have somewhere
+to land; it gets a number when enough of it is unblocked to be one release.
+
+### Kept out of the plan
+
+- **Hygiene, not features**, done whenever: a second owner on the PyPI project;
+  the `httpx`/`httpx2` boundary decision ([#34]).
 - **Not scheduled:** Phase 5 (`xmagic serve`), the redactor and coding-agent
-  bridge templates (§11, §12), and the six larger surface items (observability,
-  middleware, human-in-the-loop, multimodal, pagination, caching). Each wants
-  its own design pass before it gets a version.
+  bridge templates (§11, §12), and the larger surface items (observability,
+  middleware, human-in-the-loop, multimodal, caching). Each wants its own
+  design pass before it gets a version.
 
 [#5]: https://github.com/stochasticai/xmagic-sdk/issues/5
 [#34]: https://github.com/stochasticai/xmagic-sdk/issues/34
