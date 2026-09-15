@@ -29,9 +29,13 @@ Working today:
    (`anthropic:`, `google:`) are reserved but unimplemented, because LiteLLM
    already gets you there.
 
+4. **Test your code without a key** — `xmagic.testing.FakeXMagic` fakes the
+   backend in process. The real client talks to it, replies are scripted, and
+   every response has the shape recorded from the live API.
+
 Planned:
 
-4. **Local web app** *(Phase 5)* — `xmagic serve` runs the xMagic web app locally
+5. **Local web app** *(Phase 5)* — `xmagic serve` runs the xMagic web app locally
    via proxy.
 
 ## Install
@@ -545,6 +549,32 @@ when set. Send it as either `x-api-key` or `Authorization: Bearer <key>`.
 **xMagic can't reach your MCP server** — it must be public HTTPS. `localhost`
 won't work; use a tunnel for development.
 
+## Testing your own code
+
+`xmagic.testing.FakeXMagic` stands in for the backend so tests of code built
+on this SDK need no key and no network. The real client runs; only the
+transport is swapped.
+
+```python
+from xmagic.testing import FakeXMagic
+
+fake = FakeXMagic()
+fake.agent("agent-1").replies("Paris")  # str, or a (query) -> str callable
+
+client = fake.client()  # XMagicClient bound to the fake
+chat = client.chats.create("agent-1")
+assert client.chats.query("agent-1", chat.id, "Capital of France?").text == "Paris"
+assert fake.calls[-1].json == {"query": "Capital of France?", "is_stream": False}
+```
+
+Chats, streaming, uploads, and Drive are faked, with responses rendered from
+the fixtures recorded from the live API (also exposed as
+`xmagic.testing.load_fixture` for mocking a route yourself). Anything else
+fails with a `BadRequestError` naming the route. `fake.async_client()` mirrors
+it, `XMagicProvider(client=fake.client())` puts it behind the `xmagic:`
+adapter, and `fake.fail_next(429)` exercises your error handling through the
+real retry loop. See [`examples/08_offline_tests.py`](examples/08_offline_tests.py).
+
 ## Development
 
 ```bash
@@ -558,9 +588,9 @@ uv run mypy
 CI runs all five across Python 3.11–3.14, and gates on formatting and types as
 well as linting — run `uv run ruff format .` before pushing.
 
-`mypy` runs in `strict` mode over `src/`. The package ships a `py.typed` marker,
+`mypy` runs in `strict` mode over `src/` and `tests/`. The package ships a `py.typed` marker,
 so its annotations are what downstream type checkers believe about it; a wrong
-one is worse for a consumer than none at all. `tests/` is not checked yet.
+one is worse for a consumer than none at all. `tests/` is checked the same way.
 
 Commit messages follow [Conventional Commits](https://www.conventionalcommits.org)
 (`feat:`, `fix:`, `docs:`, `test:`, `chore:`, ...; optional scope, e.g. `feat(mcp): ...`).

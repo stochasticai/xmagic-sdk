@@ -1008,3 +1008,53 @@ no other way to say so. Under `--json` the validated instance is `parsed`,
 next to `text`, `id`, and `usage`; without `--json` the reply is still
 validated, and a mismatch fails the command rather than printing it.
 
+## 15. Test double for consumers
+
+`xmagic.testing.FakeXMagic` is an in-process fake of the backend for tests of
+code built on this SDK. The real client runs unchanged and talks to it through
+an `httpx` transport; it keeps state (chats, messages, uploads, Drive folders),
+scripts what an agent replies, and renders every response from the recorded
+fixtures. A consumer's test therefore needs no key and no network, and passes
+or fails on the same wire shapes the SDK's own contract tests pin.
+
+### 15.1 Decisions
+
+- **Fake the transport, not the client.** `XMagicClient` and
+  `AsyncXMagicClient` take `http_transport=`, and the fake is an
+  `httpx.MockTransport`. Everything above the socket -- resources, payload
+  builders, the retry loop, the SSE parser, `Stream.close()` -- is the code
+  that ships. A fake that re-implemented the client's methods would pass tests
+  the real client fails, which is the one thing a test double must not do.
+- **Render from the recordings.** Each body is a recorded fixture with the ids
+  and text substituted, so the fake cannot answer in a shape the live API was
+  never observed to produce. The fixtures moved from `tests/` into the package
+  (`xmagic/testing/fixtures/`, exposed as `load_fixture` and friends) so there
+  is one set: the contract tests load them from there too.
+- **Unfaked means loud.** A route with no recording -- worklists, agents,
+  workspaces, phones, `async_query` -- answers `400` with
+  `error_code="not_faked"` and the route in the message, which the client
+  raises as `BadRequestError`. Inventing those shapes would be exactly the
+  hand-written fixture the fixtures README forbids.
+- **Script replies; do not simulate an agent.** `fake.agent(id).replies(...)`
+  takes strings or `(query) -> str` callables, consumed in order with the last
+  repeating; an unscripted agent echoes the query. Tests assert on what the
+  code under test sent (`fake.calls`, `fake.chats`) and what it did with a
+  known reply, not on a model's behaviour.
+- **Failures go through the real error path.** `fail_next(status)` answers
+  with the backend's `{"error": {...}}` envelope so the same typed error is
+  raised; a `429` carries a small `Retry-After` so the client's retry loop
+  runs in milliseconds rather than backing off for seconds.
+- **The provider takes a client.** `XMagicProvider(client=fake.client())`
+  puts the fake behind the `xmagic:` adapter, so code written against the
+  `Provider` interface is testable the same way.
+
+### 15.2 Not done, on purpose
+
+- No `token_usage`, `reasoning`, or `error` frames in a faked stream. None has
+  been observed live; the fake emits the recorded `metadata`, `response`,
+  `end_response`, `[DONE]` sequence and nothing it has not seen.
+- Not a pytest plugin. One class with a `client()` method is the whole API; a
+  `conftest.py` fixture around it is three lines, and a plugin would be a
+  second thing to version.
+- The `openai:` and `litellm:` adapters are not faked here. They call vendor
+  SDKs, which ship their own test doubles.

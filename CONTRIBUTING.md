@@ -41,8 +41,10 @@ rather than hand-matching style. Tests live in `tests/` and use
 no real API key should be required to run the suite.
 
 The HTTP mocks replay fixtures recorded from the live API, never hand-written
-ones. How to record a new one, and how to run the opt-in live tests, is in
-[tests/fixtures/README.md](tests/fixtures/README.md).
+ones. They live in the package, under `src/xmagic/testing/fixtures/`, because
+`xmagic.testing.FakeXMagic` renders its responses from them and consumers can
+load them too. How to record a new one, and how to run the opt-in live tests,
+is in [src/xmagic/testing/fixtures/README.md](src/xmagic/testing/fixtures/README.md).
 
 ## No AI attribution
 

@@ -1,9 +1,13 @@
 # Recorded API fixtures
 
-Every file here was captured from the live xMagic API and replayed by
-`tests/test_client_contracts.py` through respx. A hand-written fixture proves
-nothing about the backend, so none are invented; a shape that has not been
-recorded is a shape the suite does not pin.
+Every file here was captured from the live xMagic API. The SDK's contract
+tests (`tests/test_client_contracts.py`) replay them through respx, and
+`xmagic.testing.FakeXMagic` renders its responses from them, which is why they
+ship inside the package rather than under `tests/`: a consumer's tests and this
+package's tests pin the same shapes. `xmagic.testing.load_fixture(name)`
+returns one as the client would parse it. A hand-written fixture proves nothing
+about the backend, so none are invented; a shape that has not been recorded is
+a shape neither the suite nor the fake will produce.
 
 ## Running the live tests
 
@@ -35,7 +39,7 @@ or `.env`; falls back to the config file's `default_agent_id`).
      the live tests do.
 
 2. **Name the file** `<resource>_<operation>_response.json`, or `.txt` for
-   SSE.
+   SSE, and put it in this directory.
 
 3. **Annotate.** JSON fixtures start with a `_comment` key:
 

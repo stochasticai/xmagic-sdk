@@ -148,14 +148,20 @@ class XMagicProvider(Provider):
         settings: Settings | None = None,
         chat_id: str | None = None,
         chat_type: ChatType | str = ChatType.STANDARD,
+        client: XMagicClient | None = None,
         **options: Any,
     ) -> None:
         super().__init__(api_key=api_key, **options)
-        self._client = (
-            XMagicClient(api_key=api_key)
-            if settings is None
-            else XMagicClient(api_key=api_key or settings.api_key, base_url=settings.base_url)
-        )
+        if client is not None:
+            # A ready-made client, typically `xmagic.testing.FakeXMagic().client()`,
+            # so code built on this provider can be tested without the network.
+            self._client = client
+        elif settings is None:
+            self._client = XMagicClient(api_key=api_key)
+        else:
+            self._client = XMagicClient(
+                api_key=api_key or settings.api_key, base_url=settings.base_url
+            )
         self._chat_id = chat_id
         self._chat_type = chat_type
 

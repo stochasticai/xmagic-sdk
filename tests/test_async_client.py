@@ -11,10 +11,8 @@ method or a changed argument on one side cannot land without the other.
 from __future__ import annotations
 
 import inspect
-import json
 from collections.abc import AsyncIterator
 from pathlib import Path
-from typing import Any
 
 import pytest
 import respx
@@ -31,19 +29,8 @@ from xmagic.client.worklists import AsyncWorklistsAPI, WorklistsAPI
 from xmagic.client.workspaces import AsyncWorkspacesAPI, WorkspacesAPI
 from xmagic.config import DEFAULT_BASE_URL
 from xmagic.errors import ConfigurationError, RateLimitError
-
-FIXTURES_DIR = Path(__file__).parent / "fixtures"
-
-
-def _load_json_fixture(name: str) -> dict[str, Any]:
-    loaded: dict[str, Any] = json.loads((FIXTURES_DIR / name).read_text())
-    return loaded
-
-
-def _sse_frames_from_fixture(name: str) -> str:
-    text = (FIXTURES_DIR / name).read_text()
-    lines = [line for line in text.splitlines() if line.startswith("data: ")]
-    return "\n\n".join(lines) + "\n\n"
+from xmagic.testing import load_fixture as _load_json_fixture
+from xmagic.testing import sse_frames as _sse_frames_from_fixture
 
 
 @pytest.fixture

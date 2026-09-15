@@ -13,6 +13,8 @@ headers and bodies are never logged -- the request carries the API key.
 
 from __future__ import annotations
 
+from typing import Any
+
 import logging
 import re
 from collections.abc import Iterator
@@ -35,7 +37,7 @@ KEY = "xm-secret-key-do-not-log"
 UA = re.compile(r"^xmagic-sdk/\S+ python/\d+\.\d+\.\d+ httpx/\S+$")
 
 
-def _client(**kw: object) -> XMagicClient:
+def _client(**kw: Any) -> XMagicClient:
     return XMagicClient(api_key=KEY, base_url=DEFAULT_BASE_URL, **kw)
 
 

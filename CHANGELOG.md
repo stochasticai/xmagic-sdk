@@ -12,6 +12,16 @@ codebase.**
 
 ### Added
 
+- **A test double for consumers** (DESIGN.md §15). `xmagic.testing.FakeXMagic`
+  is an in-process fake of the backend: the real client talks to it through
+  `http_transport=`, it keeps chats, uploads, and Drive folders in memory,
+  `fake.agent(id).replies(...)` scripts what an agent answers, and every
+  response is rendered from the recorded fixtures, which now ship in the
+  package (`xmagic.testing.load_fixture`). `fake.calls` records what the code
+  under test sent; `fail_next(status)` injects a typed error through the real
+  retry path. Routes with no recording answer `400 not_faked` naming the
+  route. `XMagicProvider(client=...)` takes a ready client so the `xmagic:`
+  adapter is testable the same way. Example: `examples/08_offline_tests.py`.
 - **`xmagic chat --schema FILE`** — structured output from the command line.
   The file is a JSON Schema; the CLI builds the pydantic model the provider
   interface takes (DESIGN.md §14.3), the reply is validated against it, and

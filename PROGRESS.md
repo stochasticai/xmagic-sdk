@@ -5,6 +5,35 @@ the plan and [TODO.md](TODO.md) for what's next.
 
 ---
 
+## 2026-09-14 — A test double for consumers
+
+The last 0.5.0 item, and the one the release was waiting for (TODO.md,
+Release plan): code built on the SDK can now be tested with no key and no
+network, against the shapes the live API was recorded producing.
+
+- **`xmagic.testing.FakeXMagic`** (DESIGN.md §15) is an `httpx.MockTransport`
+  the real client talks to. `XMagicClient` and `AsyncXMagicClient` gained
+  `http_transport=`; `fake.client()` / `fake.async_client()` build one already
+  wired. Chats, streaming, uploads, and Drive are answered with state kept in
+  memory; `fake.agent(id).replies(...)` scripts answers (strings or callables,
+  last one repeats, unscripted echoes); `fake.calls` records what was sent
+  without the key; `fail_next(status)` injects the backend's error envelope
+  through the real retry loop.
+- **The recorded fixtures moved into the package** as
+  `xmagic/testing/fixtures/`, with `load_fixture`, `fixture_path`, and
+  `sse_frames` over them. The fake renders every body from them, and the
+  contract tests now load them from there, so there is one set. The fixtures
+  README moved with them.
+- **Unrecorded routes fail loudly**: `400 not_faked` naming the route, raised
+  as `BadRequestError`. Worklists, agents, workspaces, phones, and
+  `async_query` stay unfaked until recorded, rather than answered with an
+  invented shape.
+- **`XMagicProvider(client=...)`** takes a ready client, so the `xmagic:`
+  adapter is testable the same way.
+- 22 new tests (`tests/test_testing_fake.py`, plus `examples/08_offline_tests.py`,
+  which runs under pytest as well as as a script). Each faked body is checked
+  to carry the keys of the fixture it was rendered from, on both transports.
+
 ## 2026-09-11 — `chat --schema`, and SKILL.md read as YAML
 
 Two loose ends from 0.5.0, taken together because both are small and both were

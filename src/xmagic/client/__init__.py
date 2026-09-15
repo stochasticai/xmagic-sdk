@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import Any, Self
 
+import httpx
+
 from xmagic.client.agents import AgentsAPI, AsyncAgentsAPI
 from xmagic.client.chats import AsyncChatsAPI, ChatsAPI
 from xmagic.client.drive import AsyncDriveAPI, DriveAPI
@@ -35,11 +37,22 @@ class XMagicClient:
 
         client = XMagicClient()                 # env/config resolution
         client = XMagicClient(api_key="xm-...") # explicit
+
+    ``http_transport`` replaces the network with an ``httpx`` transport of the
+    caller's choosing; ``xmagic.testing.FakeXMagic`` provides one, so tests of
+    code built on this client run without a key or a connection.
     """
 
-    def __init__(self, api_key: str | None = None, base_url: str | None = None, **kw: Any):
+    def __init__(
+        self,
+        api_key: str | None = None,
+        base_url: str | None = None,
+        *,
+        http_transport: httpx.BaseTransport | None = None,
+        **kw: Any,
+    ):
         self.settings = Settings.load(**_overrides(api_key, base_url, kw))
-        self._transport = HttpTransport(self.settings)
+        self._transport = HttpTransport(self.settings, http_transport=http_transport)
         self.chats = ChatsAPI(self._transport)
         self.files = FilesAPI(self._transport)
         self.drive = DriveAPI(self._transport)
@@ -74,9 +87,16 @@ class AsyncXMagicClient:
     later from a different loop will fail.
     """
 
-    def __init__(self, api_key: str | None = None, base_url: str | None = None, **kw: Any):
+    def __init__(
+        self,
+        api_key: str | None = None,
+        base_url: str | None = None,
+        *,
+        http_transport: httpx.AsyncBaseTransport | None = None,
+        **kw: Any,
+    ):
         self.settings = Settings.load(**_overrides(api_key, base_url, kw))
-        self._transport = AsyncHttpTransport(self.settings)
+        self._transport = AsyncHttpTransport(self.settings, http_transport=http_transport)
         self.chats = AsyncChatsAPI(self._transport)
         self.files = AsyncFilesAPI(self._transport)
         self.drive = AsyncDriveAPI(self._transport)

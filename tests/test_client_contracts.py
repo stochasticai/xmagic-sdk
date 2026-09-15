@@ -1,7 +1,8 @@
 """Backend contract tests for xmagic client request/response shapes.
 
 The mocked tests below replay *recorded* fixtures captured from a live agent
-on 2026-07-31 (see ``tests/fixtures/``, account-identifying ids redacted).
+on 2026-07-31 (shipped in ``xmagic/testing/fixtures/``, account-identifying ids
+redacted, so consumers' tests can replay the same shapes).
 They pin the confirmed request/response shapes so regressions are caught
 without needing network access.
 
@@ -20,11 +21,9 @@ Run live tests with:
 
 from __future__ import annotations
 
-import json
 import os
 from collections.abc import Iterator
 from pathlib import Path
-from typing import Any
 
 import pytest
 import respx
@@ -33,23 +32,8 @@ from httpx import Request, Response
 from xmagic import XMagicClient
 from xmagic.client.models import ChatType
 from xmagic.config import DEFAULT_BASE_URL, Settings
-
-FIXTURES_DIR = Path(__file__).parent / "fixtures"
-
-
-def _load_json_fixture(name: str) -> dict[str, Any]:
-    loaded: dict[str, Any] = json.loads((FIXTURES_DIR / name).read_text())
-    return loaded
-
-
-def _load_text_fixture(name: str) -> str:
-    return (FIXTURES_DIR / name).read_text()
-
-
-def _sse_frames_from_fixture(name: str) -> str:
-    """Extract just the ``data: ...`` lines from the annotated fixture file."""
-    lines = [line for line in _load_text_fixture(name).splitlines() if line.startswith("data: ")]
-    return "\n\n".join(lines) + "\n\n"
+from xmagic.testing import load_fixture as _load_json_fixture
+from xmagic.testing import sse_frames as _sse_frames_from_fixture
 
 
 def _load_env_file(repo_root: Path) -> None:
