@@ -44,8 +44,9 @@ without opening the web app. The client already speaks every Drive route the
 platform documents; this release puts them on the command line and closes the
 loop from local file to worklist input to output back in Drive.
 
-- [ ] **Drive on the command line** — `xmagic drive download`, `rm`, `rename`,
-      and recursive listing, for the routes implemented on 2026-08-06.
+- [x] **Drive on the command line** — done 2026-09-14. `xmagic drive ls [-R]`,
+      `mkdir`, `info`, `rename`, `download` (`--extract`), `rm`, all with
+      `--json`, over the routes implemented on 2026-08-06.
 - [ ] **Worklist inputs from local files** — upload for `input_s3_file_paths`
       straight from worklist YAML or the CLI, instead of requiring a
       pre-existing S3 path.
@@ -203,8 +204,10 @@ points with no extra (DESIGN.md §4).
       and we return only `data.results`. The request-side parameter names are
       undocumented, so this needs an answer before it can be fixed correctly —
       raised on [#5](https://github.com/stochasticai/xmagic-sdk/issues/5)
-- [ ] CLI surface for the new Drive routes (`xmagic drive download`, `rm`,
-      `rename`) and recursive listing
+- [x] CLI surface for the new Drive routes — done 2026-09-14: `xmagic drive`
+      `mkdir|info|rename|download|rm`, and `ls -R` for every folder's files.
+      Recursion is client-side, one listing per folder; the platform's own
+      `recursive` query flag stays unused until its semantics are documented
 - [x] Richer SKILL.md validation — done 2026-09-11. Frontmatter goes through
       `yaml.safe_load`, so folded descriptions and quoted colons read as
       written; a non-mapping block or a non-string `name`/`description` is
