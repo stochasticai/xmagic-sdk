@@ -5,6 +5,34 @@ the plan and [TODO.md](TODO.md) for what's next.
 
 ---
 
+## 2026-09-14 — Worklist outputs to Drive
+
+Third 0.6.0 item, and the example that 0.3.0's README described as if it
+existed. `examples/09_worklist_outputs_to_drive.py`.
+
+- **The route**: completed tasks, paged with `skip`/`limit` until `total` is
+  reached; each task's last run message fetched with `downloadable_output=True`,
+  which maps a short key to a presigned URL; each URL streamed to disk with a
+  plain `httpx` request (the URL is the credential, no API key goes with it);
+  each file uploaded with `drive.upload_file`. `--task` limits it to one task,
+  `--keep DIR` keeps the local copies. Nothing on the worklist is modified.
+- **Seen live while surveying**: a completed task can carry
+  `output_s3_file_paths` and an empty `run_message_ids`, so there is no
+  message to ask for a URL. The API exposes no other way to sign an
+  `s3://` path, so the example reports those tasks and skips them.
+- **Verified live on 2026-09-14** (General agent, everything deleted after):
+  a task asked to produce `hello-outputs.txt` completed with one
+  `output_s3_file_paths` entry and one run message; that message's
+  `downloadable_output` carried one key (`Z5v2bx`, the same key
+  `output_assets` uses) mapped to a presigned URL whose path ends in the real
+  filename; the example fetched 16 bytes, `outputs-probe-ok`, and
+  `drive.upload_file` filed it into the folder. The whole flow, as written.
+- **Tested** in `tests/test_example_worklist_outputs.py` by importing the
+  script as a module and driving its functions over respx: two pages of
+  tasks, one with an output, one with outputs but no message, one with a
+  message but no outputs; the presigned URL fetched with its signature and
+  without the key; the filename taken from the URL path.
+
 ## 2026-09-14 — 0.5.0 released to PyPI
 
 The first version cut under RELEASING.md and the release plan in TODO.md:
