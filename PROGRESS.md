@@ -5,6 +5,25 @@ the plan and [TODO.md](TODO.md) for what's next.
 
 ---
 
+## 2026-09-14 — 0.5.0 released to PyPI
+
+The first version cut under RELEASING.md and the release plan in TODO.md:
+the plan named the capability, the last item (#60) landed, and the release
+followed the same day.
+
+- **Prepared in #61**: version and CITATION to 0.5.0, the two Added lists
+  merged into one in theme order, a Changed section for the four behaviour
+  differences, link references updated. The [0.4.0] section stayed
+  byte-identical to its tag. CITATION.cff's `date-released` had drifted
+  (still 2026-08-25 after 0.4.0 shipped on 09-10) and was corrected.
+- **Tagged `v0.5.0`** on the merge commit and published as a GitHub Release
+  with the changelog summary as notes; `release.yml` re-verified the tag
+  against the version, ran the suite, built, and **published to PyPI**, wheel
+  and sdist, through trusted publishing. The TestPyPI rehearsal step failed as
+  it does without a TestPyPI publisher, and is allowed to.
+- 0.5.0 is done. The next capability is 0.6.0, Drive and Worklists on the
+  command line.
+
 ## 2026-09-14 — A test double for consumers
 
 The last 0.5.0 item, and the one the release was waiting for (TODO.md,
