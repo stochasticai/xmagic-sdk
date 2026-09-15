@@ -518,6 +518,11 @@ code_task_cancel(job_id)                      # optional but cheap
 
 `state` ∈ `queued | running | succeeded | failed | timeout | cancelled`.
 
+Where the status fields come from, verified against pi (11.6): `tokens` from the
+`usage` block pi puts on every assistant message, with session totals from its
+`get_session_stats` command; `turns` by counting `turn_start` events, since pi keeps no
+turn counter; `log_tail` from the event stream itself.
+
 The agent polls `code_task_status` between turns; `log_tail` is what makes the chat feel
 live. MCP progress notifications over streamable HTTP are the more elegant option, but
 agent-side support is unverified — polling is the version that works today.
@@ -533,25 +538,59 @@ driver is a subprocess wrapper over pi's RPC mode:
 async def run_pi(workdir: Path, instruction: str, on_event) -> PiResult:
     proc = await asyncio.create_subprocess_exec(
         "pi",
-        "--rpc",  # exact invocation TBD — see 11.8 Q3
-        cwd=workdir,
+        "--mode",
+        "rpc",
+        "--no-session",  # plus --provider P --model M
+        cwd=workdir,  # pi has no --cwd flag
         stdin=PIPE,
         stdout=PIPE,
         stderr=PIPE,
     )
-    proc.stdin.write(json.dumps({"type": "prompt", "text": instruction}).encode() + b"\n")
+    prompt = {"id": "1", "type": "prompt", "message": instruction}
+    proc.stdin.write(json.dumps(prompt).encode() + b"\n")
     await proc.stdin.drain()
 
-    async for line in proc.stdout:
+    async for line in proc.stdout:  # JSONL, LF-delimited
         event = json.loads(line)
         on_event(event)  # appended to the job's log_tail
-        if event.get("type") == "done":
+        if event.get("type") == "agent_settled":
             break
+    proc.stdin.close()  # pi exits 0 when stdin closes
     ...
 ```
 
-pi's **print mode** (single-shot) would be simpler, but yields no incremental events and
-so no `log_tail`. RPC is the right choice given 11.5.
+**Verified against pi 0.85.1** (`earendil-works/pi` at `8a7b0c0`, 2026-09-15; the RPC
+mode lives in `packages/coding-agent/src/modes/rpc/` and `docs/rpc.md` matches it).
+The first draft of this sketch had three details wrong, all load-bearing:
+
+- **The flag is `--mode rpc`.** There is no `--rpc`, and pi ignores unknown flags rather
+  than rejecting them, so the wrong flag silently starts interactive mode.
+- **The prompt field is `message`**, not `text`. Every command gets a `response` line
+  back with `success` and, on failure, `error`; an `id` on the command is echoed.
+- **There is no `done` event.** `agent_settled` means nothing more will run.
+  `agent_end` fires per low-level run and can be followed by an automatic retry,
+  compaction, or a queued follow-up, so it is the wrong signal to stop on.
+
+What else a real driver needs, all present:
+
+- **Cancel:** send `clear_queue`, then `abort`, and wait for the abort response.
+  **Shutdown:** close stdin, or SIGTERM.
+- **Tool calls** arrive as `tool_execution_start` / `_update` / `_end` events carrying
+  `toolCallId`, `toolName`, `args`, and on end `result` and `isError`.
+- **Usage:** every assistant message carries `usage` (input, output, cache tokens, cost)
+  and a `stopReason`; `get_session_stats` returns session totals.
+- **Model:** `--provider` and `--model` at launch, or a `set_model` command. pi exits 1
+  at startup if no model resolves. OpenAI-compatible endpoints such as vLLM go through
+  pi's models configuration, which was not audited.
+- **Two ways to hang.** Extensions can emit `extension_ui_request` events that block
+  until the client answers; run with `--no-extensions` or answer them. And project-local
+  skills and extensions under the working directory load only when the project is
+  trusted, so the driver passes `--approve` or the repo's own skills never load.
+
+pi's **print mode** would be simpler. Its text form yields only the final answer, but
+`--mode json` streams the same events in a single shot, so a `log_tail` is possible
+there too. RPC is still the right choice: it is the only mode with cancellation, which
+11.5 requires.
 
 ### 11.7 Isolation
 
@@ -591,21 +630,37 @@ compose/pyproject/README/.env (~60).
 
 ### 11.9 Open questions for review
 
+**Verified (2026-09-15, against pi 0.85.1 at `8a7b0c0`):**
+
+- **pi's RPC contract** (formerly Q3) — the driver sketch in 11.6 is now the verified
+  shape. Three assumptions were wrong: the flag, the prompt field, and the terminal
+  event. Everything the bridge needs beyond that exists and is documented.
+- **xMagic skills and pi skills share a format** (formerly Q4) — yes. Both are the
+  Agent Skills convention: a `SKILL.md` whose YAML frontmatter carries `name` and
+  `description`, plus free supporting files referenced by relative path. An xMagic
+  skill zip (`skills/packaging.py`) runs in pi after one step, unzipping it into a
+  directory pi scans (`.pi/skills/` under the working directory, or any path given to
+  `--skill`), because pi loads directories and has no archive loader. No frontmatter is
+  rewritten in either direction. Two soft edges: pi warns, but still loads, when a name
+  has characters outside lowercase letters, digits and hyphens, which xMagic does not
+  enforce; and pi warns above 1024 characters of description, which xMagic does not
+  cap. The reverse, pi skill to xMagic zip, is a plain zip of the directory, since
+  xMagic ignores pi's extra fields.
+
+**Still open:**
+
 1. **Is this in scope for xmagic-sdk at all?** The counter-argument: it is a product
    feature wearing an SDK costume, and templates for it could live in their own repo.
-   The argument for: §6 already establishes template-shipping as our job.
+   The argument for: §6 already establishes template-shipping as our job. The redactor
+   got "yes, as a template; the engine is not" (§12.11 Q6), and the two answers should
+   agree.
 2. **Tool or subagent?** These are not alternatives. It is a *tool* at the implementation
    layer; "subagent" is packaging — an xMagic subagent scoped to this tool plus coding
    skills (§2). Decide the packaging separately from the build.
-3. **pi's exact RPC contract** — flag name, message schema, and event types in 11.6 are
-   assumed, not verified against the pi source. Must be confirmed before implementation.
-4. **Do xMagic skills and pi skills share a format?** We already package `SKILL.md` + zip
-   (§4, `skills/packaging.py`) and pi has its own skills concept. If the frontmatter and
-   layout align, xMagic skills run in pi unchanged — cheap to check, decides how much
-   integration is free.
-5. **Who hosts the reference deployment**, and does the vLLM pod ship with it or is BYO
-   endpoint the only supported story?
-6. **Multi-tenancy** — is one job per container acceptable, or does the job store need to
+3. **Who hosts the reference deployment**, and does the vLLM pod ship with it or is BYO
+   endpoint the only supported story? xMagic-hosted containers are on the roadmap and
+   not offered (§12.11 Q2), so for now this is a deployment we run.
+4. **Multi-tenancy** — is one job per container acceptable, or does the job store need to
    survive restarts (i.e. Redis/Postgres rather than in-memory)?
 
 ---
