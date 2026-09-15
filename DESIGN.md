@@ -382,7 +382,7 @@ Chosen approach: **local proxy of the hosted xMagic web app**.
 | **6 — Polish** | docs, examples, CI, PyPI release |
 | **7 — Document redactor** *(proposed)* | `mcp init --template redactor`; see §12 |
 | **8 — Coding-agent bridge** *(proposed)* | `mcp init --template coding-agent`; see §11 |
-| **9 — Tool calling** *(A + B + C done)* | Typed `tools=` on the provider interface. Stages A and C shipped 2026-08-24, streaming (B) followed; only the execution loop (D) remains, and it is blocked on a scope question rather than on code — see §13.8 Q1 |
+| **9 — Tool calling** *(A + B + C done)* | Typed `tools=` on the provider interface. Stages A and C shipped 2026-08-24, streaming (B) followed; the execution loop (D) was decided in scope on 2026-09-15 and is the next piece of work — see §13.8 Q1 |
 | **10 — Structured output** *(done)* | `response_format=` takes a pydantic model, `Completion.parsed` carries the validated instance; see §14 |
 
 ## 10. Open questions
