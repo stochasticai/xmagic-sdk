@@ -7,6 +7,8 @@ behind an error stays reachable for debugging.
 
 from __future__ import annotations
 
+from typing import Any
+
 import httpx
 import pytest
 import respx
@@ -32,7 +34,7 @@ from xmagic.errors import (
 URL = f"{DEFAULT_BASE_URL}/agents/agent-1/chats"
 
 
-def _client(**kw: object) -> XMagicClient:
+def _client(**kw: Any) -> XMagicClient:
     return XMagicClient(api_key="test-key", base_url=DEFAULT_BASE_URL, max_retries=0, **kw)
 
 

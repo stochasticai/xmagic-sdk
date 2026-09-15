@@ -181,14 +181,22 @@ def _decode_sse(data: str) -> Any:
         return data
 
 
-def _client_kwargs(settings: Settings) -> dict[str, Any]:
+def _client_kwargs(
+    settings: Settings, transport: httpx.BaseTransport | httpx.AsyncBaseTransport | None
+) -> dict[str, Any]:
     if not settings.api_key:
         raise ConfigurationError(_MISSING_KEY)
-    return {
+    kwargs: dict[str, Any] = {
         "base_url": settings.base_url,
         "headers": {"x-api-key": settings.api_key, "User-Agent": USER_AGENT},
         "timeout": settings.timeout,
     }
+    if transport is not None:
+        # An explicit transport replaces the network: `xmagic.testing.FakeXMagic`
+        # hands one in so a consumer's tests run against the real client code
+        # with no key and no connection.
+        kwargs["transport"] = transport
+    return kwargs
 
 
 def _log_request(method: str, path: str, *, streaming: bool = False) -> float:
@@ -293,9 +301,11 @@ class HttpTransport:
     Retries 429/5xx with exponential backoff, honoring ``Retry-After``.
     """
 
-    def __init__(self, settings: Settings) -> None:
+    def __init__(
+        self, settings: Settings, *, http_transport: httpx.BaseTransport | None = None
+    ) -> None:
         self.settings = settings
-        self._client = httpx.Client(**_client_kwargs(settings))
+        self._client = httpx.Client(**_client_kwargs(settings, http_transport))
 
     def request(self, method: str, path: str, **kwargs: Any) -> dict[str, Any]:
         """Issue a request; return the parsed JSON body. Raises XMagicAPIError."""
@@ -360,9 +370,11 @@ class AsyncHttpTransport:
     block the event loop.
     """
 
-    def __init__(self, settings: Settings) -> None:
+    def __init__(
+        self, settings: Settings, *, http_transport: httpx.AsyncBaseTransport | None = None
+    ) -> None:
         self.settings = settings
-        self._client = httpx.AsyncClient(**_client_kwargs(settings))
+        self._client = httpx.AsyncClient(**_client_kwargs(settings, http_transport))
 
     async def request(self, method: str, path: str, **kwargs: Any) -> dict[str, Any]:
         """Issue a request; return the parsed JSON body. Raises XMagicAPIError."""

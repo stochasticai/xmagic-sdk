@@ -12,6 +12,8 @@ the ceilings alone would pass against un-jittered code, so
 
 from __future__ import annotations
 
+from typing import Any
+
 import httpx
 import pytest
 import respx
@@ -43,7 +45,7 @@ def sleeps(monkeypatch: pytest.MonkeyPatch) -> list[float]:
     return recorded
 
 
-def _client(**kw: object) -> XMagicClient:
+def _client(**kw: Any) -> XMagicClient:
     return XMagicClient(api_key="test-key", base_url=DEFAULT_BASE_URL, **kw)
 
 

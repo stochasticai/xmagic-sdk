@@ -33,7 +33,7 @@ QUERY_URL = f"{DEFAULT_BASE_URL}/agents/{AGENT}/chats/chat-1/query"
 OPENAI_URL = "https://api.openai.com/v1/chat/completions"
 MESSAGES = [ChatMessage(role="user", content="hi")]
 
-# The recorded live shape, from tests/fixtures/stream_sse_frames.txt.
+# The recorded live shape, from xmagic/testing/fixtures/stream_sse_frames.txt.
 METADATA_FRAME = (
     '{"text": "", "extended_text": null, "type": "metadata", "subtype": null, '
     '"data": {"message_id": "msg-42"}, "elapsed_ms": null}'

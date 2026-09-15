@@ -16,6 +16,7 @@ uv run python examples/01_basic_chat.py
 | [`05_skills.py`](05_skills.py) | Scaffold, validate, and pack a skill into an upload-ready zip. | **no** |
 | [`06_provider_model.py`](06_provider_model.py) | Bring your own model: resolve a `provider:model` ref, read its capabilities, stream the answer. Works with OpenAI, any LiteLLM vendor, or a local model. | **no** (needs a *vendor* key, or none at all for Ollama) |
 | [`07_tool_calling.py`](07_tool_calling.py) | Tool calling: schemas from typed functions via `ToolDef.from_callable`, the call → run → feed-back loop on `complete()`, and the same on `stream()` where calls land on the terminal chunk. | **no** (same as 06) |
+| [`08_offline_tests.py`](08_offline_tests.py) | Test your own code against `xmagic.testing.FakeXMagic`: script an agent's replies, run the code under test, assert on what it sent. Runs as a script or under pytest. | **no** (no vendor key either) |
 
 Start with `04_mcp_server.py` or `05_skills.py` if you don't have credentials
 yet — they only write files locally. `06_provider_model.py` and
