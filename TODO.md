@@ -75,8 +75,11 @@ to land; it gets a number when enough of it is unblocked to be one release.
   the `httpx`/`httpx2` boundary decision ([#34]).
 - **Not scheduled:** Phase 5 (`xmagic serve`), the redactor and coding-agent
   bridge templates (§11, §12), and the larger surface items (observability,
-  middleware, human-in-the-loop, multimodal, caching). Each wants its own
-  design pass before it gets a version.
+  middleware, human-in-the-loop, multimodal, caching). The redactor's design
+  pass is done (#4, 2026-09-15); its SDK work, the `--template` flag and the
+  minimal template, starts at R2 of a roadmap that runs in the engine repo
+  first, and R2 also waits on [#5] Q1. The rest each want a design pass
+  before they get a version.
 
 [#5]: https://github.com/stochasticai/xmagic-sdk/issues/5
 [#34]: https://github.com/stochasticai/xmagic-sdk/issues/34
