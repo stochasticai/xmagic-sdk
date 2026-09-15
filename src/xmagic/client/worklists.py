@@ -18,18 +18,29 @@ Endpoints (base: https://api.xmagic.ai/xmagic-backend/v1):
 
 The API returns a single page for list operations. Callers can use ``skip`` and
 ``limit`` explicitly; this resource does not silently fetch additional pages.
+
+``input_s3_file_paths`` takes storage paths (``s3://...``), and the API accepts
+any string there without checking it (confirmed live 2026-09-14: a bare upload
+id was accepted and echoed back too), so what a run can actually read is the
+caller's responsibility. The platform reveals an upload's storage path in one
+place, the Drive attach response, which is what :meth:`WorklistsAPI.upload_inputs`
+goes through.
 """
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from datetime import datetime
 from enum import Enum
+from pathlib import Path
 import secrets
 from typing import Any, cast
 
 from xmagic.client.chats import AsyncChatsAPI, ChatsAPI
+from xmagic.client.drive import AsyncDriveAPI, DriveAPI
 from xmagic.client.http import AsyncHttpTransport, HttpTransport
 from xmagic.client.models import (
+    DriveFile,
     RecurrencySchedule,
     WorklistTask,
     WorklistReviewAction,
@@ -37,6 +48,7 @@ from xmagic.client.models import (
     WorklistTaskPage,
     WorklistTaskStatus,
 )
+from xmagic.errors import ResponseShapeError
 
 
 def _unwrap_data(body: dict[str, Any]) -> Any:
@@ -104,6 +116,16 @@ def _wire_payload(payload: dict[str, Any]) -> dict[str, Any]:
     return cast("dict[str, Any]", _wire_value(payload))
 
 
+def _input_path(file: DriveFile) -> str:
+    """The storage path of an attached file, which is what a worklist input is."""
+    if not file.value:
+        raise ResponseShapeError(
+            f"Drive attach response for {file.title or file.id} carried no storage path "
+            "(`value`), so it cannot be used as a worklist input."
+        )
+    return file.value
+
+
 def _task(body: dict[str, Any]) -> WorklistTask:
     data = _unwrap_data(body)
     if not isinstance(data, dict):
@@ -142,9 +164,26 @@ def _validate_review(task: WorklistTask, message: str | None) -> str | None:
 class WorklistsAPI:
     """Synchronous worklist task and recurrence operations."""
 
-    def __init__(self, transport: HttpTransport, chats: ChatsAPI | None = None) -> None:
+    def __init__(
+        self,
+        transport: HttpTransport,
+        chats: ChatsAPI | None = None,
+        drive: DriveAPI | None = None,
+    ) -> None:
         self._t = transport
         self._chats = chats or ChatsAPI(transport)
+        self._drive = drive or DriveAPI(transport)
+
+    def upload_inputs(self, folder_id: str, paths: Iterable[str | Path]) -> list[str]:
+        """Upload local files into a Drive folder; return their worklist input paths.
+
+        One upload and one attach per file, through ``drive.upload_file``. The
+        files stay in the folder, where they can be seen and deleted; a bare
+        upload has neither a read nor a delete route. The result is in argument
+        order and goes straight into ``input_s3_file_paths`` on :meth:`create`
+        or :meth:`update`.
+        """
+        return [_input_path(self._drive.upload_file(folder_id, path)) for path in paths]
 
     def list(
         self,
@@ -275,9 +314,19 @@ class WorklistsAPI:
 class AsyncWorklistsAPI:
     """Async mirror of :class:`WorklistsAPI`."""
 
-    def __init__(self, transport: AsyncHttpTransport, chats: AsyncChatsAPI | None = None) -> None:
+    def __init__(
+        self,
+        transport: AsyncHttpTransport,
+        chats: AsyncChatsAPI | None = None,
+        drive: AsyncDriveAPI | None = None,
+    ) -> None:
         self._t = transport
         self._chats = chats or AsyncChatsAPI(transport)
+        self._drive = drive or AsyncDriveAPI(transport)
+
+    async def upload_inputs(self, folder_id: str, paths: Iterable[str | Path]) -> list[str]:
+        """Upload local files into a Drive folder; return their worklist input paths."""
+        return [_input_path(await self._drive.upload_file(folder_id, path)) for path in paths]
 
     async def list(
         self,
