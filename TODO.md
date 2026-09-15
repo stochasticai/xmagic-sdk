@@ -49,9 +49,9 @@ loop from local file to worklist input to output back in Drive.
 - [ ] **Worklist inputs from local files** — upload for `input_s3_file_paths`
       straight from worklist YAML or the CLI, instead of requiring a
       pre-existing S3 path.
-- [ ] **Worklist outputs to Drive** — the `examples/` walkthrough (completed
-      outputs → presigned download → Drive upload) that 0.3.0 documented and
-      never shipped.
+- [x] **Worklist outputs to Drive** — done 2026-09-14 as
+      `examples/09_worklist_outputs_to_drive.py`, with its functions tested
+      over respx.
 - [ ] **Complete listings** — `list_folders` / `list_files` paginate instead
       of truncating at 20. Needs the request parameter names from
       [#5]; if they have not arrived, the release ships with the cap
@@ -220,13 +220,12 @@ points with no extra (DESIGN.md §4).
       CLI review uses blank=complete and `/skip`=leave in needs_review, with no
       approve/retrigger path
 - [x] Single-page `--skip`/`--limit` pagination and latest chat-result retrieval
-- [ ] **`examples/06_worklist_outputs_to_drive.py` was documented but never
-      written.** `examples/README.md` described it in the table and in two Notes
-      paragraphs as though it shipped — it went out that way in 0.3.0. The false
-      entries were removed 2026-08-23 and slot 06 went to the provider example;
-      the script itself (completed worklist outputs → presigned download → Drive
-      upload) is still worth writing, and the README text describing it is in
-      this file's git history
+- [x] **The outputs-to-Drive example** — written 2026-09-14 as
+      `examples/09_worklist_outputs_to_drive.py` (slot 06 went to the provider
+      example on 2026-08-23). Completed tasks → the run message's
+      `downloadable_output` presigned URLs → download → `drive.upload_file`.
+      A task whose run left no message (seen live) has outputs on record but
+      no URL to fetch them by; the example reports those and moves on
 - [ ] Upload local files for `input_s3_file_paths` directly from Worklist YAML/CLI;
       currently callers must provide pre-existing S3 paths or upload through the
       existing file/Drive APIs first
