@@ -10,18 +10,42 @@ codebase.**
 
 ## [Unreleased]
 
+## [0.5.0] — 2026-09-14
+
+Eight feature PRs since 0.4.0 (#45–#49, #51, #52, #60), and they add up to one
+thing: the SDK and CLI are now something you can drive from a script and test
+without the network. Every command that produces data has `--json`, a reply can
+be asked for as a validated pydantic instance from the SDK or from a JSON
+Schema file on the command line, a failing call can be inspected through the
+`xmagic` loggers and tied to the platform's message by its id, a stream can be
+closed the moment you stop reading it, and `xmagic.testing.FakeXMagic` stands
+in for the backend so code built on the client can be tested with no key at
+all.
+
+Read **Changed** before upgrading. Four behaviours differ, none of them likely
+to break a caller: `chat --json` gained a key, SKILL.md frontmatter is read as
+YAML and malformed blocks are refused rather than coerced, `stream()` validates
+its arguments at the call rather than at the first `next()`, and the commands
+that already had `--json` write plain `json.dumps` output.
+
+The suite went from 297 tests to 425, and the recorded fixtures that pin the
+wire shapes now ship inside the package, so a consumer's tests replay the same
+recordings this suite does.
+
 ### Added
 
-- **A test double for consumers** (DESIGN.md §15). `xmagic.testing.FakeXMagic`
-  is an in-process fake of the backend: the real client talks to it through
-  `http_transport=`, it keeps chats, uploads, and Drive folders in memory,
-  `fake.agent(id).replies(...)` scripts what an agent answers, and every
-  response is rendered from the recorded fixtures, which now ship in the
-  package (`xmagic.testing.load_fixture`). `fake.calls` records what the code
-  under test sent; `fail_next(status)` injects a typed error through the real
-  retry path. Routes with no recording answer `400 not_faked` naming the
-  route. `XMagicProvider(client=...)` takes a ready client so the `xmagic:`
-  adapter is testable the same way. Example: `examples/08_offline_tests.py`.
+- **Structured output** (DESIGN.md §14). `response_format=` on `complete()` and
+  `stream()` takes a pydantic model class; the vendor is asked for its schema as
+  a `json_schema` response format and the reply comes back validated on
+  **`Completion.parsed`** — or raises, with pydantic's reasons and the reply
+  text, never a silent `None`. A vendor refusal raises in the vendor's words.
+  Strict mode is claimed by the rule tools already use, through one shared
+  `claim_strict`. On `stream()` the JSON arrives as text and the instance rides
+  the terminal chunk as `CompletionChunk.parsed`, next to `usage` and
+  `tool_calls`. Supported on `openai:` and `litellm:` refs; `xmagic:` rejects it,
+  since an agent's output shape is dashboard configuration.
+- **`capabilities()["structured_output"]`**: `True` on `openai:`, read from
+  LiteLLM's model metadata on `litellm:`, `False` on `xmagic:`.
 - **`xmagic chat --schema FILE`** — structured output from the command line.
   The file is a JSON Schema; the CLI builds the pydantic model the provider
   interface takes (DESIGN.md §14.3), the reply is validated against it, and
@@ -33,6 +57,53 @@ codebase.**
   constraints; every other keyword (`$ref`, `format`, `oneOf`, ...) is refused
   by name rather than dropped, and a bad file fails before any request.
   `openai:` and `litellm:` refs only, as with `response_format=`.
+- **`--json` on every command that produces data.** New on `chat` (one-shot),
+  `drive ls|upload`, `workspaces` (list and switch), `agents` (list),
+  `skills validate`, `version`, and the worklist mutations — `create`, `edit`,
+  `delete`, `cancel`, `trigger`, `rerun`, and `schedules edit|pause|resume|delete`.
+  Under the flag stdout carries one JSON document and nothing else, and errors
+  go to stderr with a non-zero exit, so output pipes straight into `jq`.
+  `chat --json` emits `{model, text, reasoning, usage, id, parsed}` after the
+  answer completes, and refuses interactive mode.
+- **Logging.** The package logs under the `xmagic` logger (transport under
+  `xmagic.http`) with a `NullHandler` at the root, so nothing changes for an
+  application that configured no logging. Request and response lines — method,
+  path, status, elapsed time, and the server's request id when it sent one —
+  are `DEBUG`; a retry, with its delay and attempt count, is `INFO`. Headers and
+  bodies are never logged. Before this there was no logging anywhere in the
+  package, so a failing call could not be inspected.
+- **`xmagic -v` / `--verbose`** attaches a stderr handler at `DEBUG` for every
+  CLI command, so a piped stdout stays clean.
+- **A `User-Agent` header** on every xMagic request:
+  `xmagic-sdk/<version> python/<version> httpx/<version>`. The client
+  identified itself to no one before, which ruled out server-side version
+  telemetry. Provider adapters keep their vendors' own user agents.
+- **`Completion.id` and `CompletionChunk.id`** — the provider's identifier for
+  the response. On xMagic it is the `message_id` that `chats.get_message` and
+  the worklist review flow take; it arrives in a `metadata` frame before any
+  text, and the provider used to drop that frame, so a streaming caller could
+  read the whole answer and still not know which message it was. It now rides
+  the terminal chunk next to `usage`. OpenAI's `chatcmpl-...` id and whatever
+  LiteLLM passes through land in the same field. `xmagic chat --json` reports
+  it as `id`.
+- **Closable streams.** `chats.stream()` returns a `Stream` (`AsyncStream` on
+  the async client) and every `Provider.stream()` does too: still an iterator,
+  so no loop changes, plus `close()` / `aclose()` to cancel the query and
+  release the connection now rather than at garbage collection, and a context
+  manager that does so on exit. Before this, a stream abandoned mid-loop held
+  its response until the collector reached it, and an abandoned async stream
+  could hold it forever. Both classes are exported from `xmagic`. Adapters
+  close the vendor's stream as well where it offers a `close()`.
+- **A test double for consumers** (DESIGN.md §15). `xmagic.testing.FakeXMagic`
+  is an in-process fake of the backend: the real client talks to it through
+  `http_transport=`, it keeps chats, uploads, and Drive folders in memory,
+  `fake.agent(id).replies(...)` scripts what an agent answers, and every
+  response is rendered from the recorded fixtures, which now ship in the
+  package (`xmagic.testing.load_fixture`). `fake.calls` records what the code
+  under test sent; `fail_next(status)` injects a typed error through the real
+  retry path. Routes with no recording answer `400 not_faked` naming the
+  route. `XMagicProvider(client=...)` takes a ready client so the `xmagic:`
+  adapter is testable the same way. Example: `examples/08_offline_tests.py`.
 - **`xmagic mcp init` output fits the layout xMagic-hosted deployment will
   expect.** Hosting is on the platform roadmap, not available yet; its runtime
   runs `python /code/mcp_server.py` after `pip install -r requirements.txt`
@@ -56,60 +127,13 @@ codebase.**
   that is not a mapping, and a `name` or `description` that is not a string,
   are refused with the reason instead of being coerced or read as empty; the
   missing-key message names one key at a time.
-
-### Added
-
-- **Structured output** (DESIGN.md §14). `response_format=` on `complete()` and
-  `stream()` takes a pydantic model class; the vendor is asked for its schema as
-  a `json_schema` response format and the reply comes back validated on
-  **`Completion.parsed`** — or raises, with pydantic's reasons and the reply
-  text, never a silent `None`. A vendor refusal raises in the vendor's words.
-  Strict mode is claimed by the rule tools already use, through one shared
-  `claim_strict`. On `stream()` the JSON arrives as text and the instance rides
-  the terminal chunk as `CompletionChunk.parsed`, next to `usage` and
-  `tool_calls`. Supported on `openai:` and `litellm:` refs; `xmagic:` rejects it,
-  since an agent's output shape is dashboard configuration.
-- **`capabilities()["structured_output"]`**: `True` on `openai:`, read from
-  LiteLLM's model metadata on `litellm:`, `False` on `xmagic:`.
-- **Logging.** The package logs under the `xmagic` logger (transport under
-  `xmagic.http`) with a `NullHandler` at the root, so nothing changes for an
-  application that configured no logging. Request and response lines — method,
-  path, status, elapsed time, and the server's request id when it sent one —
-  are `DEBUG`; a retry, with its delay and attempt count, is `INFO`. Headers and
-  bodies are never logged. Before this there was no logging anywhere in the
-  package, so a failing call could not be inspected.
-- **`xmagic -v` / `--verbose`** attaches a stderr handler at `DEBUG` for every
-  CLI command, so a piped stdout stays clean.
-- **`--json` on every command that produces data.** New on `chat` (one-shot),
-  `drive ls|upload`, `workspaces` (list and switch), `agents` (list),
-  `skills validate`, `version`, and the worklist mutations — `create`, `edit`,
-  `delete`, `cancel`, `trigger`, `rerun`, and `schedules edit|pause|resume|delete`.
-  Under the flag stdout carries one JSON document and nothing else, and errors
-  go to stderr with a non-zero exit, so output pipes straight into `jq`. The
-  commands that already had `--json` (`models`, `tools`, `worklists` reads) now
-  write it the same way: `json.dumps` to stdout rather than Rich's highlighted,
-  width-bound `print_json`. `chat --json` emits `{model, text, reasoning,
-  usage}` after the answer completes, and refuses interactive mode.
-- **Closable streams.** `chats.stream()` returns a `Stream` (`AsyncStream` on
-  the async client) and every `Provider.stream()` does too: still an iterator,
-  so no loop changes, plus `close()` / `aclose()` to cancel the query and
-  release the connection now rather than at garbage collection, and a context
-  manager that does so on exit. Before this, a stream abandoned mid-loop held
-  its response until the collector reached it, and an abandoned async stream
-  could hold it forever. Both classes are exported from `xmagic`. Adapters
-  close the vendor's stream as well where it offers a `close()`.
-- **`Completion.id` and `CompletionChunk.id`** — the provider's identifier for
-  the response. On xMagic it is the `message_id` that `chats.get_message` and
-  the worklist review flow take; it arrives in a `metadata` frame before any
-  text, and the provider used to drop that frame, so a streaming caller could
-  read the whole answer and still not know which message it was. It now rides
-  the terminal chunk next to `usage`. OpenAI's `chatcmpl-...` id and whatever
-  LiteLLM passes through land in the same field. `xmagic chat --json` reports
-  it as `id`.
-- **A `User-Agent` header** on every xMagic request:
-  `xmagic-sdk/<version> python/<version> httpx/<version>`. The client
-  identified itself to no one before, which ruled out server-side version
-  telemetry. Provider adapters keep their vendors' own user agents.
+- **`stream()` validates its arguments at the call**, not at the first
+  `next()`. Every streaming call now returns a `Stream` built around a
+  generator, so a rejected `tools=` or `response_format=` raises where the
+  call is written rather than inside the loop that consumes it.
+- **The commands that already had `--json`** (`models`, `tools`, the worklist
+  reads) write it as `json.dumps` to stdout rather than Rich's highlighted,
+  width-bound `print_json`, so the bytes a script receives are the document.
 
 ## [0.4.0] — 2026-09-10
 
@@ -587,7 +611,8 @@ it (see [DESIGN.md](DESIGN.md)).
   unverified against docs.xmagic.ai/api-drive (Phase 4).
 
 [#2]: https://github.com/stochasticai/xmagic-sdk/issues/2
-[Unreleased]: https://github.com/stochasticai/xmagic-sdk/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/stochasticai/xmagic-sdk/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/stochasticai/xmagic-sdk/releases/tag/v0.5.0
 [0.4.0]: https://github.com/stochasticai/xmagic-sdk/releases/tag/v0.4.0
 [0.3.0]: https://github.com/stochasticai/xmagic-sdk/releases/tag/v0.3.0
 [0.2.0]: https://github.com/stochasticai/xmagic-sdk/releases/tag/v0.2.0
