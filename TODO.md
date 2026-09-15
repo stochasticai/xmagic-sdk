@@ -12,6 +12,8 @@ this is the map, not a second list.
 
 ### 0.5.0 — Drive it from a script, debug it, test against it
 
+**Shipped 2026-09-14** as [v0.5.0](https://github.com/stochasticai/xmagic-sdk/releases/tag/v0.5.0).
+
 The SDK and CLI become something you can run unattended. Every command yields
 output a program can parse, every call can be inspected when it fails, every
 stream can be released, and a consumer can test against the SDK without the
