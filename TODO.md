@@ -27,9 +27,9 @@ network. All but the last item landed in #45–#52.
   `CompletionChunk.id` to tie a reply to the message the platform recorded.
 - **Deterministic streams.** `Stream` / `AsyncStream` with `close()` and
   context-manager exit, on every streaming call.
-- [ ] **A test double for consumers** — export the recorded fixtures, or a
-      fake client, so a script's own tests run without a key or the network.
-      The last piece of "unattended"; the release waits for it.
+- [x] **A test double for consumers** — done 2026-09-14 (DESIGN.md §15).
+      `xmagic.testing.FakeXMagic` fakes the backend behind the real client;
+      the recorded fixtures ship in the package. 0.5.0 is complete.
 
 Also in the release, outside the theme: `mcp init` emits the hosted layout and
 `/health`; SKILL.md frontmatter is read as YAML. Minor bump, per the Changed
@@ -297,8 +297,11 @@ Ready now, roughly in order of value per unit of work:
 - [x] **Stream cancellation and deterministic close** — done 2026-09-10
       (DESIGN.md §8). `Stream` / `AsyncStream` wrap every streaming call:
       `close()` cancels and releases now, `with` does it on exit
-- [ ] **A test double for consumers** — export the recorded fixtures or a fake
-      client, so downstream users can test against this SDK without network
+- [x] **A test double for consumers** — done 2026-09-14 (DESIGN.md §15).
+      `xmagic.testing.FakeXMagic`: an `httpx` transport the real client talks
+      to, state in memory, replies scripted per agent, every body rendered from
+      the recorded fixtures, which moved into the package as
+      `xmagic.testing.load_fixture`. Unrecorded routes answer `400 not_faked`
 
 Correctness and packaging gaps found in an audit on 2026-08-05. The first five
 landed together on 2026-08-07; the rest were re-verified against the tree that
