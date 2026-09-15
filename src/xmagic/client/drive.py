@@ -2,7 +2,7 @@
 
 Routes and responses are verified against the xMagic backend implementation:
 
-- GET    /knowledge-bases                                   -> {"data": {"results": [...]}}
+- GET    /knowledge-bases?page=N&page_size=M                -> {"data": {"results": [...], "pagination": {...}}}
 - POST   /knowledge-bases                                    -> {"data": {<folder fields>}}
 - DELETE /knowledge-bases/{knowledge_base_id}                -> {"message": ...} (no "data")
 - POST   /uploaded-files                                     -> {"data": "<uploaded_file_id>"}
@@ -24,12 +24,19 @@ Two discrepancies found while implementing them:
 - The reference shows folders carrying ``_id``; every fixture recorded live on
   2026-07-31 carries ``id``, which is what ``DriveFolder`` expects. Observation
   beats example, so we read ``id``.
-- **Listing is paginated and we ignore it.** The live ``GET /knowledge-bases``
-  response carries ``data.pagination`` with ``page``, ``page_size`` (20), and
-  ``total_count``, but ``list_folders`` and ``list_files`` return only
-  ``data.results`` — so an account with more than 20 folders is silently
-  truncated. The request-side parameter names are undocumented, so fixing this
-  needs an answer rather than a guess (see TODO.md, Phase 4).
+- **Listing is paginated, and the parameters are undocumented.** Measured live
+  on 2026-09-15: ``GET /knowledge-bases`` takes ``page`` (zero-indexed) and
+  ``page_size`` (1 to 200, validated with a 422 outside that range; default 20)
+  and echoes both in ``data.pagination`` beside ``total_count``. A page past
+  the end returns 200 with empty ``results``. Any other parameter name
+  (``limit``, ``offset``, ``per_page``) is ignored. ``data.knowledge_bases`` is
+  byte-for-byte the same list as ``data.results`` and is not read. The
+  ``?parent_kb_id=`` file listing paginates the same way.
+
+  ``list_folders`` and ``list_files`` walk every page at the maximum size and
+  return the whole listing, because a Drive listing is something callers
+  iterate, not something they page through by hand. That is deliberately
+  unlike worklists, where ``skip``/``limit`` are explicit (``worklists.py``).
 """
 
 from __future__ import annotations
@@ -42,6 +49,11 @@ from xmagic.client.http import AsyncHttpTransport, HttpTransport
 from xmagic.client.models import DriveFile, DriveFolder
 
 KB_PATH = "/knowledge-bases"
+
+# The largest page the platform accepts (201 is rejected with a 422, measured
+# 2026-09-15). Fewer round trips for large Drives, and the number the fake
+# honours too.
+PAGE_SIZE = 200
 
 
 def _folder_path(folder_id: str) -> str:
@@ -80,6 +92,36 @@ def _data_source_params(file_ids: str | list[str]) -> dict[str, str]:
     return {"data_source_id": ",".join(ids)}
 
 
+def _page_params(page: int, folder_id: str | None) -> dict[str, Any]:
+    params: dict[str, Any] = {"page": page, "page_size": PAGE_SIZE}
+    if folder_id is not None:
+        params["parent_kb_id"] = folder_id
+    return params
+
+
+def _take_page(items: list[Any], body: dict[str, Any], page: int) -> int | None:
+    """Append one page's results to ``items``; return the next page, or None.
+
+    The stop rules read the response, not our request, so a server that ignores
+    the parameters still terminates: no results, a short page (fewer than the
+    ``page_size`` the server echoes), or ``total_count`` reached all end the
+    walk. A body with no ``pagination`` block is treated as the only page.
+    """
+    data = body["data"]
+    results = data["results"]
+    items.extend(results)
+    pagination = data.get("pagination")
+    if not results or not isinstance(pagination, dict):
+        return None
+    total = pagination.get("total_count")
+    size = pagination.get("page_size")
+    if isinstance(size, int) and len(results) < size:
+        return None
+    if isinstance(total, int) and len(items) >= total:
+        return None
+    return page + 1
+
+
 def _create_folder_payload(name: str, extra: dict[str, Any]) -> dict[str, Any]:
     payload: dict[str, Any] = {"knowledge_base_name": name, "user_defined_tags": []}
     payload.update(extra)
@@ -94,9 +136,8 @@ def _attach_payload(filename: str, uploaded_file_id: str) -> dict[str, Any]:
     }
 
 
-def _folders_from(body: dict[str, Any]) -> list[DriveFolder]:
+def _folders_from(items: list[Any]) -> list[DriveFolder]:
     """Keep only top-level folders: data sources and nested items are files."""
-    items = body["data"]["results"]
     folders = [
         item
         for item in items
@@ -107,9 +148,8 @@ def _folders_from(body: dict[str, Any]) -> list[DriveFolder]:
     return [DriveFolder.model_validate(i) for i in folders]
 
 
-def _files_from(body: dict[str, Any]) -> list[DriveFile]:
+def _files_from(items: list[Any]) -> list[DriveFile]:
     """Keep only the items that are data sources within a folder."""
-    items = body["data"]["results"]
     files = [
         item
         for item in items
@@ -125,8 +165,17 @@ class DriveAPI:
     def __init__(self, transport: HttpTransport) -> None:
         self._t = transport
 
+    def _list_all(self, folder_id: str | None) -> list[Any]:
+        items: list[Any] = []
+        page: int | None = 0
+        while page is not None:
+            body = self._t.request("GET", KB_PATH, params=_page_params(page, folder_id))
+            page = _take_page(items, body, page)
+        return items
+
     def list_folders(self) -> list[DriveFolder]:
-        return _folders_from(self._t.request("GET", KB_PATH))
+        """Every top-level folder, across all pages."""
+        return _folders_from(self._list_all(None))
 
     def create_folder(self, name: str, **extra: Any) -> DriveFolder:
         body = self._t.request("POST", KB_PATH, json=_create_folder_payload(name, extra))
@@ -150,7 +199,8 @@ class DriveAPI:
         return DriveFile.model_validate(body["data"])
 
     def list_files(self, folder_id: str) -> list[DriveFile]:
-        return _files_from(self._t.request("GET", KB_PATH, params={"parent_kb_id": folder_id}))
+        """Every file in a folder, across all pages."""
+        return _files_from(self._list_all(folder_id))
 
     def get_folder(self, folder_id: str, *, include_counts: bool = False) -> DriveFolder:
         """Fetch one folder. ``include_counts`` adds child folder and file counts."""
@@ -189,8 +239,17 @@ class AsyncDriveAPI:
     def __init__(self, transport: AsyncHttpTransport) -> None:
         self._t = transport
 
+    async def _list_all(self, folder_id: str | None) -> list[Any]:
+        items: list[Any] = []
+        page: int | None = 0
+        while page is not None:
+            body = await self._t.request("GET", KB_PATH, params=_page_params(page, folder_id))
+            page = _take_page(items, body, page)
+        return items
+
     async def list_folders(self) -> list[DriveFolder]:
-        return _folders_from(await self._t.request("GET", KB_PATH))
+        """Every top-level folder, across all pages."""
+        return _folders_from(await self._list_all(None))
 
     async def create_folder(self, name: str, **extra: Any) -> DriveFolder:
         body = await self._t.request("POST", KB_PATH, json=_create_folder_payload(name, extra))
@@ -209,8 +268,8 @@ class AsyncDriveAPI:
         return DriveFile.model_validate(body["data"])
 
     async def list_files(self, folder_id: str) -> list[DriveFile]:
-        body = await self._t.request("GET", KB_PATH, params={"parent_kb_id": folder_id})
-        return _files_from(body)
+        """Every file in a folder, across all pages."""
+        return _files_from(await self._list_all(folder_id))
 
     async def get_folder(self, folder_id: str, *, include_counts: bool = False) -> DriveFolder:
         """Fetch one folder. ``include_counts`` adds child folder and file counts."""
