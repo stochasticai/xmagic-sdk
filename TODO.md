@@ -63,11 +63,12 @@ makes this a minor bump.
 ### After 0.6.0 — Tools, end to end
 
 The next capability, not yet a version: the tool-calling execution loop
-(stage D, pending the DESIGN.md §13.8 Q1 decision), a `capabilities()`
-vocabulary that can say "tools registered platform-side", remote invocation of
-a registered tool, and `mcp deploy|list|logs|stop|delete` once hosting is
-offered. Named here so the two decisions and the [#5] answers have somewhere
-to land; it gets a number when enough of it is unblocked to be one release.
+(stage D, decided in scope on 2026-09-15, DESIGN.md §13.8 Q1), a
+`capabilities()` vocabulary that can say "tools registered platform-side",
+remote invocation of a registered tool, and `mcp deploy|list|logs|stop|delete`
+once hosting is offered. Named here so the remaining decision and the [#5]
+answers have somewhere to land; it gets a number when enough of it is
+unblocked to be one release.
 
 ### Kept out of the plan
 
@@ -276,10 +277,14 @@ Ready now, roughly in order of value per unit of work:
       `Completion.tool_calls`, `ToolDef.from_callable`, and one OpenAI-shape
       mapping shared by the `openai:` and `litellm:` adapters. D1-D5 accepted as
       designed. Still open:
-- [ ] **Tool calling, stage D — execution loop.** Blocked on a decision, not on
-      code: DESIGN.md §1 lists agent orchestration as a non-goal, and §13.8 Q1
-      asks whether a call/execute/feed-back loop crosses that line. Every peer
-      SDK ships one
+- [ ] **Tool calling, stage D — execution loop.** Decided in scope on
+      2026-09-15 (DESIGN.md §13.8 Q1). One method, sync and async, taking
+      messages, tools and a turn cap; dispatch by name to the callables the
+      `ToolDef`s were built from; a raising tool sends its error back as the
+      tool result unless the caller opts into raising; returns the final
+      `Completion` and the full history. Nothing else configurable: handoffs,
+      memory, planners and retry policy stay out. `openai:` and `litellm:`
+      only, per D4
 - [ ] **`capabilities()` is a `dict[str, bool]` with no defined vocabulary.**
       D4 made the `tools` flag honest, but there is now no word for "has tools
       registered platform-side", which is what xMagic actually offers. §13.8 Q3
