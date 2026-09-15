@@ -10,6 +10,19 @@ codebase.**
 
 ## [Unreleased]
 
+### Changed
+
+- **Drive listings are complete.** `drive.list_folders()` and
+  `drive.list_files()` walk every page of `GET /knowledge-bases` and return the
+  whole listing, where before they returned the first 20 items with no
+  indication more existed. The request parameters were undocumented and are
+  now measured (issue #5, Q15): `page`, zero-indexed, and `page_size`, at most
+  200, both echoed in the response. The client asks for 200 a page. The walk
+  stops on the response's own evidence (a short page, `total_count` reached, or
+  no `pagination` block), so a server that ignored the parameters would still
+  terminate. `xmagic.testing.FakeXMagic` pages the same way, echoing `page` and
+  `page_size` and rejecting a size outside 1..200 with a 422 like the platform.
+
 ## [0.5.0] — 2026-09-14
 
 Eight feature PRs since 0.4.0 (#45–#49, #51, #52, #60), and they add up to one

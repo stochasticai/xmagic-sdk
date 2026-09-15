@@ -352,9 +352,21 @@ class FakeXMagic:
             if folder is None:
                 return _error(404, "not_found", f"Knowledge base {parent} not found")
             results = [_file_json(file, listing=True) for file in folder.files.values()]
+        # The platform pages the listing: `page` is zero-indexed, `page_size`
+        # is 1..200 (422 outside), both echoed back. Honoured here so a
+        # consumer's test sees the same walk the client does live.
+        try:
+            page = int(params.get("page", 0))
+            page_size = int(params.get("page_size", 20))
+        except ValueError:
+            return _error(422, "validation_error", "page and page_size must be integers")
+        if page < 0 or not 1 <= page_size <= 200:
+            return _error(422, "validation_error", "page >= 0 and 1 <= page_size <= 200")
+        total = len(results)
+        start = page * page_size
         result = load_fixture("drive_list_files_response.json")
-        result["data"]["results"] = results
-        result["data"]["pagination"] = {"page": 0, "page_size": 20, "total_count": len(results)}
+        result["data"]["results"] = results[start : start + page_size]
+        result["data"]["pagination"] = {"page": page, "page_size": page_size, "total_count": total}
         if parent is None:
             result["data"].pop("folder_info", None)
         else:
