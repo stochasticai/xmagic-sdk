@@ -201,7 +201,7 @@ xmagic worklists create|edit TASK_ID   # edit task YAML (create has a template)
 xmagic worklists cancel|delete TASK_ID # stop or delete a task
 xmagic worklists review [TASK_ID]      # review tasks marked needs_review
 xmagic worklists schedules ...         # inspect/edit/pause/resume/delete schedules
-xmagic drive ls|upload|download ...
+xmagic drive ls [FOLDER] [-R]|mkdir|info|rename|upload|download|rm
 xmagic skills new NAME                # scaffold SKILL.md + layout
 xmagic skills validate PATH           # frontmatter/zip lint
 xmagic skills pack PATH               # build upload-ready zip

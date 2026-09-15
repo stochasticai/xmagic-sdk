@@ -5,6 +5,27 @@ the plan and [TODO.md](TODO.md) for what's next.
 
 ---
 
+## 2026-09-14 — Drive on the command line
+
+First 0.6.0 item ("files in, results out"). The client had spoken every
+documented Drive route since 2026-08-06; the CLI exposed two of them.
+
+- **`xmagic drive`** gains `mkdir`, `info` (with counts), `rename`,
+  `download FOLDER FILE...` (the platform's ZIP, `--output` to name it,
+  `--extract DIR` to unpack it and keep no archive), `rm FOLDER FILE...`
+  for files and `rm FOLDER` for the folder and everything in it, behind a
+  confirmation that `--yes` skips. `ls FOLDER` lists a folder's files and
+  `ls -R` pairs every folder with its files, as a table or as
+  `[{"folder", "files"}]` under `--json`.
+- **Recursion is client-side**: one `list_files` per folder. The live listing
+  response carries a `query_info.recursive` flag, so the platform has a
+  server-side form, but its request parameter is undocumented, so it is not
+  guessed at (same rule as pagination, #5).
+- **Tested against the fake**, not route-by-route mocks: `tests/test_cli_drive.py`
+  binds the CLI's client to `FakeXMagic` with one monkeypatch and asserts on
+  the fake's state and call log. 11 tests, including the confirmation prompt
+  declined and accepted, and both download modes reading the ZIP back.
+
 ## 2026-09-14 — 0.5.0 released to PyPI
 
 The first version cut under RELEASING.md and the release plan in TODO.md:
