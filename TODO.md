@@ -46,9 +46,10 @@ loop from local file to worklist input to output back in Drive.
 
 - [ ] **Drive on the command line** — `xmagic drive download`, `rm`, `rename`,
       and recursive listing, for the routes implemented on 2026-08-06.
-- [ ] **Worklist inputs from local files** — upload for `input_s3_file_paths`
-      straight from worklist YAML or the CLI, instead of requiring a
-      pre-existing S3 path.
+- [x] **Worklist inputs from local files** — done 2026-09-14. `--input FILE`
+      on `worklists create|edit`, an `input_files` list in the YAML, and
+      `worklists.upload_inputs()` in the SDK; files go through a Drive folder,
+      the one route that yields a storage path.
 - [ ] **Worklist outputs to Drive** — the `examples/` walkthrough (completed
       outputs → presigned download → Drive upload) that 0.3.0 documented and
       never shipped.
@@ -227,9 +228,12 @@ points with no extra (DESIGN.md §4).
       the script itself (completed worklist outputs → presigned download → Drive
       upload) is still worth writing, and the README text describing it is in
       this file's git history
-- [ ] Upload local files for `input_s3_file_paths` directly from Worklist YAML/CLI;
-      currently callers must provide pre-existing S3 paths or upload through the
-      existing file/Drive APIs first
+- [x] Upload local files for `input_s3_file_paths` directly from Worklist YAML/CLI
+      — done 2026-09-14 via Drive: upload, attach, take the data source's
+      `value`. Probe finding worth keeping: the API accepts *any* string in
+      `input_s3_file_paths` (a bare upload id was echoed back too), so a wrong
+      path fails at run time, not at creation; what the run does with the
+      path is unverified until a real task is executed with one
 
 ## Phase 5 — Local web app (`xmagic serve`)
 
