@@ -10,6 +10,19 @@ codebase.**
 
 ## [Unreleased]
 
+### Added
+
+- **Worklist inputs from local files.** `xmagic worklists create` and `edit`
+  take `--input FILE` (repeatable), and the YAML gains an `input_files` list;
+  on save each file is uploaded into a Drive folder (`worklist-inputs`,
+  created once, or `--folder`) and its storage path appended to
+  `input_s3_file_paths`. From Python, `client.worklists.upload_inputs(folder_id,
+  paths)` does the same and returns the paths. `DriveFile.value`, the storage
+  path an attach response carries, is now a typed field: it is the one place
+  the platform reveals where an upload landed, and the form a worklist input
+  takes (confirmed live; the API accepts the path and echoes it back). Second
+  item of the 0.6.0 release plan.
+
 ## [0.5.0] — 2026-09-14
 
 Eight feature PRs since 0.4.0 (#45–#49, #51, #52, #60), and they add up to one
