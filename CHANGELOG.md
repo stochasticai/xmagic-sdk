@@ -10,6 +10,24 @@ codebase.**
 
 ## [Unreleased]
 
+## [0.6.0] — 2026-09-22
+
+Four feature PRs since 0.5.0 (#63, #64, #65, #69), and they close one loop:
+everything a worklist consumes or produces is now reachable from the SDK and
+CLI without opening the web app. `xmagic drive` reaches every Drive route the
+client speaks, a worklist task takes local files as inputs from the command
+line or from its YAML, an example files a task's outputs back into Drive, and
+a Drive listing returns the whole listing instead of its first 20 items.
+
+Read **Changed** before upgrading. One behaviour differs: `list_folders()` and
+`list_files()` walk every page, so a caller that got 20 items from a larger
+Drive now gets all of them, and a listing of a large Drive makes more than one
+request. That is what makes this a minor bump rather than a patch.
+
+The suite went from 425 tests to 464. Three docs PRs (#66, #67, #68) record
+design decisions for the redactor, the coding-agent bridge and the tool-calling
+execution loop, and change no code.
+
 ### Added
 
 - **Drive on the command line.** `xmagic drive` now reaches every route the
@@ -656,7 +674,8 @@ it (see [DESIGN.md](DESIGN.md)).
   unverified against docs.xmagic.ai/api-drive (Phase 4).
 
 [#2]: https://github.com/stochasticai/xmagic-sdk/issues/2
-[Unreleased]: https://github.com/stochasticai/xmagic-sdk/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/stochasticai/xmagic-sdk/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/stochasticai/xmagic-sdk/releases/tag/v0.6.0
 [0.5.0]: https://github.com/stochasticai/xmagic-sdk/releases/tag/v0.5.0
 [0.4.0]: https://github.com/stochasticai/xmagic-sdk/releases/tag/v0.4.0
 [0.3.0]: https://github.com/stochasticai/xmagic-sdk/releases/tag/v0.3.0
