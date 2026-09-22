@@ -247,7 +247,34 @@ Recurring schedules can also be inspected and controlled with
 of local files from the Worklist CLI is deferred future work; use the existing
 file/Drive upload APIs first.
 
-### 8. Use it from Python
+### 8. Manage Drive
+
+Drive is the knowledge base your agents retrieve from. Every route the client
+implements is on the command line:
+
+```bash
+xmagic drive ls                              # folders
+xmagic drive ls <folder_id>                  # files in one folder
+xmagic drive ls -R                           # every top-level folder and its files
+xmagic drive mkdir "Q3 reports"
+xmagic drive info <folder_id>                # one folder, with counts
+xmagic drive rename <folder_id> "Q3 reports (final)"
+xmagic drive upload <folder_id> notes.md     # indexed automatically
+xmagic drive download <folder_id> <file_id> [<file_id>...] --extract ./out
+xmagic drive rm <folder_id> <file_id>        # delete files
+xmagic drive rm <folder_id> --yes            # delete the folder and everything in it
+```
+
+xMagic exports files as one ZIP archive, even for a single file. `download`
+writes it as `<folder_id>.zip` by default, `--output` names it, and
+`--extract DIR` unpacks it instead. `rm` with no file ids deletes the folder,
+so it asks first unless `--yes`. Every command takes `--json`.
+
+Listings return the first page only (20 items); the request-side pagination
+parameters are undocumented and tracked on
+[#5](https://github.com/stochasticai/xmagic-sdk/issues/5).
+
+### 9. Use it from Python
 
 ```python
 from xmagic import XMagicClient
@@ -349,7 +376,7 @@ async with AsyncXMagicClient() as client:
       print(review.action, review.task.id)
 ```
 
-### 9. Build a custom tool (MCP server)
+### 10. Build a custom tool (MCP server)
 
 ```bash
 xmagic mcp init my-tool          # scaffold: Dockerfile, compose, MCP server
@@ -383,7 +410,7 @@ Then register the resulting public `https://.../mcp` URL in the dashboard under
 prints the full checklist. Set `TOOL_API_KEY` in your `.env` to require a
 shared secret — the generated server rejects unauthenticated calls with `401`.
 
-### 10. Package a skill
+### 11. Package a skill
 
 ```bash
 xmagic skills new my-skill       # scaffold SKILL.md
@@ -393,7 +420,7 @@ xmagic skills pack my-skill      # -> my-skill.zip, ready to upload
 
 Upload the zip in the dashboard under **Skills**.
 
-### 11. Use a non-xMagic model
+### 12. Use a non-xMagic model
 
 `chat` takes a `provider:model` ref backed by your own key. OpenAI is
 implemented:
