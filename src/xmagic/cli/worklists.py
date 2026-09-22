@@ -14,12 +14,13 @@ from rich.table import Table
 
 from xmagic import XMagicClient
 from xmagic.cli._editor import edit_file as _edit_file
-from xmagic.cli._output import fail, print_json
+from xmagic.cli._output import fail, note, print_json
 from xmagic.client.models import WorklistTask, WorklistTaskPage, WorklistTaskStatus
 from xmagic.config import Settings
 from xmagic.errors import XMagicAPIError, XMagicError
 from xmagic.worklist_codec import (
     CREATE_TEMPLATE,
+    prefill_input_files,
     schedule_to_edit_yaml,
     task_to_edit_yaml,
     yaml_to_create_payload,
@@ -44,6 +45,71 @@ _ERROR_HINTS = {
     "WORKLIST_SCHEDULE_NOT_PAUSED": "The schedule is not paused.",
     "WORKLIST_RECURRENCE_END_CONDITIONS_MET": "The recurrence has no remaining run dates.",
 }
+
+
+INPUTS_FOLDER = "worklist-inputs"
+
+_INPUT_OPTION = typer.Option(
+    None,
+    "--input",
+    "-i",
+    exists=True,
+    dir_okay=False,
+    help="Local file to upload as an input; repeatable. Uploaded when you save.",
+)
+_FOLDER_OPTION = typer.Option(
+    None,
+    "--folder",
+    help=(
+        "Id of the Drive folder to upload inputs into "
+        f"(default: a folder named '{INPUTS_FOLDER}', created if missing)."
+    ),
+)
+
+
+def _inputs_folder(client: XMagicClient, folder_id: str | None) -> str:
+    """Where inputs land: the id ``--folder`` gives, else a folder named
+    ``worklist-inputs``, found by name across the whole listing or created once."""
+    if folder_id:
+        return folder_id
+    for folder in client.drive.list_folders():
+        if folder.name == INPUTS_FOLDER:
+            return folder.id
+    created = client.drive.create_folder(INPUTS_FOLDER)
+    note(f"Created Drive folder {INPUTS_FOLDER} ({created.id}) for worklist inputs.")
+    return created.id
+
+
+def _resolve_input_files(
+    client: XMagicClient,
+    payload: dict[str, Any],
+    folder_id: str | None,
+    base: list[str],
+) -> None:
+    """Upload the payload's ``input_files`` and append their storage paths.
+
+    ``input_files`` is a CLI-side key: the API takes ``input_s3_file_paths``
+    only, so the local paths are uploaded here, attached to a Drive folder,
+    and the resulting paths appended to whatever ``input_s3_file_paths`` the
+    payload carries (or ``base``, the task's current list, when it does not).
+
+    One file at a time, each reported as it lands: a failure part-way through
+    then says which files are already in the folder, so the user can reuse or
+    delete them rather than guess.
+    """
+    files = [Path(p) for p in payload.pop("input_files", [])]
+    if not files:
+        return
+    missing = [str(p) for p in files if not p.is_file()]
+    if missing:
+        raise ValueError(f"input file not found: {', '.join(missing)}")
+    target = _inputs_folder(client, folder_id)
+    uploaded: list[str] = []
+    for local in files:
+        (remote,) = client.worklists.upload_inputs(target, [local])
+        note(f"Uploaded {local.name} -> {remote}")
+        uploaded.append(remote)
+    payload["input_s3_file_paths"] = [*payload.get("input_s3_file_paths", base), *uploaded]
 
 
 def _agent_id(agent_id: str | None) -> str:
@@ -292,17 +358,33 @@ def review_tasks(
 @app.command("create")
 def create_task(
     agent_id: str | None = typer.Option(None, "--agent", help="Agent id."),
+    inputs: list[Path] | None = _INPUT_OPTION,
+    folder_id: str | None = _FOLDER_OPTION,
     as_json: bool = typer.Option(False, "--json", help="Machine-readable output."),
 ) -> None:
-    """Create a worklist task by editing a YAML template."""
+    """Create a worklist task by editing a YAML template.
+
+    Local files go in as inputs two ways: --input FILE (repeatable), which
+    pre-fills the template's input_files list, or by listing them under
+    input_files in the YAML. On save each is uploaded into a Drive folder and
+    its storage path appended to input_s3_file_paths.
+    """
     try:
-        edited = _edit_yaml(CREATE_TEMPLATE, "xmagic-worklist-")
+        # Resolved first: with no agent to create the task for, nothing should
+        # be edited, let alone uploaded into Drive.
+        target_agent = _agent_id(agent_id)
+        template = prefill_input_files(CREATE_TEMPLATE, [str(p) for p in inputs or []])
+        edited = _edit_yaml(template, "xmagic-worklist-")
+        if edited is None and inputs:
+            # The pre-filled inputs are themselves the change.
+            edited = template
         if edited is None:
             console.print("[yellow]No changes detected. Task was not created.[/yellow]")
             return
         payload = yaml_to_create_payload(edited)
         with XMagicClient() as client:
-            task = client.worklists.create(_agent_id(agent_id), payload)
+            _resolve_input_files(client, payload, folder_id, [])
+            task = client.worklists.create(target_agent, payload)
         if as_json:
             print_json(_task_json(task))
             return
@@ -315,15 +397,25 @@ def create_task(
 def edit_task(
     task_id: str,
     agent_id: str | None = typer.Option(None, "--agent", help="Agent id."),
+    inputs: list[Path] | None = _INPUT_OPTION,
+    folder_id: str | None = _FOLDER_OPTION,
     as_json: bool = typer.Option(False, "--json", help="Machine-readable output."),
 ) -> None:
-    """Edit a task's YAML-editable fields."""
+    """Edit a task's YAML-editable fields.
+
+    --input FILE (repeatable) or an input_files list in the YAML uploads local
+    files on save and appends their storage paths to input_s3_file_paths.
+    """
     try:
         target_agent = _agent_id(agent_id)
         with XMagicClient() as client:
             task = client.worklists.get(target_agent, task_id)
         original = _task_json(task)
-        edited = _edit_yaml(task_to_edit_yaml(original), f"xmagic-worklist-{task_id}-")
+        template = prefill_input_files(task_to_edit_yaml(original), [str(p) for p in inputs or []])
+        edited = _edit_yaml(template, f"xmagic-worklist-{task_id}-")
+        if edited is None and inputs:
+            # The pre-filled inputs are themselves the change.
+            edited = template
         if edited is None:
             console.print("[yellow]No changes detected. Task was not updated.[/yellow]")
             return
@@ -332,6 +424,9 @@ def edit_task(
             console.print("[yellow]No changes detected. Task was not updated.[/yellow]")
             return
         with XMagicClient() as client:
+            _resolve_input_files(
+                client, payload, folder_id, list(original.get("input_s3_file_paths") or [])
+            )
             updated = client.worklists.update(target_agent, task_id, payload)
         if as_json:
             print_json(_task_json(updated))
@@ -342,7 +437,7 @@ def edit_task(
 
 
 def _confirm_delete(task_id: str, yes: bool) -> None:
-    if not yes and not typer.confirm(f"Delete worklist task {task_id}?"):
+    if not yes and not typer.confirm(f"Delete worklist task {task_id}?", err=True):
         console.print("[yellow]Deletion cancelled.[/yellow]")
         raise typer.Exit()
 
@@ -516,7 +611,7 @@ def delete_schedule(
 ) -> None:
     """Deactivate a recurring worklist schedule."""
     try:
-        if not yes and not typer.confirm(f"Deactivate schedule {schedule_id}?"):
+        if not yes and not typer.confirm(f"Deactivate schedule {schedule_id}?", err=True):
             console.print("[yellow]Deactivation cancelled.[/yellow]")
             raise typer.Exit()
         with XMagicClient() as client:
