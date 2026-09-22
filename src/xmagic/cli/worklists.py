@@ -60,12 +60,16 @@ _INPUT_OPTION = typer.Option(
 _FOLDER_OPTION = typer.Option(
     None,
     "--folder",
-    help=f"Drive folder to upload inputs into (default: '{INPUTS_FOLDER}', created if missing).",
+    help=(
+        "Id of the Drive folder to upload inputs into "
+        f"(default: a folder named '{INPUTS_FOLDER}', created if missing)."
+    ),
 )
 
 
 def _inputs_folder(client: XMagicClient, folder_id: str | None) -> str:
-    """Where inputs land: --folder, else a folder named ``worklist-inputs``, created once."""
+    """Where inputs land: the id ``--folder`` gives, else a folder named
+    ``worklist-inputs``, found by name across the whole listing or created once."""
     if folder_id:
         return folder_id
     for folder in client.drive.list_folders():
@@ -88,6 +92,10 @@ def _resolve_input_files(
     only, so the local paths are uploaded here, attached to a Drive folder,
     and the resulting paths appended to whatever ``input_s3_file_paths`` the
     payload carries (or ``base``, the task's current list, when it does not).
+
+    One file at a time, each reported as it lands: a failure part-way through
+    then says which files are already in the folder, so the user can reuse or
+    delete them rather than guess.
     """
     files = [Path(p) for p in payload.pop("input_files", [])]
     if not files:
@@ -96,9 +104,11 @@ def _resolve_input_files(
     if missing:
         raise ValueError(f"input file not found: {', '.join(missing)}")
     target = _inputs_folder(client, folder_id)
-    uploaded = client.worklists.upload_inputs(target, files)
-    for local, remote in zip(files, uploaded, strict=True):
+    uploaded: list[str] = []
+    for local in files:
+        (remote,) = client.worklists.upload_inputs(target, [local])
         note(f"Uploaded {local.name} -> {remote}")
+        uploaded.append(remote)
     payload["input_s3_file_paths"] = [*payload.get("input_s3_file_paths", base), *uploaded]
 
 
@@ -360,6 +370,9 @@ def create_task(
     its storage path appended to input_s3_file_paths.
     """
     try:
+        # Resolved first: with no agent to create the task for, nothing should
+        # be edited, let alone uploaded into Drive.
+        target_agent = _agent_id(agent_id)
         template = prefill_input_files(CREATE_TEMPLATE, [str(p) for p in inputs or []])
         edited = _edit_yaml(template, "xmagic-worklist-")
         if edited is None and inputs:
@@ -371,7 +384,7 @@ def create_task(
         payload = yaml_to_create_payload(edited)
         with XMagicClient() as client:
             _resolve_input_files(client, payload, folder_id, [])
-            task = client.worklists.create(_agent_id(agent_id), payload)
+            task = client.worklists.create(target_agent, payload)
         if as_json:
             print_json(_task_json(task))
             return
@@ -424,7 +437,7 @@ def edit_task(
 
 
 def _confirm_delete(task_id: str, yes: bool) -> None:
-    if not yes and not typer.confirm(f"Delete worklist task {task_id}?"):
+    if not yes and not typer.confirm(f"Delete worklist task {task_id}?", err=True):
         console.print("[yellow]Deletion cancelled.[/yellow]")
         raise typer.Exit()
 
@@ -598,7 +611,7 @@ def delete_schedule(
 ) -> None:
     """Deactivate a recurring worklist schedule."""
     try:
-        if not yes and not typer.confirm(f"Deactivate schedule {schedule_id}?"):
+        if not yes and not typer.confirm(f"Deactivate schedule {schedule_id}?", err=True):
             console.print("[yellow]Deactivation cancelled.[/yellow]")
             raise typer.Exit()
         with XMagicClient() as client:

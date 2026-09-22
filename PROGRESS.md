@@ -28,8 +28,15 @@ S3 paths the caller already had, and nothing in the SDK could produce one.
 - **CLI**: `--input FILE` (repeatable) and `--folder` on `worklists create`
   and `edit`, and an `input_files` list in the YAML; `--input` pre-fills it so
   the editor shows what will be uploaded. Files land in a `worklist-inputs`
-  Drive folder, created on first use, unless `--folder` names one. A missing
-  file fails before any request; the API never sees `input_files`.
+  Drive folder, created on first use, unless `--folder` gives a folder id. A
+  missing file fails before any upload; the API never sees `input_files`.
+- **Three review fixes before merge**: `create` resolves the agent before the
+  editor opens, so a missing `--agent` no longer uploads files it then has no
+  task to attach to; files upload one at a time and each is reported as it
+  lands, so a failure part-way says what is already in the folder; and the
+  `worklist-inputs` folder is found across the whole listing once #69 lands,
+  not on the first page only. The `delete` and `schedules delete` prompts go
+  to stderr, so an interactive answer leaves `--json` stdout as one document.
 - 11 tests over respx (worklists have no recorded fixtures, so the fake stays
   out of it), plus the guarded live test.
 

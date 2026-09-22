@@ -293,3 +293,54 @@ def test_missing_input_file_fails_before_any_request(
     assert result.exit_code == 1
     assert "input file not found" in result.output
     assert not upload.called and not create.called
+
+
+@respx.mock
+def test_create_without_an_agent_uploads_nothing(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    # No --agent and no default_agent_id: the failure comes before the editor
+    # opens, so no file is uploaded into Drive for a task that never exists.
+    upload = respx.post(UPLOAD_URL).mock(return_value=Response(200, json={"data": "file-1"}))
+    seen = _editor_that_fills_in(monkeypatch, name="T", detailed_description="D")
+    (a,) = _files(tmp_path, "a.txt")
+
+    result = runner.invoke(app, ["worklists", "create", "-i", str(a), "--folder", FOLDER])
+
+    assert result.exit_code != 0
+    assert "--agent" in result.output
+    assert seen == []
+    assert not upload.called
+
+
+@respx.mock
+def test_a_failed_upload_reports_the_files_already_in_the_folder(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    respx.post(UPLOAD_URL).mock(return_value=Response(200, json={"data": "file-1"}))
+    calls = {"n": 0}
+
+    def attach_second_fails(request: Request) -> Response:
+        calls["n"] += 1
+        if calls["n"] == 2:
+            return Response(404, json={"error": {"code": "not_found", "message": "gone"}})
+        title = json.loads(request.read())["data_source_title"]
+        return Response(
+            200,
+            json={"data": {"id": "doc-1", "title": title, "value": S3.format(title)}},
+        )
+
+    respx.post(f"{KB_URL}/{FOLDER}/data-sources/documents").mock(side_effect=attach_second_fails)
+    create = respx.post(WORKLIST_URL).mock(return_value=Response(200, json={"data": _task()}))
+    _editor_that_fills_in(monkeypatch, name="T", detailed_description="D")
+    a, b = _files(tmp_path, "a.txt", "b.txt")
+
+    result = runner.invoke(
+        app,
+        ["worklists", "create", "--agent", AGENT, "-i", str(a), "-i", str(b), "--folder", FOLDER],
+    )
+
+    assert result.exit_code == 1
+    assert "Uploaded a.txt" in result.output  # what is already in the folder
+    assert "Uploaded b.txt" not in result.output
+    assert not create.called

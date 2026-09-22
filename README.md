@@ -255,7 +255,7 @@ xmagic worklists edit <task_id> --agent <agent_id> --input more.pdf --folder <fo
 ```
 
 The files land in a Drive folder named `worklist-inputs` (created the first
-time) unless `--folder` names another, so they stay visible and deletable in
+time) unless `--folder` gives another folder's id, so they stay visible and deletable in
 Drive. From Python the same step is `client.worklists.upload_inputs(folder_id,
 paths)`, which returns the paths to put in `input_s3_file_paths`.
 
