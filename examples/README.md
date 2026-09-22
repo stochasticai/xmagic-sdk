@@ -17,6 +17,7 @@ uv run python examples/01_basic_chat.py
 | [`06_provider_model.py`](06_provider_model.py) | Bring your own model: resolve a `provider:model` ref, read its capabilities, stream the answer. Works with OpenAI, any LiteLLM vendor, or a local model. | **no** (needs a *vendor* key, or none at all for Ollama) |
 | [`07_tool_calling.py`](07_tool_calling.py) | Tool calling: schemas from typed functions via `ToolDef.from_callable`, the call → run → feed-back loop on `complete()`, and the same on `stream()` where calls land on the terminal chunk. | **no** (same as 06) |
 | [`08_offline_tests.py`](08_offline_tests.py) | Test your own code against `xmagic.testing.FakeXMagic`: script an agent's replies, run the code under test, assert on what it sent. Runs as a script or under pytest. | **no** (no vendor key either) |
+| [`09_worklist_outputs_to_drive.py`](09_worklist_outputs_to_drive.py) | Find an agent's completed worklist tasks, download each output through its presigned URL, and upload the files into a Drive folder. | yes |
 
 Start with `04_mcp_server.py` or `05_skills.py` if you don't have credentials
 yet — they only write files locally. `06_provider_model.py` and
@@ -49,6 +50,13 @@ The first three scripts resolve the agent as `XMAGIC_AGENT_ID` first, then the
 - `03_files_and_drive.py` creates a Drive folder named `xmagic-sdk-example` and
   **deletes it on the way out**. Pass `--keep` to inspect it in the dashboard
   instead.
+- `09_worklist_outputs_to_drive.py` takes an agent id and a destination Drive
+  folder id as positional arguments. It follows every page of completed tasks,
+  asks each task's last run message for presigned download URLs, streams each
+  file to disk, and uploads it through `client.drive.upload_file`. `--task` limits
+  it to one task and `--keep DIR` keeps local copies. It modifies nothing on the
+  worklist. A task whose outputs are on record but whose run left no message
+  has no URL the API will hand out; those are reported and skipped.
 - Examples call the live API, which counts against your plan's rate limit
   (Free 20 rpm / Pro 100 / Business 500). The client retries `429` with backoff
   automatically.

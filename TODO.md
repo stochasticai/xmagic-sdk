@@ -51,9 +51,9 @@ loop from local file to worklist input to output back in Drive.
       on `worklists create|edit`, an `input_files` list in the YAML, and
       `worklists.upload_inputs()` in the SDK; files go through a Drive folder,
       the one route that yields a storage path.
-- [ ] **Worklist outputs to Drive** — the `examples/` walkthrough (completed
-      outputs → presigned download → Drive upload) that 0.3.0 documented and
-      never shipped.
+- [x] **Worklist outputs to Drive** — done 2026-09-14 as
+      `examples/09_worklist_outputs_to_drive.py`, with its functions tested
+      over respx.
 - [x] **Complete listings** — done 2026-09-15. `list_folders` / `list_files`
       walk every page at the platform's maximum of 200. The parameter names
       never arrived from [#5]; they were measured instead (`page`,
@@ -224,13 +224,12 @@ points with no extra (DESIGN.md §4).
       CLI review uses blank=complete and `/skip`=leave in needs_review, with no
       approve/retrigger path
 - [x] Single-page `--skip`/`--limit` pagination and latest chat-result retrieval
-- [ ] **`examples/06_worklist_outputs_to_drive.py` was documented but never
-      written.** `examples/README.md` described it in the table and in two Notes
-      paragraphs as though it shipped — it went out that way in 0.3.0. The false
-      entries were removed 2026-08-23 and slot 06 went to the provider example;
-      the script itself (completed worklist outputs → presigned download → Drive
-      upload) is still worth writing, and the README text describing it is in
-      this file's git history
+- [x] **The outputs-to-Drive example** — written 2026-09-14 as
+      `examples/09_worklist_outputs_to_drive.py` (slot 06 went to the provider
+      example on 2026-08-23). Completed tasks → the run message's
+      `downloadable_output` presigned URLs → download → `drive.upload_file`.
+      A task whose run left no message (seen live) has outputs on record but
+      no URL to fetch them by; the example reports those and moves on
 - [x] Upload local files for `input_s3_file_paths` directly from Worklist YAML/CLI
       — done 2026-09-14 via Drive: upload, attach, take the data source's
       `value`. Probe finding worth keeping: the API accepts *any* string in

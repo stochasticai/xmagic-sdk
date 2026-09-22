@@ -33,6 +33,12 @@ codebase.**
   the platform reveals where an upload landed, and the form a worklist input
   takes (confirmed live; the API accepts the path and echoes it back). Second
   item of the 0.6.0 release plan.
+- **`examples/09_worklist_outputs_to_drive.py`** — the walkthrough 0.3.0's
+  README described and never shipped: page through an agent's completed
+  worklist tasks, take each output's presigned URL from the task's last run
+  message, stream the file to disk, and upload it into a Drive folder. Its
+  functions are exercised under pytest over respx, so the flow it shows is
+  pinned rather than trusted. Third item of the 0.6.0 release plan.
 
 ### Changed
 
