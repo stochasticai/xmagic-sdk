@@ -151,3 +151,42 @@ async def test_async_listing_walks_the_same_pages() -> None:
     assert len(folders) == 250
     assert files == []  # the fake data are folders, and the filter is by shape
     assert _pages_requested(route)[:2] == [("0", "200"), ("1", "200")]
+
+
+@respx.mock
+def test_total_count_wins_over_a_server_that_serves_fewer_than_it_echoes(
+    client: XMagicClient,
+) -> None:
+    # A silent cap below the echoed page_size must not end the walk early:
+    # the server's own total says more exist. Never observed live; the
+    # account that measured the parameters had 44 folders, so a full page of
+    # 200 was never seen.
+    items = [_folder(i) for i in range(250)]
+
+    def capped(request: Request) -> Response:
+        page = int(request.url.params.get("page", 0))
+        size = int(request.url.params.get("page_size", 20))
+        start = page * 100
+        return Response(
+            200,
+            json={
+                "data": {
+                    "results": items[start : start + 100],
+                    "pagination": {"page": page, "page_size": size, "total_count": 250},
+                }
+            },
+        )
+
+    route = respx.get(KB_URL).mock(side_effect=capped)
+
+    assert len(client.drive.list_folders()) == 250
+    assert route.call_count == 3
+
+
+def test_take_page_with_no_stop_evidence_is_one_page() -> None:
+    # A pagination block with neither total_count nor page_size gives the walk
+    # nothing to end on, so it must not ask for a second page.
+    items: list[Any] = []
+    body = {"data": {"results": [_folder(1)], "pagination": {"page": 0}}}
+    assert _take_page(items, body, 0) is None
+    assert len(items) == 1

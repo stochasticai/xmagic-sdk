@@ -103,9 +103,13 @@ def _take_page(items: list[Any], body: dict[str, Any], page: int) -> int | None:
     """Append one page's results to ``items``; return the next page, or None.
 
     The stop rules read the response, not our request, so a server that ignores
-    the parameters still terminates: no results, a short page (fewer than the
-    ``page_size`` the server echoes), or ``total_count`` reached all end the
-    walk. A body with no ``pagination`` block is treated as the only page.
+    the parameters still terminates. An empty page ends the walk. Otherwise
+    ``total_count`` decides when the server reports one: it is the server's own
+    count, so it holds even if the server serves fewer items per page than the
+    ``page_size`` it echoes. Only without a total does a short page (fewer
+    results than the echoed ``page_size``) end the walk. A body with no
+    ``pagination`` block, or one that carries neither number, is treated as the
+    only page rather than trusted to end on its own.
     """
     data = body["data"]
     results = data["results"]
@@ -114,12 +118,12 @@ def _take_page(items: list[Any], body: dict[str, Any], page: int) -> int | None:
     if not results or not isinstance(pagination, dict):
         return None
     total = pagination.get("total_count")
+    if isinstance(total, int):
+        return None if len(items) >= total else page + 1
     size = pagination.get("page_size")
-    if isinstance(size, int) and len(results) < size:
-        return None
-    if isinstance(total, int) and len(items) >= total:
-        return None
-    return page + 1
+    if isinstance(size, int):
+        return None if len(results) < size else page + 1
+    return None
 
 
 def _create_folder_payload(name: str, extra: dict[str, Any]) -> dict[str, Any]:

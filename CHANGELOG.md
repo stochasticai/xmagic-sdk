@@ -18,9 +18,11 @@ codebase.**
   indication more existed. The request parameters were undocumented and are
   now measured (issue #5, Q15): `page`, zero-indexed, and `page_size`, at most
   200, both echoed in the response. The client asks for 200 a page. The walk
-  stops on the response's own evidence (a short page, `total_count` reached, or
-  no `pagination` block), so a server that ignored the parameters would still
-  terminate. `xmagic.testing.FakeXMagic` pages the same way, echoing `page` and
+  stops on the response's own evidence: `total_count` reached when the server
+  reports one, a short page only when it does not, an empty page, or no
+  `pagination` block at all. So a server that ignored the parameters, or one
+  that served fewer items per page than the `page_size` it echoed, would still
+  return the whole listing and terminate. `xmagic.testing.FakeXMagic` pages the same way, echoing `page` and
   `page_size` and rejecting a size outside 1..200 with a 422 like the platform.
 
 ## [0.5.0] — 2026-09-14

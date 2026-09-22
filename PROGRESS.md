@@ -21,6 +21,11 @@ a live account with 44 folders.
 - **Client:** `list_folders` and `list_files` walk every page at 200, on
   both clients, through one `_take_page` rule that reads the response's own
   evidence to stop, so a server that ignored the parameters still terminates.
+  Review tightened the rule before merge: `total_count` decides whenever the
+  server reports one, and a short page ends the walk only when it does not,
+  so a server that silently served fewer than the `page_size` it echoed would
+  still be walked to the end; a `pagination` block with neither number is one
+  page, not a loop.
   Eager, not an iterator: a Drive listing is something callers iterate over,
   unlike worklists, where `skip`/`limit` stay explicit by design.
 - **Fake:** `FakeXMagic` honours and echoes `page` and `page_size` and
