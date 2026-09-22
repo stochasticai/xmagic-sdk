@@ -11,6 +11,7 @@ _CREATE_KEYS = {
     "name",
     "detailed_description",
     "input_s3_file_paths",
+    "input_files",
     "is_scheduled",
     "scheduled_at",
     "status",
@@ -20,6 +21,7 @@ _UPDATE_KEYS = {
     "name",
     "detailed_description",
     "input_s3_file_paths",
+    "input_files",
     "status",
     "is_scheduled",
     "scheduled_at",
@@ -49,6 +51,9 @@ CREATE_TEMPLATE = """# Worklist task to create.
 name: ""
 detailed_description: ""
 input_s3_file_paths: []
+# Local files to upload as inputs when you save. Each is attached to a Drive
+# folder and its storage path appended to input_s3_file_paths.
+input_files: []
 is_scheduled: false
 scheduled_at: null
 status: pending
@@ -59,6 +64,8 @@ recurrence: null
 _EDIT_HEADER = """# Edit the fields below and save the file.
 # Read-only fields such as id, status timestamps, run ids, and results are not shown.
 # Set is_archived only after the task reaches completed, failed, or cancelled.
+# input_files: local files to upload on save; their storage paths are appended
+# to input_s3_file_paths.
 """
 _SCHEDULE_EDIT_HEADER = """# Edit the fields below and save the file.
 # Read-only fields such as id, status, timestamps, and run counts are not shown.
@@ -89,6 +96,24 @@ def _iso_datetime(value: Any, field_name: str) -> str | None:
     if isinstance(value, str):
         return value
     raise ValueError(f"{field_name} must be an ISO-8601 datetime or null")
+
+
+def _input_files(payload: dict[str, Any]) -> list[str]:
+    """The local paths under ``input_files``, validated; an absent key is an empty list."""
+    files = payload.get("input_files") or []
+    if not isinstance(files, list) or any(not isinstance(path, str) for path in files):
+        raise ValueError("input_files must be a list of local file paths")
+    return files
+
+
+def prefill_input_files(yaml_text: str, paths: list[str]) -> str:
+    """Render ``paths`` into the ``input_files: []`` line of a template or edit file."""
+    if not paths:
+        return yaml_text
+    block = yaml.safe_dump({"input_files": paths}, default_flow_style=False).rstrip("\n")
+    if "input_files: []" not in yaml_text:
+        raise ValueError("the YAML has no input_files line to prefill")
+    return yaml_text.replace("input_files: []", block, 1)
 
 
 def _validate_recurrence(value: Any) -> dict[str, Any] | None:
@@ -170,11 +195,18 @@ def yaml_to_create_payload(yaml_text: str) -> dict[str, Any]:
     is_scheduled = payload.get("is_scheduled", False)
     if not isinstance(is_scheduled, bool):
         raise ValueError("is_scheduled must be true or false")
+    files = _input_files(payload)
 
     normalized = dict(payload)
     normalized["name"] = name
     normalized["detailed_description"] = description
     normalized["input_s3_file_paths"] = paths
+    # Kept only when there is something to upload; the CLI resolves it into
+    # input_s3_file_paths before the request, and the API never sees the key.
+    if files:
+        normalized["input_files"] = files
+    else:
+        normalized.pop("input_files", None)
     normalized["is_scheduled"] = is_scheduled
     normalized["scheduled_at"] = _iso_datetime(payload.get("scheduled_at"), "scheduled_at")
     normalized["status"] = status
@@ -184,7 +216,8 @@ def yaml_to_create_payload(yaml_text: str) -> dict[str, Any]:
 
 def task_to_edit_yaml(task: dict[str, Any]) -> str:
     """Render editable task fields as YAML while omitting read-only fields."""
-    editable = {key: task.get(key) for key in _UPDATE_KEYS}
+    editable = {key: task.get(key) for key in _UPDATE_KEYS if key != "input_files"}
+    editable["input_files"] = []
     return _EDIT_HEADER + yaml.safe_dump(
         editable,
         sort_keys=False,
@@ -201,6 +234,8 @@ def yaml_to_update_payload(yaml_text: str, original: dict[str, Any]) -> dict[str
         raise ValueError("Worklist edit must contain at least one editable field")
 
     normalized = dict(edited)
+    files = _input_files(normalized)
+    normalized.pop("input_files", None)
     if "input_s3_file_paths" in normalized:
         paths = normalized["input_s3_file_paths"]
         if not isinstance(paths, list) or any(not isinstance(path, str) for path in paths):
@@ -226,6 +261,8 @@ def yaml_to_update_payload(yaml_text: str, original: dict[str, Any]) -> dict[str
             old_value = _iso_datetime(old_value, "scheduled_at")
         if value != old_value:
             changed[key] = value
+    if files:
+        changed["input_files"] = files
     if not changed:
         return {}
     return changed

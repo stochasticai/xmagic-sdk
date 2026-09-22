@@ -240,13 +240,20 @@ class DriveFolder(BaseModel):
 
 
 class DriveFile(BaseModel):
-    """A file within a Drive folder."""
+    """A file within a Drive folder.
+
+    ``value`` is the storage path of the underlying object (``s3://...``). It
+    is the one place the platform reveals where an upload landed, and it is
+    the form ``WorklistTask.input_s3_file_paths`` takes -- confirmed live on
+    2026-09-14 by creating a task with it and reading it back unchanged.
+    """
 
     model_config = ConfigDict(extra="allow")
 
     id: str
     title: str | None = None
     knowledge_base_id: str | None = None
+    value: str | None = None
 
 
 class Workspace(BaseModel):

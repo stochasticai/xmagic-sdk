@@ -242,12 +242,47 @@ without another agent action, or type `/skip` to leave it in `needs_review` for
 later. Pass a task ID to review one task.
 
 Recurring schedules can also be inspected and controlled with
-`xmagic worklists schedules get|edit|pause|resume|delete`. Worklist
-`input_s3_file_paths` values must currently be existing S3 paths. Direct upload
-of local files from the Worklist CLI is deferred future work; use the existing
-file/Drive upload APIs first.
+`xmagic worklists schedules get|edit|pause|resume|delete`.
 
-### 8. Use it from Python
+A task's inputs are storage paths (`input_s3_file_paths`). To use local files,
+pass them with `--input` on `create` or `edit`, or list them under
+`input_files` in the YAML; on save each is uploaded into a Drive folder and its
+path appended to the task's inputs:
+
+```bash
+xmagic worklists create --agent <agent_id> --input notes.md --input data.csv
+xmagic worklists edit <task_id> --agent <agent_id> --input more.pdf --folder <folder_id>
+```
+
+The files land in a Drive folder named `worklist-inputs` (created the first
+time) unless `--folder` gives another folder's id, so they stay visible and deletable in
+Drive. From Python the same step is `client.worklists.upload_inputs(folder_id,
+paths)`, which returns the paths to put in `input_s3_file_paths`.
+
+### 8. Manage Drive
+
+Drive is the knowledge base your agents retrieve from. Every route the client
+implements is on the command line:
+
+```bash
+xmagic drive ls                              # folders
+xmagic drive ls <folder_id>                  # files in one folder
+xmagic drive ls -R                           # every top-level folder and its files
+xmagic drive mkdir "Q3 reports"
+xmagic drive info <folder_id>                # one folder, with counts
+xmagic drive rename <folder_id> "Q3 reports (final)"
+xmagic drive upload <folder_id> notes.md     # indexed automatically
+xmagic drive download <folder_id> <file_id> [<file_id>...] --extract ./out
+xmagic drive rm <folder_id> <file_id>        # delete files
+xmagic drive rm <folder_id> --yes            # delete the folder and everything in it
+```
+
+xMagic exports files as one ZIP archive, even for a single file. `download`
+writes it as `<folder_id>.zip` by default, `--output` names it, and
+`--extract DIR` unpacks it instead. `rm` with no file ids deletes the folder,
+so it asks first unless `--yes`. Every command takes `--json`.
+
+### 9. Use it from Python
 
 ```python
 from xmagic import XMagicClient
@@ -349,7 +384,7 @@ async with AsyncXMagicClient() as client:
       print(review.action, review.task.id)
 ```
 
-### 9. Build a custom tool (MCP server)
+### 10. Build a custom tool (MCP server)
 
 ```bash
 xmagic mcp init my-tool          # scaffold: Dockerfile, compose, MCP server
@@ -383,7 +418,7 @@ Then register the resulting public `https://.../mcp` URL in the dashboard under
 prints the full checklist. Set `TOOL_API_KEY` in your `.env` to require a
 shared secret — the generated server rejects unauthenticated calls with `401`.
 
-### 10. Package a skill
+### 11. Package a skill
 
 ```bash
 xmagic skills new my-skill       # scaffold SKILL.md
@@ -393,7 +428,7 @@ xmagic skills pack my-skill      # -> my-skill.zip, ready to upload
 
 Upload the zip in the dashboard under **Skills**.
 
-### 11. Use a non-xMagic model
+### 12. Use a non-xMagic model
 
 `chat` takes a `provider:model` ref backed by your own key. OpenAI is
 implemented:

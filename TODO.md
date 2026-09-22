@@ -44,18 +44,20 @@ without opening the web app. The client already speaks every Drive route the
 platform documents; this release puts them on the command line and closes the
 loop from local file to worklist input to output back in Drive.
 
-- [ ] **Drive on the command line** — `xmagic drive download`, `rm`, `rename`,
-      and recursive listing, for the routes implemented on 2026-08-06.
-- [ ] **Worklist inputs from local files** — upload for `input_s3_file_paths`
-      straight from worklist YAML or the CLI, instead of requiring a
-      pre-existing S3 path.
-- [ ] **Worklist outputs to Drive** — the `examples/` walkthrough (completed
-      outputs → presigned download → Drive upload) that 0.3.0 documented and
-      never shipped.
-- [ ] **Complete listings** — `list_folders` / `list_files` paginate instead
-      of truncating at 20. Needs the request parameter names from
-      [#5]; if they have not arrived, the release ships with the cap
-      documented and this item moves to the next version.
+- [x] **Drive on the command line** — done 2026-09-14. `xmagic drive ls [-R]`,
+      `mkdir`, `info`, `rename`, `download` (`--extract`), `rm`, all with
+      `--json`, over the routes implemented on 2026-08-06.
+- [x] **Worklist inputs from local files** — done 2026-09-14. `--input FILE`
+      on `worklists create|edit`, an `input_files` list in the YAML, and
+      `worklists.upload_inputs()` in the SDK; files go through a Drive folder,
+      the one route that yields a storage path.
+- [x] **Worklist outputs to Drive** — done 2026-09-14 as
+      `examples/09_worklist_outputs_to_drive.py`, with its functions tested
+      over respx.
+- [x] **Complete listings** — done 2026-09-15. `list_folders` / `list_files`
+      walk every page at the platform's maximum of 200. The parameter names
+      never arrived from [#5]; they were measured instead (`page`,
+      `page_size`, both echoed back), which is recorded in `client/drive.py`.
 
 Pagination changes what a listing returns, which is the Changed entry that
 makes this a minor bump.
@@ -76,8 +78,11 @@ unblocked to be one release.
   the `httpx`/`httpx2` boundary decision ([#34]).
 - **Not scheduled:** Phase 5 (`xmagic serve`), the redactor and coding-agent
   bridge templates (§11, §12), and the larger surface items (observability,
-  middleware, human-in-the-loop, multimodal, caching). Each wants its own
-  design pass before it gets a version.
+  middleware, human-in-the-loop, multimodal, caching). The redactor's design
+  pass is done (#4, 2026-09-15); its SDK work, the `--template` flag and the
+  minimal template, starts at R2 of a roadmap that runs in the engine repo
+  first, and R2 also waits on [#5] Q1. The rest each want a design pass
+  before they get a version.
 
 [#5]: https://github.com/stochasticai/xmagic-sdk/issues/5
 [#34]: https://github.com/stochasticai/xmagic-sdk/issues/34
@@ -199,13 +204,15 @@ points with no extra (DESIGN.md §4).
       2026-08-06; the existing paths are correct, and four documented routes we
       lacked are now implemented (folder details, folder update, file deletion,
       ZIP export)
-- [ ] **`list_folders` / `list_files` silently truncate at 20 items.** The live
-      response carries `data.pagination` (`page`, `page_size`, `total_count`)
-      and we return only `data.results`. The request-side parameter names are
-      undocumented, so this needs an answer before it can be fixed correctly —
-      raised on [#5](https://github.com/stochasticai/xmagic-sdk/issues/5)
-- [ ] CLI surface for the new Drive routes (`xmagic drive download`, `rm`,
-      `rename`) and recursive listing
+- [x] **`list_folders` / `list_files` silently truncate at 20 items** — fixed
+      2026-09-15. The parameters were measured rather than answered
+      ([#5](https://github.com/stochasticai/xmagic-sdk/issues/5) Q15): `page`
+      and `page_size` (max 200), both echoed in `data.pagination`. Both
+      listings now walk every page; the fake pages the same way
+- [x] CLI surface for the new Drive routes — done 2026-09-14: `xmagic drive`
+      `mkdir|info|rename|download|rm`, and `ls -R` for every top-level folder's files.
+      Recursion is client-side, one listing per folder; the platform's own
+      `recursive` query flag stays unused until its semantics are documented
 - [x] Richer SKILL.md validation — done 2026-09-11. Frontmatter goes through
       `yaml.safe_load`, so folded descriptions and quoted colons read as
       written; a non-mapping block or a non-string `name`/`description` is
@@ -221,16 +228,18 @@ points with no extra (DESIGN.md §4).
       CLI review uses blank=complete and `/skip`=leave in needs_review, with no
       approve/retrigger path
 - [x] Single-page `--skip`/`--limit` pagination and latest chat-result retrieval
-- [ ] **`examples/06_worklist_outputs_to_drive.py` was documented but never
-      written.** `examples/README.md` described it in the table and in two Notes
-      paragraphs as though it shipped — it went out that way in 0.3.0. The false
-      entries were removed 2026-08-23 and slot 06 went to the provider example;
-      the script itself (completed worklist outputs → presigned download → Drive
-      upload) is still worth writing, and the README text describing it is in
-      this file's git history
-- [ ] Upload local files for `input_s3_file_paths` directly from Worklist YAML/CLI;
-      currently callers must provide pre-existing S3 paths or upload through the
-      existing file/Drive APIs first
+- [x] **The outputs-to-Drive example** — written 2026-09-14 as
+      `examples/09_worklist_outputs_to_drive.py` (slot 06 went to the provider
+      example on 2026-08-23). Completed tasks → the run message's
+      `downloadable_output` presigned URLs → download → `drive.upload_file`.
+      A task whose run left no message (seen live) has outputs on record but
+      no URL to fetch them by; the example reports those and moves on
+- [x] Upload local files for `input_s3_file_paths` directly from Worklist YAML/CLI
+      — done 2026-09-14 via Drive: upload, attach, take the data source's
+      `value`. Probe finding worth keeping: the API accepts *any* string in
+      `input_s3_file_paths` (a bare upload id was echoed back too), so a wrong
+      path fails at run time, not at creation; what the run does with the
+      path is unverified until a real task is executed with one
 
 ## Phase 5 — Local web app (`xmagic serve`)
 
@@ -373,7 +382,8 @@ Larger, and worth their own design pass:
 - [ ] Human-in-the-loop: interrupt a run, approve, resume
 - [ ] Multimodal input (images, audio). `Message.output_assets` already hints at
       artifacts coming back the other way
-- [ ] Pagination — nothing paginates; Drive listings return whole result sets
+- [ ] Pagination — Drive listings return whole result sets (done 2026-09-15);
+      worklists are explicit `skip`/`limit` by design; nothing else paginates
 - [ ] Prompt caching, batch APIs, idempotency keys
 
 Blocked on the platform, tracked in
