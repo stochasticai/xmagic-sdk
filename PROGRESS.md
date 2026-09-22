@@ -5,6 +5,27 @@ the plan and [TODO.md](TODO.md) for what's next.
 
 ---
 
+## 2026-09-15 — Redactor design: review answered, decisions recorded
+
+Vamshi reviewed DESIGN.md §12 in #4 on 2026-09-04 and approved the direction
+with ten points. The design now records the answers instead of leaving them
+in the thread:
+
+- **Decided:** one-way redaction for v1, so no pseudonym vault in R1; HIPAA
+  Safe Harbor as the definition of done, GDPR as a later policy; L3 measured
+  at R0 and in the default path only if it earns it; L3 names entities and
+  code computes offsets; the engine lives outside this repo.
+- **Sequencing fixed:** a minimal `--template redactor` at R2 instead of R6,
+  so §11.8's claim that the redactor proves the template machinery first is
+  what the roadmap does.
+- **Transport sharpened:** the `uploaded_files` chat path is ruled out before
+  redaction; a short-lived, file-scoped credential is preferred over a tenant
+  key; the output flow, Drive upload by default, is now part of the R2
+  contract. Q1 in #5 is still the one blocker, and only for R2.
+- **Q2 closed** from the 2026-09-12 hosting check: the design is
+  deployment-agnostic and does not depend on xMagic-hosted containers.
+- The R1 recall figures are marked as milestones, not the production bar.
+
 ## 2026-09-15 — Drive listings walk every page
 
 The last 0.6.0 item, and the one the release plan expected to slip: the
