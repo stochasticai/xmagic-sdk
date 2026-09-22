@@ -144,3 +144,48 @@ def test_single_task_mode_skips_the_listing(example: ModuleType, tmp_path: Path)
 def test_filename_comes_from_the_url_or_the_key(example: ModuleType) -> None:
     assert example.filename_for(SIGNED, "report") == "report final.pdf"
     assert example.filename_for("https://h/?sig=1", "report") == "report"
+    # An encoded slash in the object name must not become a directory.
+    assert example.filename_for("https://h/x/a%2Fb.txt?sig=1", "k") == "b.txt"
+
+
+@respx.mock
+def test_two_outputs_with_one_name_both_survive_on_disk(
+    example: ModuleType, tmp_path: Path
+) -> None:
+    respx.get(f"{WORKLIST_URL}/t1").mock(
+        return_value=Response(
+            200, json={"data": _task("t1", run_chat_id="chat-1", run_message_ids=["m1"])}
+        )
+    )
+    respx.get(f"{DEFAULT_BASE_URL}/agents/{AGENT}/chats/chat-1/message/m1").mock(
+        return_value=Response(
+            200,
+            json={
+                "data": {
+                    "id": "m1",
+                    "downloadable_output": {
+                        "first": "https://bucket.s3.example/a/report.pdf?sig=1",
+                        "second": "https://bucket.s3.example/b/report.pdf?sig=2",
+                    },
+                }
+            },
+        )
+    )
+    respx.get(url__regex=r"https://bucket\.s3\.example/.*").mock(
+        side_effect=lambda request: Response(200, content=request.url.path.encode())
+    )
+    respx.post(f"{DEFAULT_BASE_URL}/uploaded-files").mock(
+        return_value=Response(200, json={"data": "file-9"})
+    )
+    respx.post(f"{DEFAULT_BASE_URL}/knowledge-bases/{FOLDER}/data-sources/documents").mock(
+        return_value=Response(200, json={"data": {"id": "doc-9", "knowledge_base_id": FOLDER}})
+    )
+
+    with XMagicClient(api_key="k", base_url=DEFAULT_BASE_URL) as client:
+        filed = example.file_outputs(
+            client, AGENT, FOLDER, tmp_path, task_id="t1", log=lambda s: None
+        )
+
+    assert [f.local.name for f in filed] == ["t1-report.pdf", "t1-second-report.pdf"]
+    assert filed[0].local.read_bytes() == b"/a/report.pdf"
+    assert filed[1].local.read_bytes() == b"/b/report.pdf"

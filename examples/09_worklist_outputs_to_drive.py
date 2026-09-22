@@ -76,8 +76,12 @@ def output_urls(client: XMagicClient, agent_id: str, task: WorklistTask) -> dict
 
 
 def filename_for(url: str, fallback: str) -> str:
-    """The object's own name from the URL path, or the platform's key if it has none."""
-    name = unquote(Path(urlsplit(url).path).name)
+    """The object's own name from the URL path, or the platform's key if it has none.
+
+    The basename is taken again after decoding, so an encoded slash in the
+    object name (``a%2Fb.txt``) cannot turn the local path into a subdirectory.
+    """
+    name = Path(unquote(Path(urlsplit(url).path).name)).name
     return name or fallback
 
 
@@ -102,6 +106,7 @@ def file_outputs(
 ) -> list[Filed]:
     """Download every output of the agent's completed tasks and upload each into Drive."""
     filed: list[Filed] = []
+    used: set[Path] = set()
     tasks: Iterator[WorklistTask]
     if task_id:
         tasks = iter([client.worklists.get(agent_id, task_id)])
@@ -117,7 +122,13 @@ def file_outputs(
                 )
             continue
         for key, url in urls.items():
-            local = dest_dir / f"{task.id}-{filename_for(url, key)}"
+            name = filename_for(url, key)
+            local = dest_dir / f"{task.id}-{name}"
+            if local in used:
+                # Two outputs of one task with the same object name: keep both
+                # on disk, so --keep really keeps every copy.
+                local = dest_dir / f"{task.id}-{key}-{name}"
+            used.add(local)
             download(url, local)
             uploaded = client.drive.upload_file(folder_id, local)
             filed.append(Filed(task.id, key, local, uploaded))
