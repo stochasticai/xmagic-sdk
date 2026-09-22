@@ -242,10 +242,22 @@ without another agent action, or type `/skip` to leave it in `needs_review` for
 later. Pass a task ID to review one task.
 
 Recurring schedules can also be inspected and controlled with
-`xmagic worklists schedules get|edit|pause|resume|delete`. Worklist
-`input_s3_file_paths` values must currently be existing S3 paths. Direct upload
-of local files from the Worklist CLI is deferred future work; use the existing
-file/Drive upload APIs first.
+`xmagic worklists schedules get|edit|pause|resume|delete`.
+
+A task's inputs are storage paths (`input_s3_file_paths`). To use local files,
+pass them with `--input` on `create` or `edit`, or list them under
+`input_files` in the YAML; on save each is uploaded into a Drive folder and its
+path appended to the task's inputs:
+
+```bash
+xmagic worklists create --agent <agent_id> --input notes.md --input data.csv
+xmagic worklists edit <task_id> --agent <agent_id> --input more.pdf --folder <folder_id>
+```
+
+The files land in a Drive folder named `worklist-inputs` (created the first
+time) unless `--folder` gives another folder's id, so they stay visible and deletable in
+Drive. From Python the same step is `client.worklists.upload_inputs(folder_id,
+paths)`, which returns the paths to put in `input_s3_file_paths`.
 
 ### 8. Manage Drive
 

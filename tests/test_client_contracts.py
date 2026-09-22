@@ -331,6 +331,50 @@ def test_live_chat_contracts() -> None:
     os.environ.get("XMAGIC_LIVE_TESTS") != "1",
     reason="Set XMAGIC_LIVE_TESTS=1 to run live contract tests",
 )
+def test_live_worklist_input_from_local_file(tmp_path: Path) -> None:
+    """A Drive-attached file's storage path is accepted as a worklist input.
+
+    First run 2026-09-14: accepted and echoed back unchanged. The task is
+    created in ``needs_review`` so it never executes, and deleted after.
+    """
+    repo_root = Path(__file__).resolve().parents[1]
+    api_key, agent_id = _resolve_live_credentials(repo_root)
+    if not api_key:
+        pytest.skip("XMAGIC_API_KEY not found in environment, .env, or config.toml")
+    if not agent_id:
+        pytest.skip("XMAGIC_TEST_AGENT_ID is required for live tests")
+
+    local = tmp_path / "worklist-input.txt"
+    local.write_text("live worklist input contract test")
+    with XMagicClient(api_key=api_key) as c:
+        folder = c.drive.create_folder("xmagic-sdk-live-worklist-input")
+        task_id: str | None = None
+        try:
+            paths = c.worklists.upload_inputs(folder.id, [local])
+            assert len(paths) == 1 and paths[0].startswith("s3://")
+            task = c.worklists.create(
+                agent_id,
+                {
+                    "name": "xmagic-sdk live input contract",
+                    "detailed_description": "Contract test; do nothing.",
+                    "input_s3_file_paths": paths,
+                    "is_scheduled": False,
+                    "status": "needs_review",
+                },
+            )
+            task_id = task.id
+            assert c.worklists.get(agent_id, task.id).input_s3_file_paths == paths
+        finally:
+            if task_id:
+                c.worklists.delete(agent_id, task_id)
+            c.drive.delete_folder(folder.id)
+
+
+@pytest.mark.live
+@pytest.mark.skipif(
+    os.environ.get("XMAGIC_LIVE_TESTS") != "1",
+    reason="Set XMAGIC_LIVE_TESTS=1 to run live contract tests",
+)
 def test_live_file_upload_contract() -> None:
     repo_root = Path(__file__).resolve().parents[1]
     api_key, _ = _resolve_live_credentials(repo_root)

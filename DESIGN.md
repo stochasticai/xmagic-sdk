@@ -197,7 +197,7 @@ xmagic agents deploy [--agent ID] [--version NAME] [--phone ID | --no-phone]
 xmagic agents list                    # as API coverage allows
 xmagic worklists                       # list one page of background tasks
 xmagic worklists get TASK_ID            # task metadata plus latest result
-xmagic worklists create|edit TASK_ID   # edit task YAML (create has a template)
+xmagic worklists create|edit TASK_ID   # edit task YAML; --input FILE uploads inputs
 xmagic worklists cancel|delete TASK_ID # stop or delete a task
 xmagic worklists review [TASK_ID]      # review tasks marked needs_review
 xmagic worklists schedules ...         # inspect/edit/pause/resume/delete schedules

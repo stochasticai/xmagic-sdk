@@ -33,6 +33,41 @@ a live account with 44 folders.
 - Recorded on #5 the same day, so the platform team can say if any of it is
   unintended rather than the contract.
 
+## 2026-09-14 — Worklist inputs from local files
+
+Second 0.6.0 item. Since 2026-08-12 a task's `input_s3_file_paths` had to be
+S3 paths the caller already had, and nothing in the SDK could produce one.
+
+- **The route is Drive.** `POST /uploaded-files` returns only an id, with no
+  read route (#53), and the worklist API is not in the public docs at all. The
+  one response that reveals where an upload landed is the Drive attach
+  response, whose `value` is the object's `s3://` path. So
+  `worklists.upload_inputs(folder_id, paths)` uploads and attaches each file
+  through `drive.upload_file` and returns the values; `DriveFile.value` is a
+  typed field now. The files stay in the folder, visible and deletable, which
+  is also the answer to the orphaned-upload problem #53 describes.
+- **Live probe on 2026-09-14** (General agent, everything deleted after): a
+  `needs_review` task created with the attach `value` was accepted and read
+  back unchanged. So was one created with the bare upload id, which means the
+  API validates nothing in that field; a wrong path fails at run time. Whether
+  an executing run reads the Drive-attached object is the one thing still
+  unverified, since it needs a real run. `test_live_worklist_input_from_local_file`
+  carries the creation check for whoever runs live tests next.
+- **CLI**: `--input FILE` (repeatable) and `--folder` on `worklists create`
+  and `edit`, and an `input_files` list in the YAML; `--input` pre-fills it so
+  the editor shows what will be uploaded. Files land in a `worklist-inputs`
+  Drive folder, created on first use, unless `--folder` gives a folder id. A
+  missing file fails before any upload; the API never sees `input_files`.
+- **Three review fixes before merge**: `create` resolves the agent before the
+  editor opens, so a missing `--agent` no longer uploads files it then has no
+  task to attach to; files upload one at a time and each is reported as it
+  lands, so a failure part-way says what is already in the folder; and the
+  `worklist-inputs` folder is found across the whole listing, not the first
+  page only, now that #69 walks every page. The `delete` and `schedules delete` prompts go
+  to stderr, so an interactive answer leaves `--json` stdout as one document.
+- 13 tests over respx (worklists have no recorded fixtures, so the fake stays
+  out of it), plus the guarded live test.
+
 ## 2026-09-14 — Drive on the command line
 
 First 0.6.0 item ("files in, results out"). The client had spoken every

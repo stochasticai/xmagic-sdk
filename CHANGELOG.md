@@ -23,6 +23,16 @@ codebase.**
   to stderr so stdout stays one JSON document. A `download` that cannot write
   its output reports the path on stderr and exits 1 rather than raising. First
   item of the 0.6.0 release plan, "files in, results out".
+- **Worklist inputs from local files.** `xmagic worklists create` and `edit`
+  take `--input FILE` (repeatable), and the YAML gains an `input_files` list;
+  on save each file is uploaded into a Drive folder (`worklist-inputs`,
+  created once, or the one whose id `--folder` gives) and its storage path appended to
+  `input_s3_file_paths`. From Python, `client.worklists.upload_inputs(folder_id,
+  paths)` does the same and returns the paths. `DriveFile.value`, the storage
+  path an attach response carries, is now a typed field: it is the one place
+  the platform reveals where an upload landed, and the form a worklist input
+  takes (confirmed live; the API accepts the path and echoes it back). Second
+  item of the 0.6.0 release plan.
 
 ### Changed
 
