@@ -382,7 +382,7 @@ Chosen approach: **local proxy of the hosted xMagic web app**.
 | **6 — Polish** | docs, examples, CI, PyPI release |
 | **7 — Document redactor** *(proposed)* | `mcp init --template redactor`; see §12 |
 | **8 — Coding-agent bridge** *(proposed)* | `mcp init --template coding-agent`; see §11 |
-| **9 — Tool calling** *(A + B + C done)* | Typed `tools=` on the provider interface. Stages A and C shipped 2026-08-24, streaming (B) followed; only the execution loop (D) remains, and it is blocked on a scope question rather than on code — see §13.8 Q1 |
+| **9 — Tool calling** *(A + B + C done)* | Typed `tools=` on the provider interface. Stages A and C shipped 2026-08-24, streaming (B) followed; the execution loop (D) was decided in scope on 2026-09-15 and is the next piece of work — see §13.8 Q1 |
 | **10 — Structured output** *(done)* | `response_format=` takes a pydantic model, `Completion.parsed` carries the validated instance; see §14 |
 
 ## 10. Open questions
@@ -926,9 +926,10 @@ direction was accepted; the decisions below were recorded on 2026-09-15.
 
 ## 13. Tool calling as a typed surface
 
-> **Status: stages A and C implemented 2026-08-24.** D1-D5 were accepted as
-> written; B (streaming) and D (execution loop) are not built, and open question
-> 1 -- whether the execution loop is ours to ship at all -- is still open.
+> **Status: stages A, B and C implemented** (A and C 2026-08-24, B after).
+> D1-D5 were accepted as written. D, the execution loop, was decided in scope on
+> 2026-09-15 (open question 1 below, with the boundary that keeps it a
+> primitive) and is not yet built.
 > Review thread: [#16](https://github.com/stochasticai/xmagic-sdk/issues/16).
 
 The provider layer could not express the one capability that makes an agent an
@@ -1028,7 +1029,7 @@ for call in completion.tool_calls:
 | **A — types + blocking** | `ToolDef`/`ToolCall`, `ChatMessage` and `Completion` changes, OpenAI mapping both ways | ✅ 2026-08-24, in `providers/_openai_wire.py` and both adapters |
 | **B — streaming** | Accumulate `arguments` fragments by `index`, emit a complete `ToolCall` | ✅ `ToolCallAccumulator` in `_openai_wire.py`; calls ride the terminal chunk |
 | **C — schemas from callables** | Typed Python function → JSON Schema, via pydantic | ✅ 2026-08-24, `ToolDef.from_callable` |
-| **D — execution loop** | call → execute → feed back → repeat | ⬜ open question 1 below is unanswered |
+| **D — execution loop** | call → execute → feed back → repeat | ⬜ decided in scope 2026-09-15 (13.8 Q1); not built |
 
 **A and C are the milestone that matters.** B followed, since a streaming caller
 passing `tools=` had no path at all; D still waits on the scope question below.
@@ -1063,6 +1064,25 @@ new dependency: pydantic is a core dependency and does the schema generation.
    (we expose primitives, not a graph runtime)" as a **non-goal**. A call-execute-feed-back
    loop is a primitive rather than a runtime, and every peer SDK now ships one — but it
    is close enough to the line to be worth an explicit decision rather than a drift.
+
+   **Decided 2026-09-15: yes, as a primitive, with the boundary written down.** The
+   test is whether a caller could have written it in thirty lines; the SDK ships it so
+   nobody writes it thirty times. Concretely:
+
+   - One method, sync and async, taking messages, tools, and a turn cap. It calls the
+     model, dispatches each returned call by name to the callable its `ToolDef` was
+     built from, appends the result as a `role="tool"` message, and calls again until
+     the model answers in text or the cap is hit.
+   - A tool that raises sends its error text back to the model as the tool result, so
+     the model can recover; the caller can opt into raising instead.
+   - It returns the final `Completion` and the full message history.
+   - It applies to the adapters that report per-call tools (D4): `openai:` and
+     `litellm:`. `XMagicProvider` rejects `tools=` and is unaffected.
+
+   Out of scope, and what keeps the non-goal true: handoffs between agents, planners,
+   memory, persistence, guardrails, retry policy, parallel tool execution as a
+   configurable, and anything else configured beyond tools and a cap. If a feature
+   needs a config object, it is a framework and belongs elsewhere.
 2. **Does changing `ChatMessage` count as breaking at 0.x?** It is public API
    (`xmagic.providers.ChatMessage`). D2 and D3 are additive and existing construction
    keeps working, but the type genuinely changes.

@@ -5,6 +5,24 @@ the plan and [TODO.md](TODO.md) for what's next.
 
 ---
 
+## 2026-09-15 — Execution loop decided in scope
+
+The one question left in #16 was whether stage D of tool calling, the
+call/execute/feed-back loop, crosses DESIGN.md §1's non-goal of not being
+an orchestration framework. It had been asked twice and answered by
+nobody, so the work never started.
+
+- **Decided: in scope, as a primitive**, with the boundary written into
+  §13.8 Q1. One method, sync and async, taking messages, tools and a turn
+  cap; nothing else configurable. Handoffs, memory, planners, persistence
+  and retry policy stay out; a feature that needs a config object is a
+  framework and belongs elsewhere.
+- The §13 status banner was stale, still saying stage B was unbuilt when
+  the staging table and the changelog recorded it as shipped. Corrected.
+- TODO.md now carries stage D as work rather than as a blocked decision.
+  The `capabilities()` vocabulary (§13.8 Q3) is the remaining open item
+  for the version after 0.6.0.
+
 ## 2026-09-15 — Coding-agent bridge: pi's contract verified
 
 Two of the six questions in #3 were answerable from source rather than
