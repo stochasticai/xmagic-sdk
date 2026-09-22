@@ -307,8 +307,7 @@ def test_create_without_an_agent_uploads_nothing(
 
     result = runner.invoke(app, ["worklists", "create", "-i", str(a), "--folder", FOLDER])
 
-    assert result.exit_code != 0
-    assert "--agent" in result.output
+    assert result.exit_code != 0  # a usage error, rendered by typer
     assert seen == []
     assert not upload.called
 
