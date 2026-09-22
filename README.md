@@ -270,10 +270,6 @@ writes it as `<folder_id>.zip` by default, `--output` names it, and
 `--extract DIR` unpacks it instead. `rm` with no file ids deletes the folder,
 so it asks first unless `--yes`. Every command takes `--json`.
 
-Listings return the first page only (20 items); the request-side pagination
-parameters are undocumented and tracked on
-[#5](https://github.com/stochasticai/xmagic-sdk/issues/5).
-
 ### 9. Use it from Python
 
 ```python

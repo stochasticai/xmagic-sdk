@@ -5,6 +5,34 @@ the plan and [TODO.md](TODO.md) for what's next.
 
 ---
 
+## 2026-09-15 — Drive listings walk every page
+
+The last 0.6.0 item, and the one the release plan expected to slip: the
+pagination parameters for `GET /knowledge-bases` were undocumented and #5
+Q15 had gone unanswered for six weeks. They were measured instead, against
+a live account with 44 folders.
+
+- **Measured:** `page` (zero-indexed) and `page_size` (1..200, 422 outside;
+  default 20), both echoed in `data.pagination` beside `total_count`. A page
+  past the end is 200 with empty results. `limit`, `offset`, `per_page` and
+  `size` are ignored. `data.knowledge_bases` duplicates `data.results`. The
+  file listing under `?parent_kb_id=` pages the same way. The union of 44
+  single-item pages equals the unpaged set, so paging is stable.
+- **Client:** `list_folders` and `list_files` walk every page at 200, on
+  both clients, through one `_take_page` rule that reads the response's own
+  evidence to stop, so a server that ignored the parameters still terminates.
+  Review tightened the rule before merge: `total_count` decides whenever the
+  server reports one, and a short page ends the walk only when it does not,
+  so a server that silently served fewer than the `page_size` it echoed would
+  still be walked to the end; a `pagination` block with neither number is one
+  page, not a loop.
+  Eager, not an iterator: a Drive listing is something callers iterate over,
+  unlike worklists, where `skip`/`limit` stay explicit by design.
+- **Fake:** `FakeXMagic` honours and echoes `page` and `page_size` and
+  rejects a size outside 1..200, so a consumer's test sees the same walk.
+- Recorded on #5 the same day, so the platform team can say if any of it is
+  unintended rather than the contract.
+
 ## 2026-09-14 — Drive on the command line
 
 First 0.6.0 item ("files in, results out"). The client had spoken every

@@ -64,7 +64,7 @@ def test_ls_folder_lists_its_files(fake: FakeXMagic, tmp_path: Path) -> None:
     listed = _json(runner.invoke(app, ["drive", "ls", folder_id, "--json"]))
 
     assert [(f["id"], f["title"]) for f in listed] == [(file_id, "notes.md")]
-    assert fake.calls[-1].params == {"parent_kb_id": folder_id}
+    assert fake.calls[-1].params["parent_kb_id"] == folder_id  # plus the page parameters
 
 
 def test_ls_recursive_pairs_each_folder_with_its_files(fake: FakeXMagic, tmp_path: Path) -> None:
