@@ -5,6 +5,34 @@ the plan and [TODO.md](TODO.md) for what's next.
 
 ---
 
+## 2026-09-15 — Drive listings walk every page
+
+The last 0.6.0 item, and the one the release plan expected to slip: the
+pagination parameters for `GET /knowledge-bases` were undocumented and #5
+Q15 had gone unanswered for six weeks. They were measured instead, against
+a live account with 44 folders.
+
+- **Measured:** `page` (zero-indexed) and `page_size` (1..200, 422 outside;
+  default 20), both echoed in `data.pagination` beside `total_count`. A page
+  past the end is 200 with empty results. `limit`, `offset`, `per_page` and
+  `size` are ignored. `data.knowledge_bases` duplicates `data.results`. The
+  file listing under `?parent_kb_id=` pages the same way. The union of 44
+  single-item pages equals the unpaged set, so paging is stable.
+- **Client:** `list_folders` and `list_files` walk every page at 200, on
+  both clients, through one `_take_page` rule that reads the response's own
+  evidence to stop, so a server that ignored the parameters still terminates.
+  Review tightened the rule before merge: `total_count` decides whenever the
+  server reports one, and a short page ends the walk only when it does not,
+  so a server that silently served fewer than the `page_size` it echoed would
+  still be walked to the end; a `pagination` block with neither number is one
+  page, not a loop.
+  Eager, not an iterator: a Drive listing is something callers iterate over,
+  unlike worklists, where `skip`/`limit` stay explicit by design.
+- **Fake:** `FakeXMagic` honours and echoes `page` and `page_size` and
+  rejects a size outside 1..200, so a consumer's test sees the same walk.
+- Recorded on #5 the same day, so the platform team can say if any of it is
+  unintended rather than the contract.
+
 ## 2026-09-14 — Worklist inputs from local files
 
 Second 0.6.0 item. Since 2026-08-12 a task's `input_s3_file_paths` had to be
@@ -34,11 +62,37 @@ S3 paths the caller already had, and nothing in the SDK could produce one.
   editor opens, so a missing `--agent` no longer uploads files it then has no
   task to attach to; files upload one at a time and each is reported as it
   lands, so a failure part-way says what is already in the folder; and the
-  `worklist-inputs` folder is found across the whole listing once #69 lands,
-  not on the first page only. The `delete` and `schedules delete` prompts go
+  `worklist-inputs` folder is found across the whole listing, not the first
+  page only, now that #69 walks every page. The `delete` and `schedules delete` prompts go
   to stderr, so an interactive answer leaves `--json` stdout as one document.
-- 11 tests over respx (worklists have no recorded fixtures, so the fake stays
+- 13 tests over respx (worklists have no recorded fixtures, so the fake stays
   out of it), plus the guarded live test.
+
+## 2026-09-14 — Drive on the command line
+
+First 0.6.0 item ("files in, results out"). The client had spoken every
+documented Drive route since 2026-08-06; the CLI exposed two of them.
+
+- **`xmagic drive`** gains `mkdir`, `info` (with counts), `rename`,
+  `download FOLDER FILE...` (the platform's ZIP, `--output` to name it,
+  `--extract DIR` to unpack it and keep no archive), `rm FOLDER FILE...`
+  for files and `rm FOLDER` for the folder and everything in it, behind a
+  confirmation that `--yes` skips. `ls FOLDER` lists a folder's files and
+  `ls -R` pairs every top-level folder with its files, as a table or as
+  `[{"folder", "files"}]` under `--json`.
+- **Recursion is client-side**: one `list_files` per folder that `list_folders`
+  returns, which is the top-level ones; the client does not model subfolders.
+  The live listing response carries a `query_info.recursive` flag, so the
+  platform has a server-side form, but its request parameter is undocumented,
+  so it is not guessed at (same rule as pagination, #5).
+- **Two review fixes before merge**: the `rm` confirmation prompt goes to
+  stderr, so `rm FOLDER --json` answered interactively still leaves one JSON
+  document on stdout; and a `download` whose `--output` or `--extract` path
+  cannot be written fails on stderr with exit 1 instead of a traceback.
+- **Tested against the fake**, not route-by-route mocks: `tests/test_cli_drive.py`
+  binds the CLI's client to `FakeXMagic` with one monkeypatch and asserts on
+  the fake's state and call log. 13 tests, including the confirmation prompt
+  declined and accepted, and both download modes reading the ZIP back.
 
 ## 2026-09-14 — 0.5.0 released to PyPI
 

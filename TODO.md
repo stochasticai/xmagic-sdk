@@ -44,8 +44,9 @@ without opening the web app. The client already speaks every Drive route the
 platform documents; this release puts them on the command line and closes the
 loop from local file to worklist input to output back in Drive.
 
-- [ ] **Drive on the command line** — `xmagic drive download`, `rm`, `rename`,
-      and recursive listing, for the routes implemented on 2026-08-06.
+- [x] **Drive on the command line** — done 2026-09-14. `xmagic drive ls [-R]`,
+      `mkdir`, `info`, `rename`, `download` (`--extract`), `rm`, all with
+      `--json`, over the routes implemented on 2026-08-06.
 - [x] **Worklist inputs from local files** — done 2026-09-14. `--input FILE`
       on `worklists create|edit`, an `input_files` list in the YAML, and
       `worklists.upload_inputs()` in the SDK; files go through a Drive folder,
@@ -53,10 +54,10 @@ loop from local file to worklist input to output back in Drive.
 - [ ] **Worklist outputs to Drive** — the `examples/` walkthrough (completed
       outputs → presigned download → Drive upload) that 0.3.0 documented and
       never shipped.
-- [ ] **Complete listings** — `list_folders` / `list_files` paginate instead
-      of truncating at 20. Needs the request parameter names from
-      [#5]; if they have not arrived, the release ships with the cap
-      documented and this item moves to the next version.
+- [x] **Complete listings** — done 2026-09-15. `list_folders` / `list_files`
+      walk every page at the platform's maximum of 200. The parameter names
+      never arrived from [#5]; they were measured instead (`page`,
+      `page_size`, both echoed back), which is recorded in `client/drive.py`.
 
 Pagination changes what a listing returns, which is the Changed entry that
 makes this a minor bump.
@@ -199,13 +200,15 @@ points with no extra (DESIGN.md §4).
       2026-08-06; the existing paths are correct, and four documented routes we
       lacked are now implemented (folder details, folder update, file deletion,
       ZIP export)
-- [ ] **`list_folders` / `list_files` silently truncate at 20 items.** The live
-      response carries `data.pagination` (`page`, `page_size`, `total_count`)
-      and we return only `data.results`. The request-side parameter names are
-      undocumented, so this needs an answer before it can be fixed correctly —
-      raised on [#5](https://github.com/stochasticai/xmagic-sdk/issues/5)
-- [ ] CLI surface for the new Drive routes (`xmagic drive download`, `rm`,
-      `rename`) and recursive listing
+- [x] **`list_folders` / `list_files` silently truncate at 20 items** — fixed
+      2026-09-15. The parameters were measured rather than answered
+      ([#5](https://github.com/stochasticai/xmagic-sdk/issues/5) Q15): `page`
+      and `page_size` (max 200), both echoed in `data.pagination`. Both
+      listings now walk every page; the fake pages the same way
+- [x] CLI surface for the new Drive routes — done 2026-09-14: `xmagic drive`
+      `mkdir|info|rename|download|rm`, and `ls -R` for every top-level folder's files.
+      Recursion is client-side, one listing per folder; the platform's own
+      `recursive` query flag stays unused until its semantics are documented
 - [x] Richer SKILL.md validation — done 2026-09-11. Frontmatter goes through
       `yaml.safe_load`, so folded descriptions and quoted colons read as
       written; a non-mapping block or a non-string `name`/`description` is
@@ -372,7 +375,8 @@ Larger, and worth their own design pass:
 - [ ] Human-in-the-loop: interrupt a run, approve, resume
 - [ ] Multimodal input (images, audio). `Message.output_assets` already hints at
       artifacts coming back the other way
-- [ ] Pagination — nothing paginates; Drive listings return whole result sets
+- [ ] Pagination — Drive listings return whole result sets (done 2026-09-15);
+      worklists are explicit `skip`/`limit` by design; nothing else paginates
 - [ ] Prompt caching, batch APIs, idempotency keys
 
 Blocked on the platform, tracked in

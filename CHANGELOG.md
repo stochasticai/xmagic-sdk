@@ -12,6 +12,17 @@ codebase.**
 
 ### Added
 
+- **Drive on the command line.** `xmagic drive` now reaches every route the
+  client implements: `ls -R` lists every top-level folder with its files, `ls FOLDER`
+  lists one folder's files, `mkdir` creates a folder, `info` shows one with
+  its counts, `rename` renames it, `download FOLDER FILE...` writes the ZIP
+  the platform exports (`--output` to name it, `--extract DIR` to unpack it
+  and keep no archive), and `rm FOLDER FILE...` deletes files while
+  `rm FOLDER` deletes the folder and everything in it after a confirmation
+  that `--yes` skips. Every command takes `--json`, and the `rm` prompt goes
+  to stderr so stdout stays one JSON document. A `download` that cannot write
+  its output reports the path on stderr and exits 1 rather than raising. First
+  item of the 0.6.0 release plan, "files in, results out".
 - **Worklist inputs from local files.** `xmagic worklists create` and `edit`
   take `--input FILE` (repeatable), and the YAML gains an `input_files` list;
   on save each file is uploaded into a Drive folder (`worklist-inputs`,
@@ -22,6 +33,21 @@ codebase.**
   the platform reveals where an upload landed, and the form a worklist input
   takes (confirmed live; the API accepts the path and echoes it back). Second
   item of the 0.6.0 release plan.
+
+### Changed
+
+- **Drive listings are complete.** `drive.list_folders()` and
+  `drive.list_files()` walk every page of `GET /knowledge-bases` and return the
+  whole listing, where before they returned the first 20 items with no
+  indication more existed. The request parameters were undocumented and are
+  now measured (issue #5, Q15): `page`, zero-indexed, and `page_size`, at most
+  200, both echoed in the response. The client asks for 200 a page. The walk
+  stops on the response's own evidence: `total_count` reached when the server
+  reports one, a short page only when it does not, an empty page, or no
+  `pagination` block at all. So a server that ignored the parameters, or one
+  that served fewer items per page than the `page_size` it echoed, would still
+  return the whole listing and terminate. `xmagic.testing.FakeXMagic` pages the same way, echoing `page` and
+  `page_size` and rejecting a size outside 1..200 with a 422 like the platform.
 
 ## [0.5.0] — 2026-09-14
 

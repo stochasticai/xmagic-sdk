@@ -17,7 +17,13 @@ import pytest
 
 from xmagic import AsyncXMagicClient, XMagicClient
 from xmagic.config import DEFAULT_BASE_URL
-from xmagic.errors import BadRequestError, NotFoundError, RateLimitError, ServerError
+from xmagic.errors import (
+    BadRequestError,
+    NotFoundError,
+    RateLimitError,
+    ServerError,
+    XMagicAPIError,
+)
 from xmagic.providers.base import ChatMessage
 from xmagic.providers.xmagic import XMagicProvider
 from xmagic.testing import FakeXMagic, fixture_path, load_fixture, sse_frames
@@ -297,3 +303,20 @@ def test_fixture_helpers_name_what_exists() -> None:
     assert "_comment" not in body
     body["data"]["text"] = "edited"
     assert load_fixture("query_response.json")["data"]["text"] == "capture-ok"
+
+
+def test_drive_listing_pages_like_the_platform() -> None:
+    fake = FakeXMagic()
+    client = fake.client()
+    ids = [client.drive.create_folder(f"f{i}").id for i in range(201)]
+
+    assert [f.id for f in client.drive.list_folders()] == ids
+
+    walks = [c.params for c in fake.calls if c.method == "GET" and c.path == "/knowledge-bases"]
+    assert walks == [
+        {"page": "0", "page_size": "200"},
+        {"page": "1", "page_size": "200"},
+    ]
+
+    with pytest.raises(XMagicAPIError):
+        fake.client()._transport.request("GET", "/knowledge-bases", params={"page_size": 201})
