@@ -255,7 +255,7 @@ implements is on the command line:
 ```bash
 xmagic drive ls                              # folders
 xmagic drive ls <folder_id>                  # files in one folder
-xmagic drive ls -R                           # every folder and its files
+xmagic drive ls -R                           # every top-level folder and its files
 xmagic drive mkdir "Q3 reports"
 xmagic drive info <folder_id>                # one folder, with counts
 xmagic drive rename <folder_id> "Q3 reports (final)"

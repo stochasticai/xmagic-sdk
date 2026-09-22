@@ -2,7 +2,7 @@
 
 Every route the client implements (``client/drive.py``) is reachable here::
 
-    xmagic drive ls [FOLDER_ID] [-R]        folders, a folder's files, or every folder's files
+    xmagic drive ls [FOLDER_ID] [-R]        folders, a folder's files, or every top-level folder's files
     xmagic drive mkdir NAME                 create a folder
     xmagic drive info FOLDER_ID             one folder, with its counts
     xmagic drive rename FOLDER_ID NAME      rename a folder
@@ -11,7 +11,10 @@ Every route the client implements (``client/drive.py``) is reachable here::
     xmagic drive rm FOLDER_ID [FILE...]     delete files, or the whole folder
 
 ``rm`` with no file ids deletes the folder and everything in it, so it asks
-first unless ``--yes``. Every command takes ``--json`` (``cli/_output.py``).
+first unless ``--yes``; the prompt goes to stderr so ``--json`` stdout stays
+one document. ``ls -R`` pairs each folder ``list_folders`` returns, the
+top-level ones, with its files; the client does not model subfolders. Every
+command takes ``--json`` (``cli/_output.py``).
 """
 
 from __future__ import annotations
@@ -65,14 +68,14 @@ def _files_table(files: list[DriveFile]) -> Table:
 def list_(
     folder_id: str | None = typer.Argument(None, help="List this folder's files."),
     recursive: bool = typer.Option(
-        False, "--recursive", "-R", help="Every folder and the files in it."
+        False, "--recursive", "-R", help="Every top-level folder and the files in it."
     ),
     as_json: bool = _JSON,
 ) -> None:
     """List Drive folders, or the files in one folder.
 
     With no argument, the folders. With FOLDER_ID, its files. With -R, every
-    folder followed by its files; under --json that is a list of
+    top-level folder followed by its files; under --json that is a list of
     {"folder": ..., "files": [...]} objects.
     """
     client = _client()
@@ -212,17 +215,19 @@ def download(
     zip_path: Path | None = output if output is not None else None
     if zip_path is None and extract is None:
         zip_path = Path(f"{folder_id}.zip")
-    if zip_path is not None:
-        zip_path.write_bytes(data)
     extracted: list[str] = []
-    if extract is not None:
-        extract.mkdir(parents=True, exist_ok=True)
-        try:
+    try:
+        if zip_path is not None:
+            zip_path.write_bytes(data)
+        if extract is not None:
+            extract.mkdir(parents=True, exist_ok=True)
             with zipfile.ZipFile(io.BytesIO(data)) as archive:
                 archive.extractall(extract)
                 extracted = [str(extract / name) for name in archive.namelist()]
-        except zipfile.BadZipFile:
-            fail("The server did not return a ZIP archive; nothing was extracted.")
+    except zipfile.BadZipFile:
+        fail("The server did not return a ZIP archive; nothing was extracted.")
+    except OSError as e:
+        fail(f"Could not write {e.filename or 'the output'}: {e.strerror or e}")
     if as_json:
         print_json(
             {
@@ -258,7 +263,7 @@ def rm(
     if (
         not ids
         and not yes
-        and not typer.confirm(f"Delete folder {folder_id} and everything in it?")
+        and not typer.confirm(f"Delete folder {folder_id} and everything in it?", err=True)
     ):
         note("Nothing deleted.")
         raise typer.Exit(1)

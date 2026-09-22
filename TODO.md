@@ -205,7 +205,7 @@ points with no extra (DESIGN.md §4).
       undocumented, so this needs an answer before it can be fixed correctly —
       raised on [#5](https://github.com/stochasticai/xmagic-sdk/issues/5)
 - [x] CLI surface for the new Drive routes — done 2026-09-14: `xmagic drive`
-      `mkdir|info|rename|download|rm`, and `ls -R` for every folder's files.
+      `mkdir|info|rename|download|rm`, and `ls -R` for every top-level folder's files.
       Recursion is client-side, one listing per folder; the platform's own
       `recursive` query flag stays unused until its semantics are documented
 - [x] Richer SKILL.md validation — done 2026-09-11. Frontmatter goes through

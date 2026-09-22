@@ -180,3 +180,32 @@ def test_errors_go_to_stderr_with_exit_1(fake: FakeXMagic) -> None:
     assert result.exit_code == 1
     assert result.stdout == ""
     assert "not found" in result.output.lower()
+
+
+def test_rm_folder_prompt_keeps_json_stdout_clean(fake: FakeXMagic, tmp_path: Path) -> None:
+    folder_id, _ = _seed(fake, tmp_path)
+
+    result = runner.invoke(app, ["drive", "rm", folder_id, "--json"], input="y\n")
+
+    assert result.exit_code == 0, result.output
+    # CliRunner echoes the typed "y" into stdout, which a terminal would not;
+    # the prompt itself must not be there.
+    assert "Delete folder" not in result.stdout
+    document = result.stdout[result.stdout.index("{") :]
+    assert json.loads(document) == {"folder_id": folder_id, "deleted_folder": True}
+    assert folder_id not in fake.folders
+
+
+def test_download_reports_an_unwritable_output(fake: FakeXMagic, tmp_path: Path) -> None:
+    folder_id, file_id = _seed(fake, tmp_path)
+    target = tmp_path / "missing" / "out.zip"
+
+    result = runner.invoke(
+        app, ["drive", "download", folder_id, file_id, "--output", str(target), "--json"]
+    )
+
+    assert result.exit_code == 1
+    assert result.stdout == ""
+    # Rich wraps a long path across lines; compare without the line breaks.
+    assert str(target) in result.output.replace("\n", "")
+    assert not target.exists()

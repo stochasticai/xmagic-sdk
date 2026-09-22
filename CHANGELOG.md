@@ -13,14 +13,16 @@ codebase.**
 ### Added
 
 - **Drive on the command line.** `xmagic drive` now reaches every route the
-  client implements: `ls -R` lists every folder with its files, `ls FOLDER`
+  client implements: `ls -R` lists every top-level folder with its files, `ls FOLDER`
   lists one folder's files, `mkdir` creates a folder, `info` shows one with
   its counts, `rename` renames it, `download FOLDER FILE...` writes the ZIP
   the platform exports (`--output` to name it, `--extract DIR` to unpack it
   and keep no archive), and `rm FOLDER FILE...` deletes files while
   `rm FOLDER` deletes the folder and everything in it after a confirmation
-  that `--yes` skips. Every command takes `--json`. First item of the 0.6.0
-  release plan, "files in, results out".
+  that `--yes` skips. Every command takes `--json`, and the `rm` prompt goes
+  to stderr so stdout stays one JSON document. A `download` that cannot write
+  its output reports the path on stderr and exits 1 rather than raising. First
+  item of the 0.6.0 release plan, "files in, results out".
 
 ## [0.5.0] — 2026-09-14
 

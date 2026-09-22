@@ -15,15 +15,20 @@ documented Drive route since 2026-08-06; the CLI exposed two of them.
   `--extract DIR` to unpack it and keep no archive), `rm FOLDER FILE...`
   for files and `rm FOLDER` for the folder and everything in it, behind a
   confirmation that `--yes` skips. `ls FOLDER` lists a folder's files and
-  `ls -R` pairs every folder with its files, as a table or as
+  `ls -R` pairs every top-level folder with its files, as a table or as
   `[{"folder", "files"}]` under `--json`.
-- **Recursion is client-side**: one `list_files` per folder. The live listing
-  response carries a `query_info.recursive` flag, so the platform has a
-  server-side form, but its request parameter is undocumented, so it is not
-  guessed at (same rule as pagination, #5).
+- **Recursion is client-side**: one `list_files` per folder that `list_folders`
+  returns, which is the top-level ones; the client does not model subfolders.
+  The live listing response carries a `query_info.recursive` flag, so the
+  platform has a server-side form, but its request parameter is undocumented,
+  so it is not guessed at (same rule as pagination, #5).
+- **Two review fixes before merge**: the `rm` confirmation prompt goes to
+  stderr, so `rm FOLDER --json` answered interactively still leaves one JSON
+  document on stdout; and a `download` whose `--output` or `--extract` path
+  cannot be written fails on stderr with exit 1 instead of a traceback.
 - **Tested against the fake**, not route-by-route mocks: `tests/test_cli_drive.py`
   binds the CLI's client to `FakeXMagic` with one monkeypatch and asserts on
-  the fake's state and call log. 11 tests, including the confirmation prompt
+  the fake's state and call log. 13 tests, including the confirmation prompt
   declined and accepted, and both download modes reading the ZIP back.
 
 ## 2026-09-14 — 0.5.0 released to PyPI
