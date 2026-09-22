@@ -197,11 +197,11 @@ xmagic agents deploy [--agent ID] [--version NAME] [--phone ID | --no-phone]
 xmagic agents list                    # as API coverage allows
 xmagic worklists                       # list one page of background tasks
 xmagic worklists get TASK_ID            # task metadata plus latest result
-xmagic worklists create|edit TASK_ID   # edit task YAML (create has a template)
+xmagic worklists create|edit TASK_ID   # edit task YAML; --input FILE uploads inputs
 xmagic worklists cancel|delete TASK_ID # stop or delete a task
 xmagic worklists review [TASK_ID]      # review tasks marked needs_review
 xmagic worklists schedules ...         # inspect/edit/pause/resume/delete schedules
-xmagic drive ls|upload|download ...
+xmagic drive ls [FOLDER] [-R]|mkdir|info|rename|upload|download|rm
 xmagic skills new NAME                # scaffold SKILL.md + layout
 xmagic skills validate PATH           # frontmatter/zip lint
 xmagic skills pack PATH               # build upload-ready zip
@@ -667,12 +667,16 @@ compose/pyproject/README/.env (~60).
 
 ## 12. Document redactor (proposed)
 
-> **Status: proposed, not accepted.** Nothing here is implemented. Review thread:
-> [#4](https://github.com/stochasticai/xmagic-sdk/issues/4).
+> **Status: reviewed, direction accepted, nothing implemented.** Reviewed on
+> 2026-09-04 in [#4](https://github.com/stochasticai/xmagic-sdk/issues/4); the
+> decisions that review asked for are recorded in §12.11 (2026-09-15). R0–R1 can
+> start in the engine repo. R2, the xMagic tool, waits on the transport question
+> (§12.5), which only the platform can answer.
 
 A reference MCP tool: redact PII from documents using models that run on your own
-infrastructure, exposed to xMagic chat as a custom tool. Proposed as the **first**
-`mcp init --template` (see §11.8 sequencing).
+infrastructure, exposed to xMagic chat as a custom tool. The **first**
+`mcp init --template` (see §11.8 sequencing), with a minimal template at R2 and
+the hardened one at R6.
 
 ### 12.1 Why this one, and why local models
 
@@ -695,6 +699,11 @@ content, and the result cannot be unit-tested or audited. Span-based output make
 transformation deterministic, diffable, and reviewable. Every design choice below assumes
 this.
 
+The LLM layer is not asked to compute offsets. It names the entity text it found;
+deterministic code aligns that string back onto the canonical extracted text and emits
+the span. Models are unreliable at counting characters, and an off-by-one on a redaction
+boundary is a leak.
+
 ### 12.3 Layered detection
 
 An LLM alone is the wrong engine: a miss is a leak, so recall must be near-perfect and
@@ -711,7 +720,10 @@ L1+L2 are essentially [Microsoft Presidio](https://github.com/microsoft/presidio
 worse result — adopt it and spend our effort on L3, the merge logic, and evaluation.
 
 The LLM's job is escalation and the long tail. It must not be load-bearing for structured
-identifiers, which L1 already catches deterministically.
+identifiers, which L1 already catches deterministically. It is also not in the default
+path until it has earned it: R0 measures recall with and without L3, and it ships enabled
+only where it moves the number on named entities and free text. If it does not, the
+default configuration is L1+L2 and L3 stays an option.
 
 ### 12.4 Architecture
 
@@ -736,7 +748,7 @@ identifiers, which L1 already catches deterministically.
 │               └── L3  local LLM ────────────┐        │
 │   4. merge spans, resolve overlaps          │        │
 │   5. apply operator by offset               │        │
-│      (mask | replace | hash | pseudonym)    │        │
+│      (mask | replace | hash)                │        │
 │                                             │        │
 └──────────┬──────────────────────────────────┼────────┘
            │                                  │  OpenAI-compatible
@@ -746,6 +758,15 @@ identifiers, which L1 already catches deterministically.
                                      │  open weights    │
    unredacted bytes never egress     └──────────────────┘
 ```
+
+The L3 endpoint is configuration, not architecture: anything OpenAI-compatible (vLLM,
+Ollama, a customer-hosted model) at a URL the operator sets. The server itself is
+deployment-agnostic — Kubernetes, a VM, CPU-only or GPU-backed are operator concerns, and
+the template must not assume any of them. xMagic-hosted containers are a separate platform
+capability, on the roadmap and not offered today
+([#5](https://github.com/stochasticai/xmagic-sdk/issues/5) Q2,
+[#53](https://github.com/stochasticai/xmagic-sdk/issues/53)); the design does not depend
+on them.
 
 ### 12.5 Document transport — the self-defeat trap
 
@@ -758,11 +779,31 @@ So how bytes reach the tool is load-bearing, not an implementation detail:
 | Option | Verdict |
 |---|---|
 | (a) Inline text in the tool call | **Self-defeating.** Demo only. |
-| (b) Tool fetches by xMagic file id | Preferred. `POST /uploaded-files` returns an id (§2, `client/files.py`). Requires the tool to hold an xMagic key and a documented fetch endpoint — **unverified**, see 12.9 Q1. |
-| (c) Presigned URL passed to the tool | Good if available. |
-| (d) Direct upload to the tool's own endpoint | Fallback that always works; costs a separate upload step. |
+| (b) Tool fetches by xMagic file id | Workable only with a fetch endpoint the platform does not document — **unverified**, see 12.11 — and it makes the tool hold a tenant-wide xMagic key to read one file. |
+| (c) Short-lived, file-scoped URL or token passed to the tool | **Preferred.** The tool can read exactly one document for a bounded time and holds no standing credential. Also unverified; the same question. |
+| (d) Direct upload to the tool's own endpoint | Fallback that always works; costs a separate upload step and a second place documents live. |
 
-Design for (b)/(c); build (d) as the guaranteed path.
+Design for (c), accept (b) if that is what the platform offers, build (d) as the
+guaranteed path.
+
+One path is ruled out even though it exists today: attaching the file to the chat through
+`uploaded_files` on the query endpoint. That path exists so the agent can read the file,
+which is exactly what must not happen before redaction. The document has to reach
+xMagic's store without entering the agent's context, and only its reference may reach the
+tool call.
+
+**The output has to travel too.** `redact_document` returns an `output_ref`, and the
+redacted document has to get back to where the user can use it:
+
+| Option | Verdict |
+|---|---|
+| (e) Tool uploads the result to Drive and returns the file id | Uses a documented route the SDK already speaks (`client/drive.py`); the redacted bytes are safe to hand to the platform. Costs the tool a Drive-capable key. |
+| (f) Tool serves the result from its own storage by signed URL | No platform credential in the tool; the result lives in a second place and needs its own lifecycle. |
+
+(e) is the default because it is verified today and (f) is not; the credential concern
+in (b) applies with less force because the payload is already redacted. Input and output
+should be decided together, since a scoped credential that covers both is the clean
+answer to each. This is part of the R2 contract, not R0/R1.
 
 ### 12.6 Tool surface
 
@@ -799,20 +840,25 @@ rather than the engine.
   secondary: over-redaction destroys utility but does not disclose.
 - Eval corpus: synthetic (Faker) plus a public de-identification corpus.
 - **CI gate:** recall must not regress below a per-type threshold.
+- **The R1 figures in 12.9 are development milestones, not the production bar.** The
+  shipping threshold is set per type from measured results before R2 registers anything,
+  and for names it must sit materially above 0.90: a miss is a leak, and 0.90 means one
+  name in ten leaks.
 - **Definition of done: HIPAA Safe Harbor's 18 identifiers.** Without a named standard,
-  "done" is unfalsifiable.
+  "done" is unfalsifiable. GDPR and other regimes arrive later as additional policy
+  configurations, not by changing v1's entity list.
 
 ### 12.9 Roadmap
 
 | Phase | Scope | Exit criteria |
 |---|---|---|
-| **R0 — Spike** | Presidio + local LLM on plain text, CLI only, no MCP | Spans from a text file; measured recall on ~50 synthetic docs |
-| **R1 — Engine** | Policy config, operators, span merge, pseudonym vault | HIPAA 18 covered; recall ≥ 0.98 structured, ≥ 0.90 names |
-| **R2 — MCP tool** | Wrap in the §6 scaffold, structured errors, auth | Registered in the xMagic dashboard, end-to-end on text |
+| **R0 — Spike** | Presidio on plain text, CLI only, no MCP; local LLM as an optional layer | Spans from a text file; recall on ~50 synthetic docs measured with and without L3 |
+| **R1 — Engine** | Policy config, one-way operators, span merge | HIPAA 18 covered; recall ≥ 0.98 structured, ≥ 0.90 names (milestones, see 12.8) |
+| **R2 — MCP tool** | Wrap in the §6 scaffold, structured errors, auth, input and output transport (12.5), minimal `--template redactor` | Registered in the xMagic dashboard, end-to-end on text, from `mcp init --template redactor` |
 | **R3 — PDF** | Text-layer PDFs, true redaction | Extracted text of the output contains zero known entities |
 | **R4 — Async** | Job-shaped tools, large documents, concurrency | 200-page PDF without timeout |
 | **R5 — OCR + DOCX** | Scanned documents, Office formats | Bounding-box redaction verified on scans |
-| **R6 — Productize** | Eval in CI, audit log, template extraction | `xmagic mcp init --template redactor` |
+| **R6 — Productize** | Eval in CI, audit log, hardened template | The template ships what R3–R5 proved |
 
 **R0–R2 is the milestone that matters** — a working xMagic tool. R3+ is where document
 formats consume the schedule.
@@ -821,33 +867,60 @@ formats consume the schedule.
 
 | Piece | Home |
 |---|---|
-| `redactor` template set | **this repo**, `mcp/templates/redactor/` (R6) |
-| `--template` flag on `mcp init` | **this repo**, `mcp/scaffold.py` (R6) |
+| `redactor` template set | **this repo**, `mcp/templates/redactor/` (minimal at R2, hardened at R6) |
+| `--template` flag on `mcp init` | **this repo**, `mcp/scaffold.py` (R2) |
 | Redaction engine + eval corpus | **separate repo** — it is a product, not SDK surface |
 | Deployed service | **separate repo**, generated from the template |
 
-Note the ordering: the engine is built and proven standalone (R0–R5), and only the
-*shape* of it becomes a template at R6. Extracting a template from a working service is
-tractable; designing one up front is not.
+Note the ordering: the engine is built and proven standalone (R0–R1) before anything is
+scaffolded, and the template appears in two steps. R2 ships the minimal shape — the tool
+surface, fetch-by-reference, structured errors, a configurable L3 endpoint — because that
+is what §11.8 needs proven before the coding-agent bridge, and it is small enough to
+extract from a working R2 service. R6 hardens it with what R3–R5 taught. Designing the
+full template up front is still the thing to avoid.
 
 ### 12.11 Open questions for review
 
-1. **Can a custom tool fetch an xMagic uploaded file by id?** (12.5) This decides the tool
-   signature and whether the design is coherent at all. Blocking — needs an answer from
-   the platform team, not a decision from us.
-2. **Does xMagic host custom-tool containers**, or is BYO deployment the only story?
-   "Hosted on xMagic" has two readings: *registered as a custom tool* (documented, we
-   deploy) versus *xMagic runs the container* (undocumented). Related to §10.1.
-3. **Reversible or one-way?** A pseudonym vault mapping fake→real is a materially
-   different security artifact from one-way masking, with its own storage and access
-   requirements. Decide before R1.
-4. **Which standard for v1** — HIPAA Safe Harbor is proposed; GDPR pseudonymization has
-   different requirements and would change the entity list.
-5. **Does L3 (local LLM) actually earn its place?** R0 should measure recall with and
-   without it. If it does not move the number, the tool is simpler and faster without it,
-   and "local models" becomes an L2-only story.
-6. **Is a redaction product in scope for this repo at all,** even as a template? Same
-   question as §11.9 Q1, and the answers should probably agree.
+Reviewed in [#4](https://github.com/stochasticai/xmagic-sdk/issues/4) on 2026-09-04. The
+direction was accepted; the decisions below were recorded on 2026-09-15.
+
+**Decided:**
+
+- **Q3, reversible or one-way — one-way for v1.** A pseudonym vault is a second sensitive
+  datastore with its own storage, access control and lifecycle, and nothing yet requires
+  reversibility. Operators are mask, replace and hash; pseudonymisation returns only with
+  a concrete requirement. R1 no longer includes a vault.
+- **Q4, which standard — HIPAA Safe Harbor's 18 identifiers.** A named standard makes
+  "done" falsifiable. GDPR and other regimes arrive later as additional policy
+  configurations, not by changing v1's entity list (12.8).
+- **Q5, does L3 earn its place — measured at R0, not assumed.** L3 is in the default path
+  only if it moves recall on names and free text; otherwise the default is L1+L2 and L3
+  is an option (12.3). Either way L3 names entities and code computes offsets (12.2).
+- **Q6, in scope for this repo — yes, as a template; the engine is not.** The SDK owns
+  the `--template` machinery and the reference scaffold (12.10). The engine, eval corpus,
+  document handling and model integration live in a separate repo. §11.9 Q1 should get
+  the same answer.
+- **Q2, does xMagic host tool containers — not today.** Confirmed on 2026-09-12: hosting
+  is on the platform roadmap and not offered
+  ([#5](https://github.com/stochasticai/xmagic-sdk/issues/5) Q2,
+  [#53](https://github.com/stochasticai/xmagic-sdk/issues/53)). The design is
+  deployment-agnostic (12.4) and gains nothing from waiting.
+- **Sequencing** — the template is extracted in a minimal form at R2 rather than R6, so
+  §11.8's "prove the machinery on the redactor first" describes the plan and not just
+  the intent (12.9, 12.10).
+- **The R1 recall figures are milestones**, not the production bar (12.8).
+
+**Still open:**
+
+1. **Can a custom tool fetch an xMagic uploaded file by reference, and with what
+   credential?** (12.5) Still the one blocker: it decides the tool signature and whether
+   the design is coherent. The reviewer's preference, and now the design's, is a
+   short-lived, file-scoped mechanism over a standing tenant key. Tracked for the
+   platform team as [#5](https://github.com/stochasticai/xmagic-sdk/issues/5) Q1. R0–R1
+   do not wait on it; R2 does.
+2. **How does the redacted output get back to the user?** (12.5) Drive upload is the
+   verified default; whether the platform offers a scoped mechanism that covers both
+   directions is the same question as 1. Decide before R2.
 
 ---
 

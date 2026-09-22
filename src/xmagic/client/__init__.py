@@ -59,7 +59,7 @@ class XMagicClient:
         self.workspaces = WorkspacesAPI(self._transport)
         self.agents = AgentsAPI(self._transport)
         self.phones = PhonesAPI(self._transport)
-        self.worklists = WorklistsAPI(self._transport, self.chats)
+        self.worklists = WorklistsAPI(self._transport, self.chats, self.drive)
 
     def close(self) -> None:
         self._transport.close()
@@ -103,7 +103,7 @@ class AsyncXMagicClient:
         self.workspaces = AsyncWorkspacesAPI(self._transport)
         self.agents = AsyncAgentsAPI(self._transport)
         self.phones = AsyncPhonesAPI(self._transport)
-        self.worklists = AsyncWorklistsAPI(self._transport, self.chats)
+        self.worklists = AsyncWorklistsAPI(self._transport, self.chats, self.drive)
 
     async def aclose(self) -> None:
         await self._transport.aclose()
