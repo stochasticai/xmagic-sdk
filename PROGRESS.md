@@ -5,6 +5,26 @@ the plan and [TODO.md](TODO.md) for what's next.
 
 ---
 
+## 2026-09-15 — Coding-agent bridge: pi's contract verified
+
+Two of the six questions in #3 were answerable from source rather than
+from a reviewer, so they were answered. Checked against pi 0.85.1
+(`earendil-works/pi` at `8a7b0c0`); nothing in the SDK changed.
+
+- **The driver sketch in DESIGN.md §11.6 was wrong three times over:** the
+  flag is `--mode rpc`, not `--rpc`; the prompt field is `message`, not
+  `text`; and there is no `done` event, the finished signal is
+  `agent_settled`. All three would have failed silently or hung. The
+  sketch now shows the verified invocation, and §11.6 lists what a real
+  driver must also handle: cancel, shutdown, tool events, usage, model
+  selection, and the two ways pi can block waiting for input.
+- **Skills are the same format.** pi and xMagic both use the Agent Skills
+  `SKILL.md` convention. An xMagic skill zip runs in pi once unzipped into
+  a directory; nothing is rewritten. Recorded in §11.9.
+- **§11.5** now says where the status tool's `turns` and `tokens` come
+  from. §11.9 keeps four questions open, with the scope question tied to
+  the redactor's answer.
+
 ## 2026-09-15 — Redactor design: review answered, decisions recorded
 
 Vamshi reviewed DESIGN.md §12 in #4 on 2026-09-04 and approved the direction
