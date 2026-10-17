@@ -220,6 +220,25 @@ def response_format_to_wire(model_type: type[BaseModel]) -> dict[str, Any]:
     }
 
 
+def parse_structured_turn(
+    text: str,
+    response_format: type[BaseModel] | None,
+    refusal: Any,
+    tool_calls: list[ToolCall],
+) -> BaseModel | None:
+    """`parse_structured`, except a tool-calling turn owes no schema yet.
+
+    A turn that returns tool calls is the model asking for results, not
+    answering: its text is empty or incidental, so validating it against the
+    requested schema failed every `response_format=` call whose model reached
+    for a tool first. The schema is owed by the turn that answers in text, and
+    that turn still raises on a reply that does not validate.
+    """
+    if response_format is None or tool_calls:
+        return None
+    return parse_structured(text, response_format, refusal)
+
+
 def parse_structured(text: str, model_type: type[BaseModel], refusal: Any = None) -> BaseModel:
     """Validate the reply into the requested model, or say exactly why not.
 

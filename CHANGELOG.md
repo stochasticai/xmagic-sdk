@@ -10,6 +10,15 @@ codebase.**
 
 ## [Unreleased]
 
+### Fixed
+
+- **`response_format=` works alongside `tools=`.** A completion that returned
+  tool calls was still validated against the requested schema, so the
+  combination raised on every call whose model reached for a tool before
+  answering. A tool-calling turn now carries `parsed=None`; the turn that
+  answers in text validates or raises exactly as before. Both adapters, both
+  the blocking and streaming paths.
+
 ### Added
 
 - **Drive on the command line.** `xmagic drive` now reaches every route the

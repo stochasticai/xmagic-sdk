@@ -14,7 +14,7 @@ which is its problem and not this mapping's.
 from __future__ import annotations
 
 import json
-from typing import Any
+from typing import Any, ClassVar
 
 import httpx
 import pytest
@@ -260,6 +260,92 @@ class TestLiteLLMAdapter:
 
         with pytest.raises(XMagicError, match="did not validate as Weather"):
             provider.complete(MESSAGES, model="openai/gpt-5", response_format=Weather)
+
+
+class TestToolTurnsOweNoSchema:
+    """A turn that returns tool calls is not the answer, so it is not validated.
+
+    Before this rule, `response_format=` plus `tools=` always raised: the model
+    reaches for a tool first, that turn's content is null, and `parse_structured`
+    reported empty text as a validation failure. The schema is owed by the turn
+    that answers in text, which still raises if the reply does not validate.
+    """
+
+    _CALL: ClassVar[dict[str, Any]] = {
+        "id": "call_1",
+        "type": "function",
+        "function": {"name": "get_weather", "arguments": '{"city": "Osaka"}'},
+    }
+
+    def _tool_completion(self) -> dict[str, Any]:
+        reply = _completion(None)
+        reply["choices"][0]["message"]["tool_calls"] = [self._CALL]
+        reply["choices"][0]["finish_reason"] = "tool_calls"
+        return reply
+
+    @respx.mock
+    def test_openai_complete_returns_the_calls_with_parsed_none(
+        self, provider: OpenAIProvider
+    ) -> None:
+        respx.post(CHAT_URL).mock(return_value=httpx.Response(200, json=self._tool_completion()))
+
+        result = provider.complete(MESSAGES, model="gpt-5", response_format=Weather)
+
+        assert [c.name for c in result.tool_calls] == ["get_weather"]
+        assert result.parsed is None
+
+    @respx.mock
+    def test_openai_stream_closes_the_calls_with_parsed_none(
+        self, provider: OpenAIProvider
+    ) -> None:
+        respx.post(CHAT_URL).mock(
+            return_value=_stream(
+                _chunk({"tool_calls": [{"index": 0, **self._CALL}]}),
+                _chunk({}, finish_reason="tool_calls"),
+            )
+        )
+
+        chunks = list(provider.stream(MESSAGES, model="gpt-5", response_format=Weather))
+
+        assert chunks[-1].done
+        assert [c.name for c in chunks[-1].tool_calls] == ["get_weather"]
+        assert chunks[-1].parsed is None
+
+    @respx.mock
+    def test_litellm_complete_does_the_same(self) -> None:
+        pytest.importorskip("litellm")
+        from xmagic.providers.litellm import LiteLLMProvider
+
+        respx.post(CHAT_URL).mock(return_value=httpx.Response(200, json=self._tool_completion()))
+
+        result = LiteLLMProvider(api_key="sk-test").complete(
+            MESSAGES, model="openai/gpt-5", response_format=Weather
+        )
+
+        assert [c.name for c in result.tool_calls] == ["get_weather"]
+        assert result.parsed is None
+
+    @respx.mock
+    def test_litellm_stream_does_the_same(self) -> None:
+        pytest.importorskip("litellm")
+        from xmagic.providers.litellm import LiteLLMProvider
+
+        respx.post(CHAT_URL).mock(
+            return_value=_stream(
+                _chunk({"tool_calls": [{"index": 0, **self._CALL}]}),
+                _chunk({}, finish_reason="tool_calls"),
+            )
+        )
+
+        chunks = list(
+            LiteLLMProvider(api_key="sk-test").stream(
+                MESSAGES, model="openai/gpt-5", response_format=Weather
+            )
+        )
+
+        assert chunks[-1].done
+        assert [c.name for c in chunks[-1].tool_calls] == ["get_weather"]
+        assert chunks[-1].parsed is None
 
 
 class TestXMagicAdapterRejects:
