@@ -12,6 +12,7 @@ from xmagic.providers.base import (
     ToolDef,
 )
 from xmagic.providers.registry import get_provider
+from xmagic.providers.tool_loop import ToolRun
 
 __all__ = [
     "ChatMessage",
@@ -23,5 +24,6 @@ __all__ = [
     "TextPart",
     "ToolCall",
     "ToolDef",
+    "ToolRun",
     "get_provider",
 ]

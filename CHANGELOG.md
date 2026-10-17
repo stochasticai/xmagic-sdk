@@ -21,6 +21,22 @@ codebase.**
 
 ### Added
 
+- **The tool-calling execution loop** (DESIGN.md §13, stage D — the last one).
+  `provider.run_tools(messages, model=, tools=, max_turns=10)` calls the
+  model, dispatches each returned call to the callable its `ToolDef` was
+  built from, feeds the results back, and repeats until the model answers in
+  text; `await provider.arun_tools(...)` is the same loop for an event loop,
+  awaiting `async def` tools. Errors — a raising tool, an unknown name,
+  arguments that fail validation — go back to the model as the tool result
+  unless `raise_errors=True`. Hitting the cap raises `ToolTurnsExceeded`
+  (exported from `xmagic`) carrying the final completion and a resendable
+  history. The result is a `ToolRun` (exported from `xmagic.providers`):
+  the final `Completion`, the full message history, and token usage summed
+  across every turn. Arguments are validated through the tool's own argument
+  model, so a nested pydantic parameter arrives as an instance. Inherited by
+  every adapter; works where `complete(tools=)` works (`openai:`, `litellm:`).
+  `ToolDef` gained `fn` and `arguments_model` fields, set by `from_callable`
+  and excluded from equality and repr.
 - **Drive on the command line.** `xmagic drive` now reaches every route the
   client implements: `ls -R` lists every top-level folder with its files, `ls FOLDER`
   lists one folder's files, `mkdir` creates a folder, `info` shows one with
