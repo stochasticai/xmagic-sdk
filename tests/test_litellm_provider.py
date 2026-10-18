@@ -318,8 +318,17 @@ class TestReachedThroughTheRest:
     def test_the_registry_resolves_the_ref_and_the_model_it_names(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
     ) -> None:
+        import litellm
+
         monkeypatch.setenv("XMAGIC_CONFIG_PATH", str(tmp_path / "none.toml"))
         respx.post(CHAT_URL).mock(return_value=httpx.Response(200, json=_completion("hi")))
+        # Pinned so the read below cannot drift with LiteLLM's dataset -- see
+        # TestCapabilities for why entries are pinned rather than read live.
+        monkeypatch.setitem(
+            litellm.model_cost,
+            "openai/gpt-5",
+            {"litellm_provider": "openai", "mode": "chat", "supports_vision": True},
+        )
 
         provider = get_provider("litellm:openai/gpt-5", api_key="sk-test")
 
@@ -351,11 +360,34 @@ class TestReachedThroughTheRest:
 
 
 class TestCapabilities:
-    """Read off LiteLLM's model metadata instead of a hand-maintained table."""
+    """Read off LiteLLM's model metadata instead of a hand-maintained table.
 
-    def test_flags_come_from_the_model_being_addressed(self) -> None:
+    The registry entries are pinned per test rather than read live: LiteLLM
+    prunes models from `model_cost` between releases (1.105 dropped the groq
+    model a previous version of these tests named), and what is under test is
+    our mapping of its flags, not which models its dataset lists this week.
+    The model names stay under real provider prefixes because the `supports_*`
+    helpers reject a prefix they cannot route.
+    """
+
+    def test_flags_come_from_the_model_being_addressed(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        import litellm
+
+        monkeypatch.setitem(
+            litellm.model_cost,
+            "openai/xmagic-test-full",
+            {
+                "litellm_provider": "openai",
+                "mode": "chat",
+                "supports_function_calling": True,
+                "supports_vision": True,
+                "supports_response_schema": True,
+            },
+        )
         provider = LiteLLMProvider()
-        provider.default_model = "openai/gpt-5"  # type: ignore[attr-defined]
+        provider.default_model = "openai/xmagic-test-full"  # type: ignore[attr-defined]
 
         assert provider.capabilities() == {
             "streaming": True,
@@ -364,9 +396,23 @@ class TestCapabilities:
             "structured_output": True,
         }
 
-    def test_a_text_only_model_does_not_advertise_vision(self) -> None:
+    def test_a_text_only_model_does_not_advertise_vision(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        import litellm
+
+        monkeypatch.setitem(
+            litellm.model_cost,
+            "groq/xmagic-test-text-only",
+            {
+                "litellm_provider": "groq",
+                "mode": "chat",
+                "supports_function_calling": True,
+                "supports_vision": False,
+            },
+        )
         provider = LiteLLMProvider()
-        provider.default_model = "groq/llama-3.3-70b-versatile"  # type: ignore[attr-defined]
+        provider.default_model = "groq/xmagic-test-text-only"  # type: ignore[attr-defined]
 
         caps = provider.capabilities()
 
