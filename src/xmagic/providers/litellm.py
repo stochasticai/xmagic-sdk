@@ -38,7 +38,7 @@ from xmagic.errors import (
 from xmagic.providers._openai_wire import (
     ToolCallAccumulator,
     messages_to_wire,
-    parse_structured,
+    parse_structured_turn,
     response_format_to_wire,
     tool_calls_from_wire,
     tools_to_wire,
@@ -175,6 +175,9 @@ class LiteLLMProvider(Provider):
             return Completion(text="", model=f"litellm:{model}", raw=resp.model_dump(), usage=usage)
         message = resp.choices[0].message
         text = message.content or ""
+        # The same reader as the OpenAI adapter, because LiteLLM hands us
+        # the OpenAI shape whichever vendor answered.
+        tool_calls = tool_calls_from_wire(message)
         return Completion(
             text=text,
             model=f"litellm:{model}",
@@ -183,13 +186,9 @@ class LiteLLMProvider(Provider):
             raw=resp.model_dump(),
             usage=usage,
             id=getattr(resp, "id", None) or None,
-            # The same reader as the OpenAI adapter, because LiteLLM hands us
-            # the OpenAI shape whichever vendor answered.
-            tool_calls=tool_calls_from_wire(message),
-            parsed=(
-                parse_structured(text, response_format, getattr(message, "refusal", None))
-                if response_format is not None
-                else None
+            tool_calls=tool_calls,
+            parsed=parse_structured_turn(
+                text, response_format, getattr(message, "refusal", None), tool_calls
             ),
         )
 
@@ -261,15 +260,14 @@ class LiteLLMProvider(Provider):
         # closing the stream early would drop the token counts every time. Tool
         # calls ride the same chunk, which is also the last point at which the
         # accumulated argument fragments are known to be complete.
+        tool_calls = calls.finish()
         yield CompletionChunk(
             text="",
             done=True,
             usage=usage,
-            tool_calls=calls.finish(),
-            parsed=(
-                parse_structured("".join(text), response_format, "".join(refusal))
-                if response_format is not None
-                else None
+            tool_calls=tool_calls,
+            parsed=parse_structured_turn(
+                "".join(text), response_format, "".join(refusal), tool_calls
             ),
             id=response_id,
         )

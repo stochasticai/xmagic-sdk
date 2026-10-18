@@ -10,6 +10,15 @@ codebase.**
 
 ## [Unreleased]
 
+### Fixed
+
+- **`response_format=` works alongside `tools=`.** A completion that returned
+  tool calls was still validated against the requested schema, so the
+  combination raised on every call whose model reached for a tool before
+  answering. A tool-calling turn now carries `parsed=None`; the turn that
+  answers in text validates or raises exactly as before. Both adapters, both
+  the blocking and streaming paths.
+
 ## [0.6.0] — 2026-10-18
 
 Four feature PRs since 0.5.0 (#63, #64, #65, #69), and they close one loop:

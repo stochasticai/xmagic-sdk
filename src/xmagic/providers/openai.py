@@ -22,7 +22,7 @@ from xmagic.errors import ConfigurationError, XMagicError, error_for_status
 from xmagic.providers._openai_wire import (
     ToolCallAccumulator,
     messages_to_wire,
-    parse_structured,
+    parse_structured_turn,
     response_format_to_wire,
     tool_calls_from_wire,
     tools_to_wire,
@@ -107,13 +107,16 @@ class OpenAIProvider(Provider):
             return Completion(text="", model=f"openai:{model}", raw=resp.model_dump())
         message = resp.choices[0].message
         text = message.content or ""
+        tool_calls = tool_calls_from_wire(message)
         return Completion(
             text=text,
             model=f"openai:{model}",
             raw=resp.model_dump(),
             id=getattr(resp, "id", None) or None,
-            tool_calls=tool_calls_from_wire(message),
-            parsed=_parsed(text, response_format, getattr(message, "refusal", None)),
+            tool_calls=tool_calls,
+            parsed=parse_structured_turn(
+                text, response_format, getattr(message, "refusal", None), tool_calls
+            ),
         )
 
     def stream(
@@ -189,11 +192,14 @@ class OpenAIProvider(Provider):
                 # branching on it would only duplicate what the accumulator
                 # already knows: no fragments means no calls.
                 finished = True
+                tool_calls = calls.finish()
                 yield CompletionChunk(
                     text="",
                     done=True,
-                    tool_calls=calls.finish(),
-                    parsed=_parsed("".join(text), response_format, "".join(refusal)),
+                    tool_calls=tool_calls,
+                    parsed=parse_structured_turn(
+                        "".join(text), response_format, "".join(refusal), tool_calls
+                    ),
                     id=response_id,
                 )
         if not finished and (calls.pending or response_format is not None):
@@ -203,19 +209,16 @@ class OpenAIProvider(Provider):
             # surface must not have; closing the way LiteLLM does means a
             # truncated call or truncated JSON raises out of the parser. A
             # plain text stream that ends the same way is left as it was.
+            tool_calls = calls.finish()
             yield CompletionChunk(
                 text="",
                 done=True,
-                tool_calls=calls.finish(),
-                parsed=_parsed("".join(text), response_format, "".join(refusal)),
+                tool_calls=tool_calls,
+                parsed=parse_structured_turn(
+                    "".join(text), response_format, "".join(refusal), tool_calls
+                ),
                 id=response_id,
             )
 
     def capabilities(self) -> dict[str, bool]:
         return {"streaming": True, "tools": True, "vision": True, "structured_output": True}
-
-
-def _parsed(text: str, response_format: type[BaseModel] | None, refusal: Any) -> BaseModel | None:
-    if response_format is None:
-        return None
-    return parse_structured(text, response_format, refusal)
