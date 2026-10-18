@@ -6,7 +6,7 @@ type: software
 authors:
   - name: "Stochastic"
 version: "0.6.0"
-date-released: "2026-09-22"
+date-released: "2026-10-18"
 license: Apache-2.0
 repository-code: "https://github.com/stochasticai/xmagic-sdk"
 url: "https://xmagic.ai"

@@ -10,7 +10,7 @@ codebase.**
 
 ## [Unreleased]
 
-## [0.6.0] — 2026-09-22
+## [0.6.0] — 2026-10-18
 
 Four feature PRs since 0.5.0 (#63, #64, #65, #69), and they close one loop:
 everything a worklist consumes or produces is now reachable from the SDK and
