@@ -457,7 +457,8 @@ Errors arrive as this SDK's own types, so you catch `XMagicError` regardless of
 which vendor failed — a 429 from OpenAI raises the same `RateLimitError` a 429
 from xMagic would.
 
-Tools are a typed surface, not a `**params` passthrough:
+Tools are a typed surface, not a `**params` passthrough — and the SDK runs
+the loop for you:
 
 ```python
 from xmagic.providers import ChatMessage, ToolDef, get_provider
@@ -472,6 +473,26 @@ provider = get_provider("openai:gpt-5")
 messages = [ChatMessage(role="user", content="What's the weather in Osaka?")]
 tool = ToolDef.from_callable(get_weather)  # schema from the signature
 
+run = provider.run_tools(messages, model="gpt-5", tools=[tool])
+print(run.completion.text)  # "Sunny and 24C in Osaka."
+```
+
+`run_tools` calls the model, runs each tool it asks for, feeds the results
+back, and repeats until the model answers in text or `max_turns` (default 10)
+model calls have been made — at which point it raises `ToolTurnsExceeded`
+carrying a resendable history rather than returning what would look like an
+answer. A raising tool, an unknown name, or arguments that fail validation go
+back to the model as the tool result so it can correct itself; pass
+`raise_errors=True` to get the exception instead. `run.messages` is the full
+history, ready for the next user turn, and `run.usage` sums token counts
+across every turn. From async code, `await provider.arun_tools(...)` — it
+awaits `async def` tools and keeps the event loop free during model calls.
+
+That is the whole surface: tools and a cap, no planners, memory, or retry
+policy — the loop is a primitive, not a framework (DESIGN.md §13.8). If you
+need different mechanics, the pieces are public and the loop is thirty lines:
+
+```python
 completion = provider.complete(messages, model="gpt-5", tools=[tool])
 for call in completion.tool_calls:
     result = get_weather(**call.arguments)  # arguments arrive parsed, not as JSON text

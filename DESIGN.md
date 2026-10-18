@@ -926,10 +926,11 @@ direction was accepted; the decisions below were recorded on 2026-09-15.
 
 ## 13. Tool calling as a typed surface
 
-> **Status: stages A, B and C implemented** (A and C 2026-08-24, B after).
-> D1-D5 were accepted as written. D, the execution loop, was decided in scope on
-> 2026-09-15 (open question 1 below, with the boundary that keeps it a
-> primitive) and is not yet built.
+> **Status: all four stages implemented** (A and C 2026-08-24, B after,
+> D 2026-10-17). D1-D5 were accepted as written. D, the execution loop, was
+> decided in scope on 2026-09-15 (open question 1 below, with the boundary
+> that keeps it a primitive) and shipped as `Provider.run_tools` /
+> `arun_tools` within that boundary.
 > Review thread: [#16](https://github.com/stochasticai/xmagic-sdk/issues/16).
 
 The provider layer could not express the one capability that makes an agent an
@@ -1029,10 +1030,11 @@ for call in completion.tool_calls:
 | **A — types + blocking** | `ToolDef`/`ToolCall`, `ChatMessage` and `Completion` changes, OpenAI mapping both ways | ✅ 2026-08-24, in `providers/_openai_wire.py` and both adapters |
 | **B — streaming** | Accumulate `arguments` fragments by `index`, emit a complete `ToolCall` | ✅ `ToolCallAccumulator` in `_openai_wire.py`; calls ride the terminal chunk |
 | **C — schemas from callables** | Typed Python function → JSON Schema, via pydantic | ✅ 2026-08-24, `ToolDef.from_callable` |
-| **D — execution loop** | call → execute → feed back → repeat | ⬜ decided in scope 2026-09-15 (13.8 Q1); not built |
+| **D — execution loop** | call → execute → feed back → repeat | ✅ 2026-10-17, `Provider.run_tools` / `arun_tools` in `providers/tool_loop.py` |
 
 **A and C are the milestone that matters.** B followed, since a streaming caller
-passing `tools=` had no path at all; D still waits on the scope question below.
+passing `tools=` had no path at all; D landed last, inside the boundary 13.8 Q1
+drew for it.
 
 Stage B settled one thing the design left open: **where a completed call surfaces.**
 Arguments arrive as JSON slices that are invalid until the last one lands, so there is
@@ -1052,6 +1054,39 @@ Two things the implementation settled that the design did not:
   bare `NameError` naming a type and nothing else when a tool refers to a class
   defined inside a function under `from __future__ import annotations`. That is
   common enough to explain rather than propagate.
+
+Stage D settled five more, all within the Q1 boundary:
+
+- **The cap raises.** `max_turns` counts model calls; when the last allowed
+  call still returns tool calls, those calls are *not* executed (their results
+  could never reach the model, and a side-effecting run whose output goes
+  nowhere is worse than none) and `ToolTurnsExceeded` is raised rather than a
+  completion returned — a run that stopped mid-loop must not look like an
+  answer, the same rule `parse_structured` applies. The error carries the
+  final completion and a resendable history, so a caller for whom a cap hit is
+  routine continues with a fresh cap rather than reconstructing state.
+- **Arguments are validated through the tool's own argument model.**
+  `ToolDef.from_callable` now keeps both the callable (`fn`) and the pydantic
+  model it derived the schema from, excluded from equality and repr. The loop
+  validates `call.arguments` through that model, which is what coerces `"3"`
+  to `3` and hands a nested model parameter over as an instance rather than a
+  dict. A `ValidationError` goes back to the model in pydantic's words.
+- **Async rides a worker thread.** There is no async provider API; rather
+  than add one to every adapter, `arun_tools` runs the blocking `complete` in
+  `asyncio.to_thread` and awaits `async def` tools natively. When a real
+  `acomplete` lands, the loop's internals change and its shape does not.
+  `arun_tools` is also the package's first `a`-prefixed name — the client's
+  convention is a separate `Async` class, but a second provider surface for
+  one method was not worth it, and the prefix is what vendor SDK users expect.
+- **Summed usage rides the result.** The intermediate turns' token counts
+  exist nowhere else once the loop returns, so `ToolRun.usage` carries the sum
+  across every turn that reported counts. Result data, not a knob.
+- **`capabilities()` does not gate the loop.** LiteLLM reports `tools: False`
+  for any model its metadata does not list, so the only honest gate is
+  `complete(tools=...)` itself; `xmagic:` fails the first turn with its usual
+  per-call-tools error. `response_format=` is accepted and lands on the turn
+  that answers in text — the adapters no longer validate a tool-calling turn
+  against it (that combination used to raise unconditionally).
 
 ### 13.7 What lands where
 

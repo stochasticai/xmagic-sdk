@@ -21,6 +21,8 @@ from typing import TYPE_CHECKING, Any, Literal, TypeAlias, get_type_hints
 if TYPE_CHECKING:
     from pydantic import BaseModel
 
+    from xmagic.providers.tool_loop import ToolRun
+
 Role = Literal["system", "user", "assistant", "tool"]
 
 
@@ -74,6 +76,22 @@ class ToolDef:
     description: str = ""
     parameters: dict[str, Any] = field(default_factory=lambda: {"type": "object", "properties": {}})
     strict: bool = False
+    fn: Callable[..., Any] | None = field(default=None, repr=False, compare=False)
+    """The callable this definition was derived from, kept for `run_tools`.
+
+    `from_callable` sets it; a hand-built `ToolDef` may leave it `None` and
+    still be sent to `complete`, but the execution loop has nothing to call
+    and refuses it. Excluded from comparison and repr: two definitions that
+    describe the same tool are the same definition, wherever the code lives.
+    """
+    arguments_model: type[BaseModel] | None = field(default=None, repr=False, compare=False)
+    """The pydantic model `parameters` was generated from, when one exists.
+
+    `run_tools` validates a call's arguments through it, which is what turns
+    a nested-object argument into the model instance the function's signature
+    actually names rather than a plain dict. Internal plumbing, same
+    comparison rules as `fn`.
+    """
 
     @classmethod
     def from_callable(
@@ -127,9 +145,8 @@ class ToolDef:
             default = ... if param.default is inspect.Parameter.empty else param.default
             fields[param_name] = (hints[param_name], default)
 
-        schema: dict[str, Any] = create_model(
-            f"{fn.__name__}_arguments", **fields
-        ).model_json_schema()
+        arguments_model = create_model(f"{fn.__name__}_arguments", **fields)
+        schema: dict[str, Any] = arguments_model.model_json_schema()
         # pydantic names the model; the name belongs to the tool, not the schema.
         schema.pop("title", None)
         strict = claim_strict(schema)
@@ -139,6 +156,8 @@ class ToolDef:
             description=description or (inspect.getdoc(fn) or ""),
             parameters=schema,
             strict=strict,
+            fn=fn,
+            arguments_model=arguments_model,
         )
 
 
@@ -282,7 +301,10 @@ class Provider(ABC):
     """Minimal chat-completion interface every adapter implements.
 
     Normalization (message shapes, streaming quirks, tool calls) belongs in
-    the adapter — callers only ever see these three methods.
+    the adapter — an adapter implements `complete`, `stream`, and
+    `capabilities`, nothing more. `run_tools` / `arun_tools` are inherited,
+    built entirely on `complete`, so every adapter (including third-party
+    entry-point ones) gets the execution loop without writing it.
     """
 
     name: str
@@ -334,6 +356,82 @@ class Provider(ABC):
         that cancels the call and releases its connection now rather than at
         garbage collection, and a context manager that does so on exit.
         """
+
+    def run_tools(
+        self,
+        messages: list[ChatMessage],
+        *,
+        model: str,
+        tools: list[ToolDef],
+        max_turns: int = 10,
+        raise_errors: bool = False,
+        response_format: type[BaseModel] | None = None,
+        **params: Any,
+    ) -> ToolRun:
+        """Run the tool-calling loop until the model answers in text.
+
+        Calls `complete` with `tools=`, dispatches each returned call to the
+        callable its `ToolDef` was built from (`ToolDef.from_callable`), sends
+        the results back, and repeats until a turn answers in text or
+        `max_turns` model calls have been made — at which point it raises
+        :class:`~xmagic.errors.ToolTurnsExceeded` rather than returning what
+        would look like an answer (DESIGN.md §13.8).
+
+        A raising tool, an unknown tool name, and arguments that fail
+        validation are reported back to the model as the tool result, so it
+        can correct itself; with ``raise_errors=True`` they raise instead (a
+        tool's own exception propagates unwrapped). Arguments are validated
+        through the tool's argument model, so a nested pydantic parameter
+        arrives as an instance, not a dict.
+
+        Nothing else is configurable here by design: handoffs, memory,
+        planners and retry policy stay out (DESIGN.md §13.8 Q1). ``params``
+        pass through to `complete`; ``response_format`` applies to the turn
+        that answers in text.
+        """
+        from xmagic.providers.tool_loop import run_tools
+
+        return run_tools(
+            self,
+            messages,
+            model=model,
+            tools=tools,
+            max_turns=max_turns,
+            raise_errors=raise_errors,
+            response_format=response_format,
+            **params,
+        )
+
+    async def arun_tools(
+        self,
+        messages: list[ChatMessage],
+        *,
+        model: str,
+        tools: list[ToolDef],
+        max_turns: int = 10,
+        raise_errors: bool = False,
+        response_format: type[BaseModel] | None = None,
+        **params: Any,
+    ) -> ToolRun:
+        """`run_tools` for an event loop: `async def` tools are awaited.
+
+        The model call itself runs in a worker thread (`asyncio.to_thread`)
+        over the same blocking `complete` — there is no async provider API
+        yet, and when one lands this method's internals change, not its
+        shape. Sync tools run inline; keep them quick or wrap them yourself.
+        """
+        from xmagic.providers.tool_loop import arun_tools
+
+        return await arun_tools(
+            self,
+            messages,
+            model=model,
+            tools=tools,
+            max_turns=max_turns,
+            raise_errors=raise_errors,
+            response_format=response_format,
+            **params,
+        )
 
     def capabilities(self) -> dict[str, bool]:
         """Feature flags callers may branch on (streaming, tools, vision...).

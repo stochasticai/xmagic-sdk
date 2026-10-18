@@ -286,14 +286,14 @@ Ready now, roughly in order of value per unit of work:
       `Completion.tool_calls`, `ToolDef.from_callable`, and one OpenAI-shape
       mapping shared by the `openai:` and `litellm:` adapters. D1-D5 accepted as
       designed. Still open:
-- [ ] **Tool calling, stage D — execution loop.** Decided in scope on
-      2026-09-15 (DESIGN.md §13.8 Q1). One method, sync and async, taking
-      messages, tools and a turn cap; dispatch by name to the callables the
-      `ToolDef`s were built from; a raising tool sends its error back as the
-      tool result unless the caller opts into raising; returns the final
-      `Completion` and the full history. Nothing else configurable: handoffs,
-      memory, planners and retry policy stay out. `openai:` and `litellm:`
-      only, per D4
+- [x] **Tool calling, stage D — execution loop** — done 2026-10-17.
+      `Provider.run_tools` / `arun_tools` in `providers/tool_loop.py`, inside
+      the §13.8 Q1 boundary: messages, tools and a turn cap, nothing else
+      configurable. Dispatch by name to the callables the `ToolDef`s were
+      built from; errors go back as tool results unless the caller opts into
+      raising; the cap raises `ToolTurnsExceeded` carrying a resendable
+      history; `ToolRun` returns the final `Completion`, the full history and
+      summed usage. What the implementation settled is in DESIGN.md §13.6
 - [ ] **`capabilities()` is a `dict[str, bool]` with no defined vocabulary.**
       D4 made the `tools` flag honest, but there is now no word for "has tools
       registered platform-side", which is what xMagic actually offers. §13.8 Q3

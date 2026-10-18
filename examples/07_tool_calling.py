@@ -3,8 +3,12 @@
 A tool is written once. `ToolDef.from_callable` turns the signature into JSON
 Schema and the docstring into the description, the model answers with `ToolCall`s
 whose `arguments` are already a parsed dict, and a `role="tool"` message carries
-the result back. The loop that ties those together is a few lines and it is
-yours to write -- this SDK deliberately ships no agent runtime (DESIGN.md §1).
+the result back. `provider.run_tools()` ties those together: it runs what the
+model asks for and feeds the results back until the model answers in text or a
+turn cap is hit. That loop is the SDK's only agent machinery -- tools and a cap,
+no planners or memory (DESIGN.md §13.8) -- so this example also writes the same
+loop by hand on `complete()`, which is what `run_tools` does inside and the
+starting point when you need different mechanics.
 
 Run:
     export OPENAI_API_KEY="sk-..."
@@ -52,8 +56,27 @@ TOOLS: dict[str, Callable[..., str]] = {
 TOOL_DEFS = [ToolDef.from_callable(fn) for fn in TOOLS.values()]
 
 
+def run_with_the_sdk_loop(provider: Any, model: str) -> None:
+    """The same conversation, one call: `run_tools` drives the loop."""
+    run = provider.run_tools(
+        [
+            ChatMessage(role="system", content="Use the tools. Answer in one sentence."),
+            ChatMessage(role="user", content="What's the weather in Osaka, in Fahrenheit?"),
+        ],
+        model=model,
+        tools=TOOL_DEFS,
+        max_turns=4,  # raises ToolTurnsExceeded past this, instead of looping forever
+    )
+    for message in run.messages:
+        for call in message.tool_calls:
+            print(f"  {call.name}({call.arguments})")
+    print(f"answer: {run.completion.text}")
+    if run.usage is not None:
+        print(f"  ({run.turns} turns, {run.usage.total_tokens} tokens in total)")
+
+
 def run_blocking(provider: Any, model: str) -> None:
-    """The round trip on `complete()`: ask, run what was called, ask again."""
+    """The same loop written out on `complete()`: ask, run, feed back, ask again."""
     messages = [
         ChatMessage(role="system", content="Use the tools. Answer in one sentence."),
         ChatMessage(role="user", content="What's the weather in Osaka, in Fahrenheit?"),
@@ -124,7 +147,9 @@ def main() -> int:
         print(f"{ref} does not advertise tool support; trying anyway\n", file=sys.stderr)
 
     try:
-        print("-- blocking --")
+        print("-- run_tools --")
+        run_with_the_sdk_loop(provider, model)
+        print("\n-- the same loop by hand --")
         run_blocking(provider, model)
         print("\n-- streaming --")
         run_streaming(provider, model)

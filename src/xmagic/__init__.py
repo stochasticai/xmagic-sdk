@@ -27,6 +27,7 @@ from xmagic.errors import (
     PermissionDeniedError,
     RateLimitError,
     ServerError,
+    ToolTurnsExceeded,
     XMagicAPIError,
     XMagicError,
 )
@@ -53,6 +54,7 @@ __all__ = [
     "ServerError",
     "Settings",
     "Stream",
+    "ToolTurnsExceeded",
     "XMagicAPIError",
     "XMagicClient",
     "XMagicError",

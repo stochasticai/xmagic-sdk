@@ -13,7 +13,12 @@ can catch :class:`XMagicError` alone and not depend on our transport.
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import httpx
+
+if TYPE_CHECKING:
+    from xmagic.providers.base import ChatMessage, Completion, Usage
 
 # Checked in order. None of these is documented; the lookup is best-effort, and
 # ``request_id`` is None when the response carries no header we recognize.
@@ -129,6 +134,32 @@ class RateLimitError(XMagicAPIError):
 
 class ServerError(XMagicAPIError):
     """5xx — a fault on the backend, raised once retries are exhausted."""
+
+
+class ToolTurnsExceeded(XMagicError):
+    """`run_tools` hit its turn cap with the model still calling tools.
+
+    Raised rather than returned, because a run that stopped mid-loop would
+    otherwise look like an answer. Everything needed to carry on is attached:
+    ``completion`` is the final model turn, whose ``tool_calls`` were *not*
+    executed (their results could never reach the model), and ``messages`` is
+    the last resendable history, ending at the last tool result — pass it to
+    another `run_tools` call with a fresh cap to continue where this stopped.
+    """
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        completion: Completion,
+        messages: list[ChatMessage],
+        usage: Usage | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.completion = completion
+        self.messages = messages
+        self.usage = usage
+        """Token counts summed over every turn the run made, where reported."""
 
 
 _STATUS_MAP: dict[int, type[XMagicAPIError]] = {
