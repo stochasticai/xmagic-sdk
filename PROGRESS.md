@@ -5,6 +5,40 @@ the plan and [TODO.md](TODO.md) for what's next.
 
 ---
 
+## 2026-10-18 — 0.6.0 shipped, and the execution loop landed for 0.7.0
+
+The release prepared on 2026-09-22 (#70) finally went out, and the last
+stage of tool calling went in behind it. Merge order mattered: the release
+first, so the new work's changelog entries land in the next version's
+Unreleased section rather than inside a section already dated.
+
+- **v0.6.0 is on PyPI** ([release](https://github.com/stochasticai/xmagic-sdk/releases/tag/v0.6.0)),
+  dated to the tag day per RELEASING.md §5. What held it was nothing in the
+  release itself: the litellm capability tests read `litellm.model_cost`
+  live, litellm 1.105 pruned the groq model one of them named, and
+  `release.yml` would have failed at tag time on a fresh resolve. #71 pins
+  the registry entries the tests read, so they test our mapping of the
+  flags rather than which models litellm lists this week.
+- **Stage D, the execution loop** (#73, closing #16). `Provider.run_tools`
+  / `arun_tools`, inside the §13.8 Q1 boundary exactly: messages, tools
+  and a turn cap, nothing else configurable. The cap raises
+  `ToolTurnsExceeded` carrying a resendable history, with the final turn's
+  calls not executed; arguments validate through the tool's own argument
+  model, so a nested pydantic parameter arrives as an instance; summed
+  usage rides `ToolRun` because the intermediate turns' counts exist
+  nowhere else. What the implementation settled is recorded in DESIGN.md
+  §13.6. Suite: 505 tests, from 464.
+- **`response_format=` works alongside `tools=`** (#74, which the loop
+  needed). Both adapters ran `parse_structured` on every turn, including
+  one whose reply is tool calls with `content: null`, so the combination
+  always raised. One shared rule (`parse_structured_turn`) now skips
+  validation when the turn carries tool calls; the answering turn still
+  validates or raises.
+- A process note for stacked PRs: GitHub **closed** #72 rather than
+  retargeting it when its base branch was deleted at merge. #74 is the
+  same change reopened against main. Merge a stacked base without
+  `--delete-branch` until the dependents are retargeted.
+
 ## 2026-09-15 — Execution loop decided in scope
 
 The one question left in #16 was whether stage D of tool calling, the
