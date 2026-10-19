@@ -39,6 +39,12 @@ entries in CHANGELOG.md.
 
 ### 0.6.0 — Files in, results out: Drive and Worklists complete
 
+**Shipped 2026-10-18** as [v0.6.0](https://github.com/stochasticai/xmagic-sdk/releases/tag/v0.6.0).
+Prepared 2026-09-22 (#70) and held almost a month by nothing in the release:
+litellm 1.105 pruned a model the capability tests read live, which would have
+failed `release.yml`'s suite at tag time. #71 pinned the registry entries the
+tests read, and the release went out the next day.
+
 Everything a worklist consumes or produces is reachable from the SDK and CLI
 without opening the web app. The client already speaks every Drive route the
 platform documents; this release puts them on the command line and closes the
@@ -64,13 +70,15 @@ makes this a minor bump.
 
 ### After 0.6.0 — Tools, end to end
 
-The next capability, not yet a version: the tool-calling execution loop
-(stage D, decided in scope on 2026-09-15, DESIGN.md §13.8 Q1), a
-`capabilities()` vocabulary that can say "tools registered platform-side",
-remote invocation of a registered tool, and `mcp deploy|list|logs|stop|delete`
-once hosting is offered. Named here so the remaining decision and the [#5]
-answers have somewhere to land; it gets a number when enough of it is
-unblocked to be one release.
+The next capability, not yet a version. Its first piece landed: the
+tool-calling execution loop (stage D) shipped on 2026-10-18 as
+`Provider.run_tools` / `arun_tools` (#73, closing #16), with the
+`response_format`-alongside-`tools` fix (#74) it needed — both sit in the
+Unreleased section. Still to come before this is one release: a
+`capabilities()` vocabulary that can say "tools registered platform-side"
+(§13.8 Q3), remote invocation of a registered tool, and
+`mcp deploy|list|logs|stop|delete` once hosting is offered — the latter two
+still waiting on the [#5] answers.
 
 ### Kept out of the plan
 
